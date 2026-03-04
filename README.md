@@ -36,7 +36,7 @@ This project is MIT licensed (see `LICENSE` in the repository root).
 ### Expected File Layout
 
 ```text
-VNC-Station-001/
+VNC-Station/
   app/
   vnc-view/
   vnc-control/
@@ -69,7 +69,7 @@ Informational reference in the same folder:
 
 ```powershell
 git clone <your-repo-url>
-cd VNC-Station-001
+cd VNC-Station
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
@@ -176,7 +176,7 @@ Startup note:
 - Windows theme support (Auto/Light/Dark): keep UI consistent with operator environment.
 - Session cleanup on app exit: avoid orphaned VNC processes.
 - Config validation tool: catch missing/malformed files before operation.
-- Config import/export bundles: replicate JSON settings between stations quickly.
+- Config import/export bundles: replicate JSON settings and VNC-files between stations quickly.
 - Non-blocking toast notifications: reduce modal interruptions during operation.
 - Structured rotating logs in `logs/app.log`: easier troubleshooting and post-incident review.
 
@@ -186,7 +186,7 @@ Startup note:
 - `Export config` writes a zip bundle with `default.json` and all per-connection `.json` and `.vnc` files.
 - `Import config` restores `.json` and `.vnc` files from a bundle and refreshes the list.
 - `Sizes` opens the visual layout tool:
-  - movable frameless `VNC Preview` window (cross-screen)
+  - movable frameless `VNC Preview` window (cross-screen(s))
   - movable/resizable frameless `Label Preview` window (always-on-top)
   - `Load` target selector (`connection [view/control]`) with default fallback if JSON is missing
   - top `Save` saves to current selected target
@@ -232,3 +232,10 @@ Cleanup generated build artifacts:
 - Session lock logic prevents opening a connection already active on another station, unless `Take over session` is enabled.
 - The app stores UI preferences (theme, window sizes, reconnect toggle) via Windows `QSettings`.
 - At startup, the app performs a short session-sync handshake (`session_sync_request`) before enabling open actions.
+
+## TODO
+
+- Validate full production multi-monitor behavior on real hardware:
+  - 3-4x 4K screens
+  - 1-2x Full HD screens
+  - mixed-DPI setup checks for VNC window placement and label overlay alignment

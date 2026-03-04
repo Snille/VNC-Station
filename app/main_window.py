@@ -71,11 +71,9 @@ class ConnectionRow:
         outer.addLayout(name_row)
 
         self.view_btn = QPushButton("View")
-        self.view_btn.setStyleSheet("background:#2f9e44; color:white; font-weight:700;")
         self.view_btn.clicked.connect(lambda: callbacks["open"](entry.name, MODE_VIEW))
 
         self.control_btn = QPushButton("Control")
-        self.control_btn.setStyleSheet("background:#c92a2a; color:white; font-weight:700;")
         self.control_btn.clicked.connect(lambda: callbacks["open"](entry.name, MODE_CONTROL))
         action_row = QHBoxLayout()
         action_row.addWidget(self.view_btn)
@@ -93,14 +91,10 @@ class ConnectionRow:
         outer.addLayout(close_row)
 
         self.edit_view_btn = QPushButton("Edit View")
-        self.edit_view_btn.setStyleSheet("background:#1971c2; color:white; font-weight:700;")
         self.edit_view_btn.clicked.connect(lambda: callbacks["edit"](entry.name, MODE_VIEW))
-        self.edit_view_btn.setEnabled(entry.view_vnc_path is not None)
 
         self.edit_control_btn = QPushButton("Edit Control")
-        self.edit_control_btn.setStyleSheet("background:#1971c2; color:white; font-weight:700;")
         self.edit_control_btn.clicked.connect(lambda: callbacks["edit"](entry.name, MODE_CONTROL))
-        self.edit_control_btn.setEnabled(entry.control_vnc_path is not None)
         edit_row = QHBoxLayout()
         edit_row.addWidget(self.edit_view_btn)
         edit_row.addWidget(self.edit_control_btn)
@@ -110,8 +104,39 @@ class ConnectionRow:
         self.owner_label.setStyleSheet("font-size:11px; color:#666;")
         outer.addWidget(self.owner_label)
 
-        self.view_btn.setEnabled(entry.view_vnc_path is not None)
-        self.control_btn.setEnabled(entry.control_vnc_path is not None)
+        view_available = entry.view_vnc_path is not None
+        control_available = entry.control_vnc_path is not None
+
+        self._apply_mode_button_style(self.view_btn, view_available, "#2f9e44")
+        self._apply_mode_button_style(self.control_btn, control_available, "#c92a2a")
+        self._apply_secondary_mode_button_style(self.close_view_btn, view_available, "#8f7500", "white")
+        self._apply_secondary_mode_button_style(self.close_control_btn, control_available, "#8f7500", "white")
+        self._apply_mode_button_style(self.edit_view_btn, view_available, "#1971c2")
+        self._apply_mode_button_style(self.edit_control_btn, control_available, "#1971c2")
+
+    @staticmethod
+    def _apply_mode_button_style(button: QPushButton, available: bool, active_bg: str) -> None:
+        """Set clear visual state for available/unavailable mode buttons."""
+        button.setEnabled(available)
+        if available:
+            button.setStyleSheet(f"background:{active_bg}; color:white; font-weight:700;")
+            button.setToolTip("")
+            return
+        button.setStyleSheet("background:#adb5bd; color:#495057; font-weight:700;")
+        button.setToolTip("No .vnc file available for this mode")
+
+    @staticmethod
+    def _apply_secondary_mode_button_style(
+        button: QPushButton, available: bool, active_bg: str, active_fg: str
+    ) -> None:
+        """Set visual state for secondary mode buttons (close/edit style variants)."""
+        button.setEnabled(available)
+        if available:
+            button.setStyleSheet(f"background:{active_bg}; color:{active_fg}; font-weight:700;")
+            button.setToolTip("")
+            return
+        button.setStyleSheet("background:#adb5bd; color:#495057; font-weight:700;")
+        button.setToolTip("No .vnc file available for this mode")
 
 
 class MainWindow(QMainWindow):
@@ -234,8 +259,10 @@ class MainWindow(QMainWindow):
         root.addLayout(actions_row2)
         close_tagged = QPushButton("Close all tagged")
         close_tagged.clicked.connect(self._close_tagged_sessions)
+        close_tagged.setStyleSheet("background:#8f7500; color:white; font-weight:700;")
         close_all = QPushButton("Close all sessions")
         close_all.clicked.connect(self._close_all_sessions)
+        close_all.setStyleSheet("background:#8f7500; color:white; font-weight:700;")
         actions_row2.addWidget(close_tagged)
         actions_row2.addWidget(close_all)
 

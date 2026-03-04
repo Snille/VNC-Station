@@ -5,14 +5,14 @@ import sys
 
 from PyQt5.QtWidgets import QApplication
 
-from .constants import APP_VERSION
 try:
+    from .constants import APP_VERSION
     from .logging_setup import configure_logging
     from .main_window import MainWindow
 except ImportError:  # Frozen/script fallback
+    from app.constants import APP_VERSION
     from app.logging_setup import configure_logging
     from app.main_window import MainWindow
-    from app.constants import APP_VERSION
 
 
 def main() -> int:
