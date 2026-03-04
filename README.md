@@ -4,18 +4,18 @@ Windows desktop app (PyQt5) for managing multiple TightVNC sessions in `view` an
 
 ## Screenshots
 
-
-
 <table>
   <tr>
     <td align="center"><strong>Main</strong></td>
     <td align="center"><strong>Settings</strong></td>
     <td align="center"><strong>Chat</strong></td>
+    <td align="center"><strong>Sizes Tool</strong></td>
   </tr>
   <tr>
-    <td><img src="Example%20files/Screenshots/main.png" alt="Main Window" width="260"></td>
-    <td><img src="Example%20files/Screenshots/settings.png" alt="Settings Window" width="260"></td>
-    <td><img src="Example%20files/Screenshots/chat.png" alt="Chat Window" width="260"></td>
+    <td><a href="Example%20files/Screenshots/main.png"><img src="Example%20files/Screenshots/main.png" alt="Main Window" width="220"></a></td>
+    <td><a href="Example%20files/Screenshots/settings.png"><img src="Example%20files/Screenshots/settings.png" alt="Settings Window" width="220"></a></td>
+    <td><a href="Example%20files/Screenshots/chat.png"><img src="Example%20files/Screenshots/chat.png" alt="Chat Window" width="220"></a></td>
+    <td><a href="Example%20files/Screenshots/sizes.png"><img src="Example%20files/Screenshots/sizes.png" alt="Sizes Tool Window" width="220"></a></td>
   </tr>
 </table>
 
