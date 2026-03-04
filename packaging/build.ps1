@@ -1,0 +1,63 @@
+param(
+    [string]$Python = ""
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+
+if (-not $Python) {
+    $Python = Join-Path $RepoRoot ".venv\Scripts\python.exe"
+}
+
+if (-not (Test-Path $Python)) {
+    throw "Python executable not found at $Python. Activate/create .venv first, or pass -Python <path-to-python.exe>."
+}
+
+& $Python -m pip install --upgrade pyinstaller
+if ($LASTEXITCODE -ne 0) { throw "Failed to install/upgrade pyinstaller." }
+& $Python -m pip install --upgrade pillow
+if ($LASTEXITCODE -ne 0) { throw "Failed to install/upgrade pillow." }
+
+& $Python -m PyInstaller `
+    --noconfirm `
+    --clean `
+    --windowed `
+    --name VNC-Station-Controller `
+    --icon (Join-Path $RepoRoot "app\images\icon.png") `
+    --add-data ((Join-Path $RepoRoot "app\images") + ";app\images") `
+    --add-data ((Join-Path $RepoRoot "app\sounds") + ";app\sounds") `
+    --add-data ((Join-Path $RepoRoot "default.json") + ";.") `
+    (Join-Path $RepoRoot "app\main.py")
+if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed." }
+
+$DistRoot = Join-Path $RepoRoot "dist\VNC-Station-Controller"
+$DistExeDir = Join-Path $DistRoot "_internal"
+
+if (-not (Test-Path $DistRoot)) {
+    throw "Expected dist folder not found: $DistRoot"
+}
+
+# Ensure runtime folders exist in distribution.
+New-Item -ItemType Directory -Force -Path (Join-Path $DistRoot "vnc-view") | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $DistRoot "vnc-control") | Out-Null
+
+# Copy required runtime files next to the launcher executable.
+$ViewerSrc = Join-Path $RepoRoot "tvnviewer.exe"
+if (Test-Path $ViewerSrc) {
+    Copy-Item -Force -Path $ViewerSrc -Destination (Join-Path $DistRoot "tvnviewer.exe")
+}
+else {
+    Write-Warning "tvnviewer.exe not found in repo root; copy it manually to dist."
+}
+
+$DefaultSrc = Join-Path $RepoRoot "default.json"
+if (Test-Path $DefaultSrc) {
+    Copy-Item -Force -Path $DefaultSrc -Destination (Join-Path $DistRoot "default.json")
+}
+else {
+    Write-Warning "default.json not found in repo root; copy it manually to dist."
+}
+
+Write-Host ("Build complete. See " + $DistRoot) -ForegroundColor Green

@@ -1,0 +1,17 @@
+{
+  "x": "1",
+  "y": "1",
+  "width": "1300",
+  "height": "880",
+  "label_text": "Dummy Session",
+  "label_x": "10",
+  "label_y": "10",
+  "label_bg": "white",
+  "label_width": "300",
+  "label_height": "70",
+  "label_font": "24",
+  "label_font_color": "black",
+  "label_border_size": "4",
+  "label_border_color": "green"
+}
+

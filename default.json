@@ -1,0 +1,17 @@
+{
+  "x": "1",
+  "y": "1",
+  "width": "1300",
+  "height": "880",
+  "label_text": "Default",
+  "label_x": "10",
+  "label_y": "10",
+  "label_bg": "white",
+  "label_width": "200",
+  "label_height": "100",
+  "label_font": "18",
+  "label_font_color": "black",
+  "label_border_size": "5",
+  "label_border_color": "yellow",
+  "station_name": "Station 01"
+}

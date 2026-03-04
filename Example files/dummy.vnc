@@ -1,0 +1,10 @@
+[connection]
+host=192.168.1.100
+port=5900
+password=
+viewonly=0
+useclipboard=1
+showcontrols=0
+fullscreen=0
+scale=100
+

@@ -1,0 +1,491 @@
+"""Visual layout tool for preparing per-connection VNC/label JSON settings."""
+
+from typing import List, Optional, Tuple
+
+from PyQt5.QtCore import QPoint, QRect, Qt, pyqtSignal
+from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import (
+    QApplication,
+    QComboBox,
+    QDialog,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
+)
+
+from .config import config_path_for, load_default_settings, load_session_settings, save_json, scan_connections
+from .constants import CHAT_ICON_PATH, GEARS_ICON_PATH, ICON_PATH, MODE_CONTROL, MODE_VIEW
+from .models import SessionSettings
+from .theme import windows_prefers_dark
+
+
+class FramelessPreviewWindow(QWidget):
+    """Frameless top-level window with drag-inside and edge/corner resize."""
+
+    changed = pyqtSignal()
+
+    EDGE_NONE = 0
+    EDGE_LEFT = 1
+    EDGE_RIGHT = 2
+    EDGE_TOP = 4
+    EDGE_BOTTOM = 8
+
+    def __init__(self, title: str, always_on_top: bool = False, parent=None) -> None:
+        super().__init__(parent)
+        flags = Qt.Window | Qt.FramelessWindowHint
+        if always_on_top:
+            flags |= Qt.WindowStaysOnTopHint
+        self.setWindowFlags(flags)
+        self.setMouseTracking(True)
+        self.setMinimumSize(30, 20)
+
+        self.title = QLabel(title, self)
+        self.title.setAlignment(Qt.AlignCenter)
+        self.title.setStyleSheet("font-weight:700; background:transparent;")
+        self.title.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+
+        self._resize_margin = 8
+        self._dragging = False
+        self._resizing = False
+        self._drag_offset = QPoint()
+        self._start_geom = QRect()
+        self._start_global = QPoint()
+        self._resize_edges = self.EDGE_NONE
+
+    def resizeEvent(self, event) -> None:
+        self.title.setGeometry(0, 0, self.width(), 26)
+        self.changed.emit()
+        super().resizeEvent(event)
+
+    def moveEvent(self, event) -> None:
+        self.changed.emit()
+        super().moveEvent(event)
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() != Qt.LeftButton:
+            return super().mousePressEvent(event)
+        self._resize_edges = self._detect_edges(event.pos())
+        self._start_geom = self.geometry()
+        self._start_global = event.globalPos()
+        if self._resize_edges != self.EDGE_NONE:
+            self._resizing = True
+        else:
+            self._dragging = True
+            self._drag_offset = event.globalPos() - self.frameGeometry().topLeft()
+        event.accept()
+
+    def mouseMoveEvent(self, event) -> None:
+        if self._resizing:
+            self._perform_resize(event.globalPos())
+            event.accept()
+            return
+        if self._dragging:
+            self.move(event.globalPos() - self._drag_offset)
+            event.accept()
+            return
+
+        self._update_cursor(self._detect_edges(event.pos()))
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        self._dragging = False
+        self._resizing = False
+        self._resize_edges = self.EDGE_NONE
+        self.setCursor(Qt.ArrowCursor)
+        super().mouseReleaseEvent(event)
+
+    def _perform_resize(self, global_pos: QPoint) -> None:
+        delta = global_pos - self._start_global
+        geom = QRect(self._start_geom)
+
+        if self._resize_edges & self.EDGE_LEFT:
+            geom.setLeft(geom.left() + delta.x())
+        if self._resize_edges & self.EDGE_RIGHT:
+            geom.setRight(geom.right() + delta.x())
+        if self._resize_edges & self.EDGE_TOP:
+            geom.setTop(geom.top() + delta.y())
+        if self._resize_edges & self.EDGE_BOTTOM:
+            geom.setBottom(geom.bottom() + delta.y())
+
+        if geom.width() < self.minimumWidth():
+            if self._resize_edges & self.EDGE_LEFT:
+                geom.setLeft(geom.right() - self.minimumWidth() + 1)
+            else:
+                geom.setRight(geom.left() + self.minimumWidth() - 1)
+        if geom.height() < self.minimumHeight():
+            if self._resize_edges & self.EDGE_TOP:
+                geom.setTop(geom.bottom() - self.minimumHeight() + 1)
+            else:
+                geom.setBottom(geom.top() + self.minimumHeight() - 1)
+
+        self.setGeometry(geom)
+
+    def _detect_edges(self, p: QPoint) -> int:
+        edges = self.EDGE_NONE
+        if p.x() <= self._resize_margin:
+            edges |= self.EDGE_LEFT
+        elif p.x() >= self.width() - self._resize_margin:
+            edges |= self.EDGE_RIGHT
+        if p.y() <= self._resize_margin:
+            edges |= self.EDGE_TOP
+        elif p.y() >= self.height() - self._resize_margin:
+            edges |= self.EDGE_BOTTOM
+        return edges
+
+    def _update_cursor(self, edges: int) -> None:
+        if edges in (self.EDGE_LEFT | self.EDGE_TOP, self.EDGE_RIGHT | self.EDGE_BOTTOM):
+            self.setCursor(Qt.SizeFDiagCursor)
+        elif edges in (self.EDGE_RIGHT | self.EDGE_TOP, self.EDGE_LEFT | self.EDGE_BOTTOM):
+            self.setCursor(Qt.SizeBDiagCursor)
+        elif edges in (self.EDGE_LEFT, self.EDGE_RIGHT):
+            self.setCursor(Qt.SizeHorCursor)
+        elif edges in (self.EDGE_TOP, self.EDGE_BOTTOM):
+            self.setCursor(Qt.SizeVerCursor)
+        else:
+            self.setCursor(Qt.SizeAllCursor)
+
+
+class SaveTargetDialog(QDialog):
+    """Select which existing .vnc target (view/control) receives saved JSON."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Save Layout To Connection")
+        self.resize(420, 120)
+        self._targets: List[Tuple[str, str]] = []
+
+        body = QVBoxLayout(self)
+        form = QFormLayout()
+        body.addLayout(form)
+        self.target_box = QComboBox()
+        form.addRow("Connection:", self.target_box)
+        self._populate()
+
+        buttons = QHBoxLayout()
+        body.addLayout(buttons)
+        buttons.addStretch(1)
+        cancel = QPushButton("Cancel")
+        ok = QPushButton("Save")
+        cancel.clicked.connect(self.reject)
+        ok.clicked.connect(self.accept)
+        buttons.addWidget(cancel)
+        buttons.addWidget(ok)
+
+    def _populate(self) -> None:
+        for entry in scan_connections():
+            if entry.view_vnc_path is not None:
+                self._targets.append((entry.name, MODE_VIEW))
+                self.target_box.addItem(f"{entry.name} [view]")
+            if entry.control_vnc_path is not None:
+                self._targets.append((entry.name, MODE_CONTROL))
+                self.target_box.addItem(f"{entry.name} [control]")
+
+    def selected(self) -> Optional[Tuple[str, str]]:
+        idx = self.target_box.currentIndex()
+        if idx < 0 or idx >= len(self._targets):
+            return None
+        return self._targets[idx]
+
+
+class LayoutToolWindow(QMainWindow):
+    """Control panel for frameless preview windows and JSON save."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.settings = load_default_settings()
+        self.theme_mode = "Auto"
+        self._syncing_form = False
+        self._load_targets: List[Tuple[str, str]] = []
+        self.setWindowTitle("VNC Layout Tool")
+        if GEARS_ICON_PATH.exists():
+            self.setWindowIcon(QIcon(str(GEARS_ICON_PATH)))
+        self.resize(460, 520)
+
+        self.vnc_preview = FramelessPreviewWindow("VNC Preview", always_on_top=False)
+        self.label_preview = FramelessPreviewWindow("Label Preview", always_on_top=True)
+        self.label_content = QLabel("", self.label_preview)
+        self.label_content.setAlignment(Qt.AlignCenter)
+        self.label_content.setWordWrap(True)
+        self.label_content.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.label_content.setGeometry(0, 26, self.label_preview.width(), max(20, self.label_preview.height() - 26))
+        if ICON_PATH.exists():
+            self.vnc_preview.setWindowIcon(QIcon(str(ICON_PATH)))
+        if CHAT_ICON_PATH.exists():
+            self.label_preview.setWindowIcon(QIcon(str(CHAT_ICON_PATH)))
+
+        self.vnc_preview.changed.connect(self._sync_from_preview_windows)
+        self.label_preview.changed.connect(self._sync_from_preview_windows)
+
+        self._build_ui()
+        self._apply_settings_to_previews()
+        self._apply_theme("Auto")
+        self.vnc_preview.show()
+        self.label_preview.show()
+
+    def _build_ui(self) -> None:
+        root_widget = QWidget(self)
+        self.setCentralWidget(root_widget)
+        root = QVBoxLayout(root_widget)
+
+        top = QHBoxLayout()
+        root.addLayout(top)
+        top.addWidget(QLabel("Select theme:"))
+        self.theme_box = QComboBox()
+        self.theme_box.addItems(["Auto", "Light", "Dark"])
+        self.theme_box.currentTextChanged.connect(self._apply_theme)
+        top.addWidget(self.theme_box)
+        top.addSpacing(14)
+        top.addWidget(QLabel("Load settings:"))
+        self.load_target_box = QComboBox()
+        self._populate_load_targets()
+        top.addWidget(self.load_target_box, 1)
+        load_btn = QPushButton("Load")
+        load_btn.clicked.connect(self._load_selected_target_settings)
+        top.addWidget(load_btn)
+        save_current_btn = QPushButton("Save")
+        save_current_btn.clicked.connect(self._save_selected_target_settings)
+        top.addWidget(save_current_btn)
+        top.addStretch(1)
+
+        info = QLabel(
+            "Drag inside each preview to move.\n"
+            "Resize from edges/corners.\n"
+            "Windows are frameless and can be moved outside screen bounds."
+        )
+        info.setStyleSheet("color:#666;")
+        root.addWidget(info)
+
+        form = QFormLayout()
+        root.addLayout(form)
+        self.x_spin = self._spin(form, "VNC X", -10000, 10000, self.settings.x)
+        self.y_spin = self._spin(form, "VNC Y", -10000, 10000, self.settings.y)
+        self.w_spin = self._spin(form, "VNC Width", 100, 8000, self.settings.width)
+        self.h_spin = self._spin(form, "VNC Height", 100, 8000, self.settings.height)
+        self.label_text = QLineEdit(self.settings.label_text)
+        form.addRow("Label Text", self.label_text)
+        self.lx_spin = self._spin(form, "Label X", -10000, 10000, self.settings.label_x)
+        self.ly_spin = self._spin(form, "Label Y", -10000, 10000, self.settings.label_y)
+        self.lw_spin = self._spin(form, "Label Width", 30, 8000, self.settings.label_width)
+        self.lh_spin = self._spin(form, "Label Height", 20, 4000, self.settings.label_height)
+        self.font_spin = self._spin(form, "Label Font", 8, 200, self.settings.label_font)
+        self.border_spin = self._spin(form, "Border Size", 0, 40, self.settings.label_border_size)
+        self.bg_text = QLineEdit(self.settings.label_bg)
+        self.fg_text = QLineEdit(self.settings.label_font_color)
+        self.border_text = QLineEdit(self.settings.label_border_color)
+        form.addRow("Label Background", self.bg_text)
+        form.addRow("Label Font Color", self.fg_text)
+        form.addRow("Label Border Color", self.border_text)
+
+        for spin in [
+            self.x_spin,
+            self.y_spin,
+            self.w_spin,
+            self.h_spin,
+            self.lx_spin,
+            self.ly_spin,
+            self.lw_spin,
+            self.lh_spin,
+            self.font_spin,
+            self.border_spin,
+        ]:
+            spin.valueChanged.connect(self._sync_to_preview_windows)
+        for line in [self.label_text, self.bg_text, self.fg_text, self.border_text]:
+            line.textChanged.connect(self._sync_to_preview_windows)
+
+        buttons = QHBoxLayout()
+        root.addLayout(buttons)
+        reset_btn = QPushButton("Reset from default.json")
+        pull_btn = QPushButton("Read current preview positions")
+        save_btn = QPushButton("Save to connection JSON")
+        reset_btn.clicked.connect(self._reset_defaults)
+        pull_btn.clicked.connect(self._sync_from_preview_windows)
+        save_btn.clicked.connect(self._save_target_json)
+        buttons.addWidget(reset_btn)
+        buttons.addWidget(pull_btn)
+        buttons.addWidget(save_btn)
+
+    def _spin(self, form: QFormLayout, label: str, low: int, high: int, value: int) -> QSpinBox:
+        field = QSpinBox()
+        field.setRange(low, high)
+        field.setValue(value)
+        form.addRow(label, field)
+        return field
+
+    def _apply_theme(self, mode: str) -> None:
+        self.theme_mode = mode
+        effective = "Dark" if mode == "Auto" and windows_prefers_dark() else ("Light" if mode == "Auto" else mode)
+        if effective == "Dark":
+            self.setStyleSheet(
+                "QWidget{background:#1f2328;color:#e6edf3;} QLineEdit,QComboBox,QSpinBox{background:#0d1117;color:#e6edf3;border:1px solid #30363d;}"
+            )
+        else:
+            self.setStyleSheet("")
+        self._apply_preview_styles()
+
+    def _apply_preview_styles(self) -> None:
+        s = self._collect_settings()
+        self.vnc_preview.setStyleSheet("background:#e3f2fd; border:2px solid #1971c2;")
+        self.vnc_preview.title.setStyleSheet("font-weight:700; color:#111; background:transparent;")
+        self.label_preview.setStyleSheet("background:transparent; border:2px dashed #333;")
+        self.label_preview.title.setStyleSheet("font-weight:700; color:#111; background:transparent;")
+        self.label_content.setText(s.label_text)
+        self.label_content.setStyleSheet(
+            (
+                f"background:{s.label_bg};"
+                f"color:{s.label_font_color};"
+                f"font-size:{max(8, s.label_font)}px;"
+                f"border:{max(0, s.label_border_size)}px solid {s.label_border_color};"
+            )
+        )
+        self.label_content.setGeometry(0, 26, self.label_preview.width(), max(20, self.label_preview.height() - 26))
+
+    def _collect_settings(self) -> SessionSettings:
+        return SessionSettings(
+            x=self.x_spin.value(),
+            y=self.y_spin.value(),
+            width=self.w_spin.value(),
+            height=self.h_spin.value(),
+            label_text=self.label_text.text().strip() or "Label",
+            label_x=self.lx_spin.value(),
+            label_y=self.ly_spin.value(),
+            label_bg=self.bg_text.text().strip() or "white",
+            label_width=self.lw_spin.value(),
+            label_height=self.lh_spin.value(),
+            label_font=self.font_spin.value(),
+            label_font_color=self.fg_text.text().strip() or "black",
+            label_border_size=self.border_spin.value(),
+            label_border_color=self.border_text.text().strip() or "black",
+            station_name=self.settings.station_name,
+        )
+
+    def _apply_settings_to_previews(self) -> None:
+        s = self._collect_settings()
+        self.vnc_preview.setGeometry(s.x, s.y, max(100, s.width), max(100, s.height))
+        self.label_preview.setGeometry(s.label_x, s.label_y, max(30, s.label_width), max(20, s.label_height))
+        self.label_preview.raise_()
+        self._apply_preview_styles()
+        self.settings = s
+
+    def _sync_to_preview_windows(self) -> None:
+        if self._syncing_form:
+            return
+        self._apply_settings_to_previews()
+
+    def _sync_from_preview_windows(self) -> None:
+        self._syncing_form = True
+        self.x_spin.setValue(self.vnc_preview.x())
+        self.y_spin.setValue(self.vnc_preview.y())
+        self.w_spin.setValue(self.vnc_preview.width())
+        self.h_spin.setValue(self.vnc_preview.height())
+        self.lx_spin.setValue(self.label_preview.x())
+        self.ly_spin.setValue(self.label_preview.y())
+        self.lw_spin.setValue(self.label_preview.width())
+        self.lh_spin.setValue(self.label_preview.height())
+        self._syncing_form = False
+        self._apply_preview_styles()
+        self.settings = self._collect_settings()
+
+    def _reset_defaults(self) -> None:
+        self.settings = load_default_settings()
+        self._syncing_form = True
+        self.x_spin.setValue(self.settings.x)
+        self.y_spin.setValue(self.settings.y)
+        self.w_spin.setValue(self.settings.width)
+        self.h_spin.setValue(self.settings.height)
+        self.label_text.setText(self.settings.label_text)
+        self.lx_spin.setValue(self.settings.label_x)
+        self.ly_spin.setValue(self.settings.label_y)
+        self.lw_spin.setValue(self.settings.label_width)
+        self.lh_spin.setValue(self.settings.label_height)
+        self.font_spin.setValue(self.settings.label_font)
+        self.border_spin.setValue(self.settings.label_border_size)
+        self.bg_text.setText(self.settings.label_bg)
+        self.fg_text.setText(self.settings.label_font_color)
+        self.border_text.setText(self.settings.label_border_color)
+        self._syncing_form = False
+        self._apply_settings_to_previews()
+
+    def _populate_load_targets(self) -> None:
+        self._load_targets.clear()
+        self.load_target_box.clear()
+        for entry in scan_connections():
+            if entry.view_vnc_path is not None:
+                self._load_targets.append((entry.name, MODE_VIEW))
+                self.load_target_box.addItem(f"{entry.name} [view]")
+            if entry.control_vnc_path is not None:
+                self._load_targets.append((entry.name, MODE_CONTROL))
+                self.load_target_box.addItem(f"{entry.name} [control]")
+
+    def _load_selected_target_settings(self) -> None:
+        idx = self.load_target_box.currentIndex()
+        if idx < 0 or idx >= len(self._load_targets):
+            QMessageBox.information(self, "Layout Tool", "No connection selected.")
+            return
+        connection_name, mode = self._load_targets[idx]
+        cfg = config_path_for(connection_name, mode)
+        self.settings = load_session_settings(cfg)
+        self._syncing_form = True
+        self.x_spin.setValue(self.settings.x)
+        self.y_spin.setValue(self.settings.y)
+        self.w_spin.setValue(self.settings.width)
+        self.h_spin.setValue(self.settings.height)
+        self.label_text.setText(self.settings.label_text)
+        self.lx_spin.setValue(self.settings.label_x)
+        self.ly_spin.setValue(self.settings.label_y)
+        self.lw_spin.setValue(self.settings.label_width)
+        self.lh_spin.setValue(self.settings.label_height)
+        self.font_spin.setValue(self.settings.label_font)
+        self.border_spin.setValue(self.settings.label_border_size)
+        self.bg_text.setText(self.settings.label_bg)
+        self.fg_text.setText(self.settings.label_font_color)
+        self.border_text.setText(self.settings.label_border_color)
+        self._syncing_form = False
+        self._apply_settings_to_previews()
+
+    def _save_selected_target_settings(self) -> None:
+        idx = self.load_target_box.currentIndex()
+        if idx < 0 or idx >= len(self._load_targets):
+            QMessageBox.information(self, "Layout Tool", "No connection selected.")
+            return
+        connection_name, mode = self._load_targets[idx]
+        self._sync_from_preview_windows()
+        path = config_path_for(connection_name, mode)
+        save_json(path, self._collect_settings().to_json())
+        QMessageBox.information(self, "Layout Tool", f"Saved settings to:\n{path}")
+
+    def _save_target_json(self) -> None:
+        dialog = SaveTargetDialog(self)
+        if dialog.exec_() != dialog.Accepted:
+            return
+        selected = dialog.selected()
+        if selected is None:
+            QMessageBox.information(self, "Layout Tool", "No target selected.")
+            return
+        connection_name, mode = selected
+        self._sync_from_preview_windows()
+        path = config_path_for(connection_name, mode)
+        save_json(path, self._collect_settings().to_json())
+        QMessageBox.information(self, "Layout Tool", f"Saved settings to:\n{path}")
+
+    def closeEvent(self, event) -> None:
+        self.vnc_preview.close()
+        self.label_preview.close()
+        super().closeEvent(event)
+
+
+def main() -> int:
+    app = QApplication([])
+    window = LayoutToolWindow()
+    window.show()
+    return app.exec_()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

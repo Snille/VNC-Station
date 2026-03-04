@@ -1,0 +1,44 @@
+TightVNC Viewer allows you to view and control remote hosts
+where TightVNC Server or compatible software is running.
+
+Command line syntax is the following.
+
+Start the viewer:
+  tvnviewer
+
+Start the viewer and connect to the specified host:
+  tvnviewer hostname::port [OPTIONS]
+  tvnviewer -host=hostname [OPTIONS]
+  tvnviewer -optionsfile=FILENAME [OPTIONS]
+
+Start the viewer in the listening mode:
+  tvnviewer -listen
+
+Show this help on command line usage:
+  tvnviewer -help
+
+The following OPTIONS are supported (all of them should be used in the
+form -option=VALUE where both option name and value are case-insensitive):
+
+  -optionsfile	The specified file will be read and the corresponding
+		connection will be restored (use Save Connection Info
+		to create such files).
+
+  -host		Connect to the specified host name.
+  -port		Specify the port number.
+  -password	Specify the password for authenticating to the server.
+  -dispatchid	ID for dispatcher connection.
+  -showcontrols	Show toolbar.
+  -viewonly	View only (input ignored).
+  -useclipboard	Use clipboard (yes/no).
+  -scale	Scale by (auto, 50, 100, 150...).
+  -fullscreen	Full-screen mode.
+  -warnfullscr	Show full-screen warning.
+  -encoding	 (hextile, tight, rre, zrle).
+  -copyrect	.
+  -mousecursor	 (no, local).
+  -mouselocal	(no, snalldot, normal).
+  -mouseswap	Swap right and middle buttons.
+  -jpegimagequality	Set Jpeg image quality [0..9].
+  -compressionlevel	Set custom compression level [0..9].
+  -logpath	Specify the path to logfile.

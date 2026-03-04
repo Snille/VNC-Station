@@ -1,0 +1,44 @@
+# Python bytecode / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build / packaging artifacts
+build/
+dist/
+logs/
+*.spec
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+pip-wheel-metadata/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE / editor temp
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS temp files
+.DS_Store
+Thumbs.db
+
+# Runtime/log temp files
+*.log
+*.tmp
+*.temp
+
+# Keep these folders, but do not sync station-specific session files
+vnc-view/*
+!vnc-view/.gitkeep
+vnc-control/*
+!vnc-control/.gitkeep
