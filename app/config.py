@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional
+from typing import Dict, List, Mapping, Optional, Tuple
 
 from .constants import DEFAULT_CONFIG_PATH, VNC_CONTROL_DIR, VNC_POSITIONS_DIR, VNC_VIEW_DIR
 from .models import ConnectionEntry, PositionPreset, SessionSettings
@@ -120,3 +120,30 @@ def config_path_for(connection_name: str, mode: str) -> Path:
     """Return the JSON config path for a given connection and mode."""
     directory = VNC_VIEW_DIR if mode == "view" else VNC_CONTROL_DIR
     return directory / f"{connection_name}.json"
+
+
+def resolve_ks_target(ks_value: str) -> Tuple[Optional[Path], str]:
+    """Resolve configured KS value to an openable file path.
+
+    `ks_value` can be either:
+    - a direct file path (legacy behavior), or
+    - a folder path; in this case the latest modified file in that folder is used.
+    """
+    cleaned = ks_value.strip()
+    if not cleaned:
+        return None, "No KS folder configured."
+
+    target = Path(cleaned)
+    if target.is_file():
+        return target, ""
+    if target.is_dir():
+        files: List[Path] = []
+        for child in target.iterdir():
+            if child.is_file():
+                files.append(child)
+        if not files:
+            return None, f"No files found in KS folder: {target}"
+        latest = max(files, key=lambda p: p.stat().st_mtime)
+        return latest, ""
+
+    return None, f"KS path not found: {target}"

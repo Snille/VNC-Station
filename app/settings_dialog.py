@@ -1,5 +1,6 @@
 """Dialog used to edit per-connection window and overlay settings."""
 
+from pathlib import Path
 from typing import Dict
 
 from PyQt5.QtGui import QIcon
@@ -50,7 +51,7 @@ class SettingsDialog(QDialog):
         self._add_text(form, "label_font_color", "Label Font Color", settings.label_font_color)
         self._add_spin(form, "label_border_size", "Label Border Size", settings.label_border_size, 0, 40)
         self._add_text(form, "label_border_color", "Label Border Color", settings.label_border_color)
-        self._add_file_picker(form, "ks", "KS File", settings.ks)
+        self._add_folder_picker(form, "ks", "KS Folder", settings.ks)
 
         buttons = QHBoxLayout()
         layout.addLayout(buttons)
@@ -76,14 +77,19 @@ class SettingsDialog(QDialog):
         self._fields[key] = field
         form.addRow(label, field)
 
-    def _add_file_picker(self, form: QFormLayout, key: str, label: str, value: str) -> None:
-        """Add editable file path input with browse button."""
+    def _add_folder_picker(self, form: QFormLayout, key: str, label: str, value: str) -> None:
+        """Add editable folder path input with browse button."""
         row = QHBoxLayout()
         field = QLineEdit(value)
         browse_btn = QPushButton("Browse...")
 
         def browse() -> None:
-            path, _ = QFileDialog.getOpenFileName(self, "Select KS File", field.text().strip() or "")
+            start_dir = field.text().strip()
+            if start_dir:
+                current = Path(start_dir)
+                if current.is_file():
+                    start_dir = str(current.parent)
+            path = QFileDialog.getExistingDirectory(self, "Select KS Folder", start_dir or "")
             if path:
                 field.setText(path)
 

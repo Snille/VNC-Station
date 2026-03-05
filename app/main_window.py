@@ -28,6 +28,7 @@ from .config import (
     load_session_overrides,
     load_session_settings,
     position_by_name,
+    resolve_ks_target,
     save_json,
     scan_connections,
     scan_positions,
@@ -763,22 +764,26 @@ class MainWindow(QMainWindow):
     def _open_ks_file(self, connection_name: str, mode_or_shared: str) -> None:
         view_settings = load_session_settings(config_path_for(connection_name, MODE_VIEW))
         control_settings = load_session_settings(config_path_for(connection_name, MODE_CONTROL))
-        target = ""
+        configured = ""
         if mode_or_shared == "shared":
-            target = view_settings.ks or control_settings.ks
+            configured = view_settings.ks or control_settings.ks
         elif mode_or_shared == MODE_VIEW:
-            target = view_settings.ks
+            configured = view_settings.ks
         else:
-            target = control_settings.ks
-        target = target.strip()
-        if not target:
-            self._show_info(f"No KS file configured for {connection_name}.")
+            configured = control_settings.ks
+
+        configured = configured.strip()
+        if not configured:
+            self._show_info(f"No KS folder configured for {connection_name}.")
             return
-        if not Path(target).exists():
-            self._show_info(f"KS file not found: {target}")
+
+        target, error = resolve_ks_target(configured)
+        if target is None:
+            self._show_info(error)
             return
+
         try:
-            os.startfile(target)
+            os.startfile(str(target))
         except OSError as exc:
             self._show_info(f"Failed to open KS file: {exc}")
 
