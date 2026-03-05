@@ -36,7 +36,18 @@ class ConfigMergeTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            session_path.write_text(json.dumps({"x": "99", "label_text": "Custom"}), encoding="utf-8")
+            session_path.write_text(
+                json.dumps(
+                    {
+                        "x": "99",
+                        "label_text": "Custom",
+                        "position_name": "Position 01",
+                        "linked_session": "Target B|control",
+                        "ks": r"G:\Path\to\file.xlsx",
+                    }
+                ),
+                encoding="utf-8",
+            )
 
             with patch("app.config.DEFAULT_CONFIG_PATH", default_path):
                 merged = load_session_settings(session_path)
@@ -45,8 +56,10 @@ class ConfigMergeTests(unittest.TestCase):
             self.assertEqual(merged.y, 20)
             self.assertEqual(merged.label_text, "Custom")
             self.assertEqual(merged.station_name, "Station 01")
+            self.assertEqual(merged.position_name, "Position 01")
+            self.assertEqual(merged.linked_session, "Target B|control")
+            self.assertEqual(merged.ks, r"G:\Path\to\file.xlsx")
 
 
 if __name__ == "__main__":
     unittest.main()
-

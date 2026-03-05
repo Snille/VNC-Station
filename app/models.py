@@ -15,6 +15,18 @@ class ConnectionEntry:
     control_vnc_path: Optional[Path]
 
 
+@dataclass(frozen=True)
+class PositionPreset:
+    """Named window rectangle loaded from vnc-positions/*.json files."""
+
+    name: str
+    x: int
+    y: int
+    width: int
+    height: int
+    path: Path
+
+
 @dataclass
 class SessionSettings:
     """Runtime/editable settings for VNC window geometry and overlay label."""
@@ -34,6 +46,9 @@ class SessionSettings:
     label_border_size: int = 5
     label_border_color: str = "yellow"
     station_name: str = "Station 01"
+    position_name: str = ""
+    linked_session: str = ""
+    ks: str = ""
 
     @staticmethod
     def from_mapping(data: Dict[str, object]) -> "SessionSettings":
@@ -62,6 +77,9 @@ class SessionSettings:
             label_border_size=to_int(data.get("label_border_size"), defaults.label_border_size),
             label_border_color=str(data.get("label_border_color", defaults.label_border_color)),
             station_name=str(data.get("station_name", defaults.station_name)),
+            position_name=str(data.get("position_name", defaults.position_name)),
+            linked_session=str(data.get("linked_session", defaults.linked_session)),
+            ks=str(data.get("ks", defaults.ks)),
         )
 
     def to_json(self) -> Dict[str, str]:
@@ -81,6 +99,9 @@ class SessionSettings:
             "label_font_color": self.label_font_color,
             "label_border_size": str(self.label_border_size),
             "label_border_color": self.label_border_color,
+            "position_name": self.position_name,
+            "linked_session": self.linked_session,
+            "ks": self.ks,
         }
 
 

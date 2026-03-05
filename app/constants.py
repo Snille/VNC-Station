@@ -3,7 +3,7 @@
 from pathlib import Path
 import sys
 
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.1.0"
 
 
 # Base directory for user/runtime files.
@@ -26,6 +26,7 @@ NOTICE_SOUND_PATH = APP_DIR / "sounds" / "notice.wav"
 # Runtime/user-managed paths.
 VNC_CONTROL_DIR = ROOT_DIR / "vnc-control"
 VNC_VIEW_DIR = ROOT_DIR / "vnc-view"
+VNC_POSITIONS_DIR = ROOT_DIR / "vnc-positions"
 LOG_DIR = ROOT_DIR / "logs"
 DEFAULT_CONFIG_PATH = ROOT_DIR / "default.json"
 VIEWER_EXE_PATH = ROOT_DIR / "tvnviewer.exe"

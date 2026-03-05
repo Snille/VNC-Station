@@ -56,6 +56,7 @@ Create this structure at repository root:
 │  └─ cleanup.ps1
 ├─ vnc-view/
 ├─ vnc-control/
+├─ vnc-positions/
 ├─ logs/
 ├─ default.json
 ├─ requirements.txt
@@ -64,6 +65,7 @@ Create this structure at repository root:
 
 Notes:
 - `vnc-view/` and `vnc-control/` contain operator-specific `.vnc` and `.json`.
+- `vnc-positions/` contains reusable position presets (`*.json`).
 - These folders must exist even when empty.
 - `tvnviewer.exe` must be in project root.
 
@@ -102,7 +104,20 @@ Location:
 
 Same schema as above except `station_name` is optional/ignored.
 
-### 4.3 Connection identity
+Additional per-connection keys:
+- `position_name` (selected position preset name from `vnc-positions`, optional)
+- `linked_session` (token format `<ConnectionName>|view|control`, optional)
+- `ks` (full path to file, optional)
+
+### 4.3 Position preset files
+
+Location:
+- `vnc-positions/<AnyName>.json`
+
+Required keys:
+- `x`, `y`, `width`, `height`, `name`
+
+### 4.4 Connection identity
 
 A connection is identified by filename stem of `.vnc`.
 
@@ -118,15 +133,16 @@ On startup:
 1. Load defaults from `default.json`.
 2. Determine station name from `station_name`.
 3. Scan both `vnc-view/` and `vnc-control/` for `.vnc`.
-4. Build merged connection list by unique filename stem.
-5. Initialize network UDP bus.
-6. Initialize session manager and chat window.
-7. Apply theme before first render:
+4. Scan `vnc-positions/` for available position presets.
+5. Build merged connection list by unique filename stem.
+6. Initialize network UDP bus.
+7. Initialize session manager and chat window.
+8. Apply theme before first render:
    - `Auto` reads Windows theme via registry key:
      - `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme`
      - `0 => dark`, `1 => light`
-8. Send immediate `session_sync_request` packets to peers and temporarily disable open actions.
-9. Re-enable open actions after short sync window (or sooner when session state arrives).
+9. Send immediate `session_sync_request` packets to peers and temporarily disable open actions.
+10. Re-enable open actions after short sync window (or sooner when session state arrives).
 
 ## 5.2 Main Window Layout (must match)
 
@@ -138,11 +154,14 @@ Default size:
 
 Connection list is scrollable and is the only section that expands on manual resize.
 
-For each connection, render 4 stacked rows:
-1. `[tag-checkbox] [Name button bold]`
-2. `[View] [Control]`
-3. `[Close view] [Close control]`
-4. `[Edit View] [Edit Control]`
+For each connection, render rows including:
+1. `[tag-checkbox] [Name button bold] [KS|KSV|KSC (dynamic)]`
+2. `Pos V` selector + `Pos C` selector
+3. `[View] [Control]`
+4. `Link V` selector + `Link C` selector
+5. `[Close view] [Close control]`
+6. `[Edit View] [Edit Control]`
+7. `Owner: ...` status line
 
 Connection separators:
 - horizontal line between entries
@@ -156,19 +175,22 @@ Name button click:
 - toggles tag checkbox
 
 Bottom fixed controls (in this exact order):
-1. `[View all tagged] [Control all tagged]`
-2. `[Close all tagged] [Close all sessions]`
-3. `[Untag all] [Chat]`
-4. `[Take over session checkbox] [Import config]` (centered row)
-5. `[Reconnect on drop checkbox] [Export config]` (centered row)
-6. `[Theme label] [Theme selector Auto/Light/Dark] [Sizes button] [Validate config]` (centered row)
+1. `[Setup Positions]`
+2. `[View all tagged] [Control all tagged]`
+3. `[Close all tagged] [Close all sessions]`
+4. `[Untag all] [Chat]`
+5. `[Take over session checkbox] [Import config]` (centered row)
+6. `[Reconnect on drop checkbox] [Export config]` (centered row)
+7. `[Theme label] [Theme selector Auto/Light/Dark] [Sizes button] [Validate config]` (centered row)
 
 `Sizes` button behavior:
 - opens `layout_tool.py` UI for visual pre-placement of VNC/label settings
-- tool provides `Load` selector for `connection [view/control]`
+- tool provides `Load settings` selector for `connection [view/control]`
+- tool provides `Positions` selector for `vnc-positions/*.json`
 - if selected target JSON is missing, load defaults from `default.json`
 - top `Save` writes to selected target
-- bottom save flow can write to a different selected target
+- position `Load Pos`/`Save Pos` reads/writes `vnc-positions/*.json`
+- label coordinates are offsets from VNC window top-left (not absolute screen coordinates)
 
 ## 5.3 Settings Dialog
 
@@ -184,13 +206,14 @@ Window icon:
 Fields:
 - x, y, width, height
 - label_text
-- label_x, label_y
+- label_x, label_y (offset from VNC window top-left)
 - label_width, label_height
 - label_bg
 - label_font
 - label_font_color
 - label_border_size
 - label_border_color
+- ks (file path with browse button)
 
 Save behavior:
 - writes JSON to corresponding mode folder
@@ -247,6 +270,12 @@ Per session:
 5. Locate VNC native window by process ID.
 6. Move/resize VNC window to config `x,y,width,height`.
 7. Track overlay offset from VNC window and keep synced on timer.
+8. If `position_name` is set and found in `vnc-positions`, it overrides launch `x,y,width,height`.
+
+Open behavior additions:
+- if `linked_session` is set, opening a session also opens the linked session.
+- `Setup Positions` opens all sessions that currently have a selected position.
+- one position preset can only be selected by one session at a time.
 
 Closing:
 - close overlay
@@ -443,6 +472,8 @@ python -m unittest discover -s tests -v
 
 Packaging requirement:
 - build must use windowed mode (`--windowed`) so end users do not see a console window.
+- build output must include runtime folders: `vnc-view`, `vnc-control`, `vnc-positions`.
+- build output must copy any existing `vnc-positions/*.json` presets into `dist`.
 
 ## 16. Verification Checklist (must all pass)
 
@@ -455,7 +486,14 @@ Packaging requirement:
 - Connection list layout and bottom controls match section 5.2.
 - `.vnc` launch uses `-optionsfile=...`.
 - Overlay follows moved VNC window.
+- Overlay uses label offsets relative to VNC window.
 - Session lock blocks cross-station duplicate opens unless takeover checked.
+- Setup Positions opens sessions on selected position presets.
+- Position selectors prevent duplicate assignment of the same preset.
+- Linked sessions open together with View/Control actions.
+- KS button naming logic:
+  - one visible button => `KS`
+  - two visible buttons => `KSV` and `KSC`
 - Takeover logs in local and remote chat.
 - `/help`, `/nick`, `/topic`, `/me`, `/away`, `/notify` work as specified.
 - Notify sound plays only for `/notify`.
@@ -463,4 +501,4 @@ Packaging requirement:
 - Topic changes propagate to all online stations.
 - Away does not clear from remote activity, only local input.
 - UDP test script can validate two-way connectivity on port 50000.
-- Export/import bundles include both `.json` and `.vnc`.
+- Export/import bundles include `default.json`, `vnc-view/*`, `vnc-control/*`, and `vnc-positions/*.json`.

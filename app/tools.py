@@ -6,7 +6,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import List
 
-from .constants import DEFAULT_CONFIG_PATH, ROOT_DIR, VIEWER_EXE_PATH, VNC_CONTROL_DIR, VNC_VIEW_DIR
+from .constants import (
+    DEFAULT_CONFIG_PATH,
+    ROOT_DIR,
+    VIEWER_EXE_PATH,
+    VNC_CONTROL_DIR,
+    VNC_POSITIONS_DIR,
+    VNC_VIEW_DIR,
+)
 
 _SETTINGS_KEYS = {
     "x",
@@ -23,6 +30,9 @@ _SETTINGS_KEYS = {
     "label_font_color",
     "label_border_size",
     "label_border_color",
+    "position_name",
+    "linked_session",
+    "ks",
 }
 
 
@@ -72,6 +82,9 @@ def export_config_bundle(destination_zip: Path) -> Path:
                 for file_path in folder.glob(ext):
                     rel = file_path.relative_to(ROOT_DIR)
                     zf.write(file_path, arcname=str(rel))
+        for file_path in VNC_POSITIONS_DIR.glob("*.json"):
+            rel = file_path.relative_to(ROOT_DIR)
+            zf.write(file_path, arcname=str(rel))
     return destination_zip
 
 
@@ -87,7 +100,12 @@ def import_config_bundle(zip_path: Path) -> List[str]:
     with zipfile.ZipFile(zip_path, "r") as zf:
         for member in zf.namelist():
             norm = member.replace("\\", "/")
-            if norm == "default.json" or norm.startswith("vnc-view/") or norm.startswith("vnc-control/"):
+            if (
+                norm == "default.json"
+                or norm.startswith("vnc-view/")
+                or norm.startswith("vnc-control/")
+                or norm.startswith("vnc-positions/")
+            ):
                 if not (norm.endswith(".json") or norm.endswith(".vnc")):
                     continue
                 target = ROOT_DIR / Path(norm)

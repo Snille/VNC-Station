@@ -1,5 +1,6 @@
 """Visual layout tool for preparing per-connection VNC/label JSON settings."""
 
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 from PyQt5.QtCore import QPoint, QRect, Qt, pyqtSignal
@@ -20,8 +21,15 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from .config import config_path_for, load_default_settings, load_session_settings, save_json, scan_connections
-from .constants import CHAT_ICON_PATH, GEARS_ICON_PATH, ICON_PATH, MODE_CONTROL, MODE_VIEW
+from .config import (
+    config_path_for,
+    load_default_settings,
+    load_session_settings,
+    save_json,
+    scan_connections,
+    scan_positions,
+)
+from .constants import CHAT_ICON_PATH, GEARS_ICON_PATH, ICON_PATH, MODE_CONTROL, MODE_VIEW, VNC_POSITIONS_DIR
 from .models import SessionSettings
 from .theme import windows_prefers_dark
 
@@ -197,12 +205,15 @@ class SaveTargetDialog(QDialog):
 class LayoutToolWindow(QMainWindow):
     """Control panel for frameless preview windows and JSON save."""
 
+    window_closed = pyqtSignal()
+
     def __init__(self) -> None:
         super().__init__()
         self.settings = load_default_settings()
         self.theme_mode = "Auto"
         self._syncing_form = False
         self._load_targets: List[Tuple[str, str]] = []
+        self._position_paths_by_name: dict[str, Path] = {}
         self.setWindowTitle("VNC Layout Tool")
         if GEARS_ICON_PATH.exists():
             self.setWindowIcon(QIcon(str(GEARS_ICON_PATH)))
@@ -234,25 +245,44 @@ class LayoutToolWindow(QMainWindow):
         self.setCentralWidget(root_widget)
         root = QVBoxLayout(root_widget)
 
-        top = QHBoxLayout()
+        top = QVBoxLayout()
         root.addLayout(top)
-        top.addWidget(QLabel("Select theme:"))
+
+        theme_row = QHBoxLayout()
+        top.addLayout(theme_row)
+        theme_row.addWidget(QLabel("Select theme:"))
         self.theme_box = QComboBox()
         self.theme_box.addItems(["Auto", "Light", "Dark"])
         self.theme_box.currentTextChanged.connect(self._apply_theme)
-        top.addWidget(self.theme_box)
-        top.addSpacing(14)
-        top.addWidget(QLabel("Load settings:"))
+        theme_row.addWidget(self.theme_box)
+        theme_row.addStretch(1)
+
+        load_row = QHBoxLayout()
+        top.addLayout(load_row)
+        load_row.addWidget(QLabel("Load settings:"))
         self.load_target_box = QComboBox()
         self._populate_load_targets()
-        top.addWidget(self.load_target_box, 1)
+        load_row.addWidget(self.load_target_box, 1)
         load_btn = QPushButton("Load")
         load_btn.clicked.connect(self._load_selected_target_settings)
-        top.addWidget(load_btn)
+        load_row.addWidget(load_btn)
         save_current_btn = QPushButton("Save")
         save_current_btn.clicked.connect(self._save_selected_target_settings)
-        top.addWidget(save_current_btn)
-        top.addStretch(1)
+        load_row.addWidget(save_current_btn)
+
+        position_row = QHBoxLayout()
+        top.addLayout(position_row)
+        position_row.addWidget(QLabel("Positions:"))
+        self.position_box = QComboBox()
+        self.position_box.setEditable(True)
+        self._populate_position_targets()
+        position_row.addWidget(self.position_box, 1)
+        load_pos_btn = QPushButton("Load Pos")
+        load_pos_btn.clicked.connect(self._load_selected_position)
+        save_pos_btn = QPushButton("Save Pos")
+        save_pos_btn.clicked.connect(self._save_selected_position)
+        position_row.addWidget(load_pos_btn)
+        position_row.addWidget(save_pos_btn)
 
         info = QLabel(
             "Drag inside each preview to move.\n"
@@ -270,8 +300,8 @@ class LayoutToolWindow(QMainWindow):
         self.h_spin = self._spin(form, "VNC Height", 100, 8000, self.settings.height)
         self.label_text = QLineEdit(self.settings.label_text)
         form.addRow("Label Text", self.label_text)
-        self.lx_spin = self._spin(form, "Label X", -10000, 10000, self.settings.label_x)
-        self.ly_spin = self._spin(form, "Label Y", -10000, 10000, self.settings.label_y)
+        self.lx_spin = self._spin(form, "Label Offset X", -10000, 10000, self.settings.label_x)
+        self.ly_spin = self._spin(form, "Label Offset Y", -10000, 10000, self.settings.label_y)
         self.lw_spin = self._spin(form, "Label Width", 30, 8000, self.settings.label_width)
         self.lh_spin = self._spin(form, "Label Height", 20, 4000, self.settings.label_height)
         self.font_spin = self._spin(form, "Label Font", 8, 200, self.settings.label_font)
@@ -368,7 +398,12 @@ class LayoutToolWindow(QMainWindow):
     def _apply_settings_to_previews(self) -> None:
         s = self._collect_settings()
         self.vnc_preview.setGeometry(s.x, s.y, max(100, s.width), max(100, s.height))
-        self.label_preview.setGeometry(s.label_x, s.label_y, max(30, s.label_width), max(20, s.label_height))
+        self.label_preview.setGeometry(
+            s.x + s.label_x,
+            s.y + s.label_y,
+            max(30, s.label_width),
+            max(20, s.label_height),
+        )
         self.label_preview.raise_()
         self._apply_preview_styles()
         self.settings = s
@@ -384,8 +419,8 @@ class LayoutToolWindow(QMainWindow):
         self.y_spin.setValue(self.vnc_preview.y())
         self.w_spin.setValue(self.vnc_preview.width())
         self.h_spin.setValue(self.vnc_preview.height())
-        self.lx_spin.setValue(self.label_preview.x())
-        self.ly_spin.setValue(self.label_preview.y())
+        self.lx_spin.setValue(self.label_preview.x() - self.vnc_preview.x())
+        self.ly_spin.setValue(self.label_preview.y() - self.vnc_preview.y())
         self.lw_spin.setValue(self.label_preview.width())
         self.lh_spin.setValue(self.label_preview.height())
         self._syncing_form = False
@@ -423,6 +458,54 @@ class LayoutToolWindow(QMainWindow):
                 self._load_targets.append((entry.name, MODE_CONTROL))
                 self.load_target_box.addItem(f"{entry.name} [control]")
 
+    def _populate_position_targets(self) -> None:
+        self._position_paths_by_name.clear()
+        self.position_box.clear()
+        self.position_box.addItem("")
+        for preset in scan_positions():
+            self._position_paths_by_name[preset.name] = preset.path
+            self.position_box.addItem(preset.name)
+
+    def _load_selected_position(self) -> None:
+        name = self.position_box.currentText().strip()
+        if not name:
+            QMessageBox.information(self, "Layout Tool", "No position selected.")
+            return
+        path = self._position_paths_by_name.get(name)
+        if path is None or not path.exists():
+            QMessageBox.warning(self, "Layout Tool", f"Position file not found:\n{name}")
+            self._populate_position_targets()
+            return
+        data = load_session_settings(path)
+        self._syncing_form = True
+        self.x_spin.setValue(data.x)
+        self.y_spin.setValue(data.y)
+        self.w_spin.setValue(data.width)
+        self.h_spin.setValue(data.height)
+        self._syncing_form = False
+        self._apply_settings_to_previews()
+
+    def _save_selected_position(self) -> None:
+        name = self.position_box.currentText().strip()
+        if not name:
+            QMessageBox.information(self, "Layout Tool", "Select a position name first.")
+            return
+        path = self._position_paths_by_name.get(name, VNC_POSITIONS_DIR / f"{name}.json")
+        VNC_POSITIONS_DIR.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "x": str(self.x_spin.value()),
+            "y": str(self.y_spin.value()),
+            "width": str(self.w_spin.value()),
+            "height": str(self.h_spin.value()),
+            "name": name,
+        }
+        save_json(path, payload)
+        self._populate_position_targets()
+        idx = self.position_box.findText(name)
+        if idx >= 0:
+            self.position_box.setCurrentIndex(idx)
+        QMessageBox.information(self, "Layout Tool", f"Saved position:\n{path}")
+
     def _load_selected_target_settings(self) -> None:
         idx = self.load_target_box.currentIndex()
         if idx < 0 or idx >= len(self._load_targets):
@@ -448,6 +531,10 @@ class LayoutToolWindow(QMainWindow):
         self.border_text.setText(self.settings.label_border_color)
         self._syncing_form = False
         self._apply_settings_to_previews()
+        if self.settings.position_name:
+            idx = self.position_box.findText(self.settings.position_name)
+            if idx >= 0:
+                self.position_box.setCurrentIndex(idx)
 
     def _save_selected_target_settings(self) -> None:
         idx = self.load_target_box.currentIndex()
@@ -457,7 +544,7 @@ class LayoutToolWindow(QMainWindow):
         connection_name, mode = self._load_targets[idx]
         self._sync_from_preview_windows()
         path = config_path_for(connection_name, mode)
-        save_json(path, self._collect_settings().to_json())
+        save_json(path, self._collect_settings_for_path(path))
         QMessageBox.information(self, "Layout Tool", f"Saved settings to:\n{path}")
 
     def _save_target_json(self) -> None:
@@ -471,12 +558,21 @@ class LayoutToolWindow(QMainWindow):
         connection_name, mode = selected
         self._sync_from_preview_windows()
         path = config_path_for(connection_name, mode)
-        save_json(path, self._collect_settings().to_json())
+        save_json(path, self._collect_settings_for_path(path))
         QMessageBox.information(self, "Layout Tool", f"Saved settings to:\n{path}")
+
+    def _collect_settings_for_path(self, path: Path) -> dict:
+        merged = self._collect_settings()
+        existing = load_session_settings(path)
+        merged.position_name = existing.position_name
+        merged.linked_session = existing.linked_session
+        merged.ks = existing.ks
+        return merged.to_json()
 
     def closeEvent(self, event) -> None:
         self.vnc_preview.close()
         self.label_preview.close()
+        self.window_closed.emit()
         super().closeEvent(event)
 
 

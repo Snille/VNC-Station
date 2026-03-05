@@ -1,7 +1,8 @@
 """Main application window: connection list, controls, chat, and coordination."""
 import logging
+import os
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from PyQt5.QtCore import QSettings, QTimer, Qt, QUrl
 from PyQt5.QtGui import QCloseEvent, QIcon
@@ -21,7 +22,17 @@ from PyQt5.QtWidgets import (
 )
 
 from .chat_window import ChatWindow
-from .config import config_path_for, load_default_settings, load_session_settings, save_json, scan_connections
+from .config import (
+    config_path_for,
+    load_default_settings,
+    load_session_overrides,
+    load_session_settings,
+    position_by_name,
+    save_json,
+    scan_connections,
+    scan_positions,
+    update_session_overrides,
+)
 from .constants import (
     HELLO_INTERVAL_MS,
     ICON_PATH,
@@ -32,7 +43,7 @@ from .constants import (
     STATION_PRESENCE_CHECK_MS,
 )
 from .logic import parse_chat_command
-from .models import ConnectionEntry
+from .models import ConnectionEntry, SessionSettings
 from .network import NetworkBus
 from .settings_dialog import SettingsDialog
 from .theme import windows_prefers_dark
@@ -52,9 +63,19 @@ LOGGER = logging.getLogger(__name__)
 class ConnectionRow:
     """UI bundle for one connection entry and its row-level buttons."""
 
-    def __init__(self, entry: ConnectionEntry, callbacks: Dict[str, object]) -> None:
-        """Build the 4-row connection layout and wire callback actions."""
+    def __init__(
+        self,
+        entry: ConnectionEntry,
+        callbacks: Dict[str, object],
+        position_names: List[str],
+        link_options: List[Tuple[str, str]],
+    ) -> None:
+        """Build one connection row and wire mode-specific controls."""
         self.entry = entry
+        self._callbacks = callbacks
+        self._position_names = list(position_names)
+        self._link_options = list(link_options)
+        self._syncing = False
         self.widget = QWidget()
         outer = QVBoxLayout(self.widget)
         outer.setContentsMargins(6, 4, 6, 4)
@@ -68,7 +89,33 @@ class ConnectionRow:
         name_row = QHBoxLayout()
         name_row.addWidget(self.tag)
         name_row.addWidget(self.name_btn, 1)
+        self.ks_btn = QPushButton("KS")
+        self.ksv_btn = QPushButton("KSV")
+        self.ksc_btn = QPushButton("KSC")
+        self.ks_btn.clicked.connect(lambda: callbacks["open_ks"](entry.name, "shared"))
+        self.ksv_btn.clicked.connect(lambda: callbacks["open_ks"](entry.name, MODE_VIEW))
+        self.ksc_btn.clicked.connect(lambda: callbacks["open_ks"](entry.name, MODE_CONTROL))
+        name_row.addWidget(self.ks_btn)
+        name_row.addWidget(self.ksv_btn)
+        name_row.addWidget(self.ksc_btn)
         outer.addLayout(name_row)
+
+        self.position_view = QComboBox()
+        self.position_control = QComboBox()
+        self._fill_position_combo(self.position_view)
+        self._fill_position_combo(self.position_control)
+        self.position_view.currentTextChanged.connect(
+            lambda _text: self._notify_position_change(MODE_VIEW)
+        )
+        self.position_control.currentTextChanged.connect(
+            lambda _text: self._notify_position_change(MODE_CONTROL)
+        )
+        pos_row = QHBoxLayout()
+        pos_row.addWidget(QLabel("Pos V"))
+        pos_row.addWidget(self.position_view, 1)
+        pos_row.addWidget(QLabel("Pos C"))
+        pos_row.addWidget(self.position_control, 1)
+        outer.addLayout(pos_row)
 
         self.view_btn = QPushButton("View")
         self.view_btn.clicked.connect(lambda: callbacks["open"](entry.name, MODE_VIEW))
@@ -79,6 +126,21 @@ class ConnectionRow:
         action_row.addWidget(self.view_btn)
         action_row.addWidget(self.control_btn)
         outer.addLayout(action_row)
+
+        self.link_view = QComboBox()
+        self.link_control = QComboBox()
+        self._fill_link_combo(self.link_view, MODE_VIEW)
+        self._fill_link_combo(self.link_control, MODE_CONTROL)
+        self.link_view.currentTextChanged.connect(lambda _text: self._notify_link_change(MODE_VIEW))
+        self.link_control.currentTextChanged.connect(
+            lambda _text: self._notify_link_change(MODE_CONTROL)
+        )
+        link_row = QHBoxLayout()
+        link_row.addWidget(QLabel("Link V"))
+        link_row.addWidget(self.link_view, 1)
+        link_row.addWidget(QLabel("Link C"))
+        link_row.addWidget(self.link_control, 1)
+        outer.addLayout(link_row)
 
         self.close_view_btn = QPushButton("Close view")
         self.close_view_btn.clicked.connect(lambda: callbacks["close"](entry.name, MODE_VIEW))
@@ -113,6 +175,106 @@ class ConnectionRow:
         self._apply_secondary_mode_button_style(self.close_control_btn, control_available, "#8f7500", "white")
         self._apply_mode_button_style(self.edit_view_btn, view_available, "#1971c2")
         self._apply_mode_button_style(self.edit_control_btn, control_available, "#1971c2")
+        self._apply_mode_button_style(self.ksv_btn, view_available, "#6741d9")
+        self._apply_mode_button_style(self.ksc_btn, control_available, "#6741d9")
+        self._refresh_ks_buttons("", "")
+
+    def _notify_position_change(self, mode: str) -> None:
+        if self._syncing:
+            return
+        self._callbacks["position_changed"](self.entry.name, mode)
+
+    def _notify_link_change(self, mode: str) -> None:
+        if self._syncing:
+            return
+        self._callbacks["link_changed"](self.entry.name, mode)
+
+    def _fill_position_combo(self, combo: QComboBox) -> None:
+        combo.clear()
+        combo.addItem("")
+        combo.addItems(self._position_names)
+
+    def _fill_link_combo(self, combo: QComboBox, mode: str) -> None:
+        combo.clear()
+        combo.addItem("")
+        for token, label in self._link_options:
+            if token == self._make_session_token(self.entry.name, mode):
+                continue
+            combo.addItem(label, token)
+
+    def refresh_option_sets(self, position_names: List[str], link_options: List[Tuple[str, str]]) -> None:
+        """Refresh position/link dropdown choices while preserving current values."""
+        self._position_names = list(position_names)
+        self._link_options = list(link_options)
+        current_pos_view = self.selected_position(MODE_VIEW)
+        current_pos_control = self.selected_position(MODE_CONTROL)
+        current_link_view = self.selected_link(MODE_VIEW)
+        current_link_control = self.selected_link(MODE_CONTROL)
+        self._syncing = True
+        self._fill_position_combo(self.position_view)
+        self._fill_position_combo(self.position_control)
+        self._fill_link_combo(self.link_view, MODE_VIEW)
+        self._fill_link_combo(self.link_control, MODE_CONTROL)
+        self._set_combo_text(self.position_view, current_pos_view)
+        self._set_combo_text(self.position_control, current_pos_control)
+        self._set_combo_data(self.link_view, current_link_view)
+        self._set_combo_data(self.link_control, current_link_control)
+        self._syncing = False
+
+    @staticmethod
+    def _make_session_token(connection_name: str, mode: str) -> str:
+        return f"{connection_name}|{mode}"
+
+    @staticmethod
+    def _set_combo_text(combo: QComboBox, value: str) -> None:
+        idx = combo.findText(value)
+        combo.setCurrentIndex(idx if idx >= 0 else 0)
+
+    @staticmethod
+    def _set_combo_data(combo: QComboBox, value: str) -> None:
+        idx = combo.findData(value)
+        combo.setCurrentIndex(idx if idx >= 0 else 0)
+
+    def selected_position(self, mode: str) -> str:
+        combo = self.position_view if mode == MODE_VIEW else self.position_control
+        return combo.currentText().strip()
+
+    def set_selected_position(self, mode: str, name: str) -> None:
+        combo = self.position_view if mode == MODE_VIEW else self.position_control
+        self._syncing = True
+        self._set_combo_text(combo, name.strip())
+        self._syncing = False
+
+    def selected_link(self, mode: str) -> str:
+        combo = self.link_view if mode == MODE_VIEW else self.link_control
+        data = combo.currentData()
+        if not data:
+            return ""
+        return str(data)
+
+    def set_selected_link(self, mode: str, token: str) -> None:
+        combo = self.link_view if mode == MODE_VIEW else self.link_control
+        self._syncing = True
+        self._set_combo_data(combo, token.strip())
+        self._syncing = False
+
+    def _refresh_ks_buttons(self, view_ks: str, control_ks: str) -> None:
+        same = bool(view_ks and control_ks and view_ks == control_ks)
+        view_only = bool(view_ks) and not bool(control_ks)
+        control_only = bool(control_ks) and not bool(view_ks)
+        both_different = bool(view_ks) and bool(control_ks) and not same
+
+        self.ks_btn.setVisible(same)
+        self.ksv_btn.setVisible(view_only or both_different)
+        self.ksc_btn.setVisible(control_only or both_different)
+        self.ks_btn.setEnabled(same)
+        self.ksv_btn.setText("KS" if view_only else "KSV")
+        self.ksc_btn.setText("KS" if control_only else "KSC")
+        if same:
+            self.ks_btn.setStyleSheet("background:#6741d9; color:white; font-weight:700;")
+
+    def set_ks_paths(self, view_ks: str, control_ks: str) -> None:
+        self._refresh_ks_buttons(view_ks.strip(), control_ks.strip())
 
     @staticmethod
     def _apply_mode_button_style(button: QPushButton, available: bool, active_bg: str) -> None:
@@ -154,6 +316,8 @@ class MainWindow(QMainWindow):
         self.effective_theme = "Dark" if windows_prefers_dark() else "Light"
         self.reconnect_on_drop = str(self.settings_store.value("reconnect_on_drop", "false")).lower() == "true"
         self.connections = scan_connections()
+        self.position_names: List[str] = [p.name for p in scan_positions()]
+        self.session_link_options: List[Tuple[str, str]] = self._build_session_link_options()
         self.rows: Dict[str, ConnectionRow] = {}
         # Tracks latest remote holder per (connection, mode) by station id.
         self._remote_mode_holders: Dict[Tuple[str, str], str] = {}
@@ -243,6 +407,15 @@ class MainWindow(QMainWindow):
         self.rows_layout.setContentsMargins(2, 2, 2, 2)
         scroll.setWidget(content)
         self._rebuild_connection_rows()
+
+        setup_row = QHBoxLayout()
+        root.addLayout(setup_row)
+        setup_row.addStretch(1)
+        self.setup_positions_btn = QPushButton("Setup Positions")
+        self.setup_positions_btn.setStyleSheet("background:#1971c2; color:white; font-weight:700;")
+        self.setup_positions_btn.clicked.connect(self._setup_positions)
+        setup_row.addWidget(self.setup_positions_btn)
+        setup_row.addStretch(1)
 
         actions_row1 = QHBoxLayout()
         root.addLayout(actions_row1)
@@ -365,6 +538,31 @@ class MainWindow(QMainWindow):
                 return entry
         return None
 
+    def _build_session_link_options(self) -> List[Tuple[str, str]]:
+        """Build selectable link targets from all available view/control sessions."""
+        options: List[Tuple[str, str]] = []
+        for entry in self.connections:
+            if entry.view_vnc_path is not None:
+                options.append((self._session_token(entry.name, MODE_VIEW), f"{entry.name} [view]"))
+            if entry.control_vnc_path is not None:
+                options.append((self._session_token(entry.name, MODE_CONTROL), f"{entry.name} [control]"))
+        return options
+
+    @staticmethod
+    def _session_token(connection_name: str, mode: str) -> str:
+        return f"{connection_name}|{mode}"
+
+    @staticmethod
+    def _parse_session_token(token: str) -> Optional[Tuple[str, str]]:
+        parts = token.split("|", 1)
+        if len(parts) != 2:
+            return None
+        connection_name, mode = parts
+        mode = mode.strip().lower()
+        if not connection_name.strip() or mode not in (MODE_VIEW, MODE_CONTROL):
+            return None
+        return connection_name.strip(), mode
+
     def _vnc_path(self, connection_name: str, mode: str) -> Optional[Path]:
         """Resolve concrete .vnc path for the requested connection+mode."""
         entry = self._entry_for(connection_name)
@@ -372,15 +570,71 @@ class MainWindow(QMainWindow):
             return None
         return entry.view_vnc_path if mode == MODE_VIEW else entry.control_vnc_path
 
+    def _selected_position_name(self, connection_name: str, mode: str) -> str:
+        row = self.rows.get(connection_name)
+        if row is None:
+            return ""
+        return row.selected_position(mode)
+
+    def _selected_link_token(self, connection_name: str, mode: str) -> str:
+        row = self.rows.get(connection_name)
+        if row is None:
+            return ""
+        return row.selected_link(mode)
+
+    def _persist_ui_selections(self, connection_name: str, mode: str) -> None:
+        config_path = config_path_for(connection_name, mode)
+        update_session_overrides(
+            config_path,
+            {
+                "position_name": self._selected_position_name(connection_name, mode),
+                "linked_session": self._selected_link_token(connection_name, mode),
+            },
+        )
+
+    def _apply_position_override(self, connection_name: str, mode: str, settings: SessionSettings) -> None:
+        selected_name = self._selected_position_name(connection_name, mode) or settings.position_name
+        if not selected_name:
+            return
+        preset = position_by_name(selected_name)
+        if preset is None:
+            self._show_info(f"Position '{selected_name}' not found for {connection_name} [{mode}]")
+            return
+        settings.position_name = preset.name
+        settings.x = preset.x
+        settings.y = preset.y
+        settings.width = preset.width
+        settings.height = preset.height
+
     def _open_session(self, connection_name: str, mode: str) -> None:
-        """Open one session after missing-file and remote-lock checks."""
+        """Open one session and any configured linked session."""
         if self._startup_sync_pending:
             self._show_info("Please wait: synchronizing session ownership...")
             return
+        self._open_session_with_link(connection_name, mode, visited=set())
+
+    def _open_session_with_link(
+        self, connection_name: str, mode: str, visited: Set[Tuple[str, str]]
+    ) -> None:
+        key = (connection_name, mode)
+        if key in visited:
+            return
+        visited.add(key)
+        if not self._open_single_session(connection_name, mode):
+            return
+        link_token = self._selected_link_token(connection_name, mode)
+        parsed = self._parse_session_token(link_token)
+        if parsed is None:
+            return
+        linked_connection, linked_mode = parsed
+        self._open_session_with_link(linked_connection, linked_mode, visited)
+
+    def _open_single_session(self, connection_name: str, mode: str) -> bool:
+        """Open one session after missing-file and remote-lock checks."""
         vnc_path = self._vnc_path(connection_name, mode)
         if not vnc_path or not vnc_path.exists():
             self._show_info(f"Missing .vnc file for {connection_name} [{mode}]")
-            return
+            return False
         # Station lock is per connection (not per mode), based on station ID.
         remote_holder_id = None
         for (remote_connection, _remote_mode), holder_id in self.network.remote_session_holders.items():
@@ -394,10 +648,13 @@ class MainWindow(QMainWindow):
                 f"Session {connection_name} is currently open on station '{remote_holder}'. "
                 "Enable 'Take over session' to force open."
             )
-            return
+            return False
 
         takeover_used = bool(remote_holder_id and self.takeover_checkbox.isChecked())
-        settings = load_session_settings(config_path_for(connection_name, mode))
+        config_path = config_path_for(connection_name, mode)
+        settings = load_session_settings(config_path)
+        self._apply_position_override(connection_name, mode, settings)
+        self._persist_ui_selections(connection_name, mode)
         if self.session_manager.launch((connection_name, mode), vnc_path, settings):
             LOGGER.info("Session opened: %s [%s]", connection_name, mode)
             # Notify peers this station now holds the session.
@@ -410,6 +667,8 @@ class MainWindow(QMainWindow):
                 # Broadcast takeover notice so all other stations log it as well.
                 self.network.send_takeover(connection_name, remote_holder)
             self._refresh_owner_labels()
+            return True
+        return False
 
     def _close_session(self, connection_name: str, mode: str) -> None:
         """Close one specific session."""
@@ -440,6 +699,89 @@ class MainWindow(QMainWindow):
         if not any_tagged:
             self._show_info("No tagged connections.")
 
+    def _setup_positions(self) -> None:
+        """Open all sessions that have a selected position and persist position refs."""
+        if self._startup_sync_pending:
+            self._show_info("Please wait: synchronizing session ownership...")
+            return
+        if not self._validate_unique_position_assignments():
+            return
+        selected_targets: List[Tuple[str, str]] = []
+        for row in self.rows.values():
+            for mode in (MODE_VIEW, MODE_CONTROL):
+                if row.selected_position(mode):
+                    selected_targets.append((row.entry.name, mode))
+        if not selected_targets:
+            self._show_info("No positions selected.")
+            return
+        for connection_name, mode in selected_targets:
+            self._persist_ui_selections(connection_name, mode)
+            self._open_session_with_link(connection_name, mode, visited=set())
+
+    def _on_position_selection_changed(self, connection_name: str, mode: str) -> None:
+        row = self.rows.get(connection_name)
+        if row is None:
+            return
+        selected = row.selected_position(mode)
+        if not selected:
+            return
+        for other_name, other_row in self.rows.items():
+            for other_mode in (MODE_VIEW, MODE_CONTROL):
+                if other_name == connection_name and other_mode == mode:
+                    continue
+                if other_row.selected_position(other_mode) != selected:
+                    continue
+                row.set_selected_position(mode, "")
+                self._show_info(
+                    f"Position '{selected}' is already selected by {other_name} [{other_mode}]."
+                )
+                return
+
+    def _on_link_selection_changed(self, _connection_name: str, _mode: str) -> None:
+        """Reserved for future link validation hooks."""
+        return
+
+    def _validate_unique_position_assignments(self, show_message: bool = True) -> bool:
+        assignments: Dict[str, Tuple[str, str]] = {}
+        for connection_name, row in self.rows.items():
+            for mode in (MODE_VIEW, MODE_CONTROL):
+                selected = row.selected_position(mode)
+                if not selected:
+                    continue
+                existing = assignments.get(selected)
+                if existing is not None:
+                    other_connection, other_mode = existing
+                    if show_message:
+                        self._show_info(
+                            f"Position '{selected}' is used by both "
+                            f"{other_connection} [{other_mode}] and {connection_name} [{mode}]."
+                        )
+                    return False
+                assignments[selected] = (connection_name, mode)
+        return True
+
+    def _open_ks_file(self, connection_name: str, mode_or_shared: str) -> None:
+        view_settings = load_session_settings(config_path_for(connection_name, MODE_VIEW))
+        control_settings = load_session_settings(config_path_for(connection_name, MODE_CONTROL))
+        target = ""
+        if mode_or_shared == "shared":
+            target = view_settings.ks or control_settings.ks
+        elif mode_or_shared == MODE_VIEW:
+            target = view_settings.ks
+        else:
+            target = control_settings.ks
+        target = target.strip()
+        if not target:
+            self._show_info(f"No KS file configured for {connection_name}.")
+            return
+        if not Path(target).exists():
+            self._show_info(f"KS file not found: {target}")
+            return
+        try:
+            os.startfile(target)
+        except OSError as exc:
+            self._show_info(f"Failed to open KS file: {exc}")
+
     def _untag_all(self) -> None:
         """Clear all row selection checkboxes."""
         for row in self.rows.values():
@@ -455,7 +797,16 @@ class MainWindow(QMainWindow):
         settings = load_session_settings(config_path)
         dialog = SettingsDialog(f"Edit {mode.title()} - {connection_name}", settings, self)
         if dialog.exec_() == dialog.Accepted:
-            save_json(config_path, dialog.values().to_json())
+            data = dialog.values().to_json()
+            overrides = load_session_overrides(config_path)
+            data["position_name"] = self._selected_position_name(connection_name, mode) or str(
+                overrides.get("position_name", "")
+            )
+            data["linked_session"] = self._selected_link_token(connection_name, mode) or str(
+                overrides.get("linked_session", "")
+            )
+            save_json(config_path, data)
+            self._refresh_row_ks_buttons(connection_name)
 
     def _on_session_closed(self, key: Tuple[str, str]) -> None:
         """Broadcast session close event when local process exits/closes."""
@@ -712,6 +1063,8 @@ class MainWindow(QMainWindow):
 
     def _rebuild_connection_rows(self) -> None:
         """Recreate the scroll-area row widgets from current connection list."""
+        self.position_names = [p.name for p in scan_positions()]
+        self.session_link_options = self._build_session_link_options()
         self.rows.clear()
         while self.rows_layout.count():
             item = self.rows_layout.takeAt(0)
@@ -723,8 +1076,18 @@ class MainWindow(QMainWindow):
         for entry in self.connections:
             row = ConnectionRow(
                 entry,
-                {"open": self._open_session, "close": self._close_session, "edit": self._edit_session},
+                {
+                    "open": self._open_session,
+                    "close": self._close_session,
+                    "edit": self._edit_session,
+                    "open_ks": self._open_ks_file,
+                    "position_changed": self._on_position_selection_changed,
+                    "link_changed": self._on_link_selection_changed,
+                },
+                self.position_names,
+                self.session_link_options,
             )
+            self._populate_row_from_saved_settings(row)
             self.rows[entry.name] = row
             self.rows_layout.addWidget(row.widget)
             line = QFrame()
@@ -732,7 +1095,38 @@ class MainWindow(QMainWindow):
             line.setFrameShadow(QFrame.Sunken)
             self.rows_layout.addWidget(line)
         self.rows_layout.addStretch(1)
+        self._clear_duplicate_positions_after_load()
         self._refresh_owner_labels()
+
+    def _populate_row_from_saved_settings(self, row: ConnectionRow) -> None:
+        view_settings = load_session_settings(config_path_for(row.entry.name, MODE_VIEW))
+        control_settings = load_session_settings(config_path_for(row.entry.name, MODE_CONTROL))
+        row.set_selected_position(MODE_VIEW, view_settings.position_name)
+        row.set_selected_position(MODE_CONTROL, control_settings.position_name)
+        row.set_selected_link(MODE_VIEW, view_settings.linked_session)
+        row.set_selected_link(MODE_CONTROL, control_settings.linked_session)
+        row.set_ks_paths(view_settings.ks, control_settings.ks)
+
+    def _refresh_row_ks_buttons(self, connection_name: str) -> None:
+        row = self.rows.get(connection_name)
+        if row is None:
+            return
+        view_settings = load_session_settings(config_path_for(connection_name, MODE_VIEW))
+        control_settings = load_session_settings(config_path_for(connection_name, MODE_CONTROL))
+        row.set_ks_paths(view_settings.ks, control_settings.ks)
+
+    def _clear_duplicate_positions_after_load(self) -> None:
+        """Keep first assignment per position and clear later duplicates."""
+        assigned: Dict[str, Tuple[str, str]] = {}
+        for connection_name, row in self.rows.items():
+            for mode in (MODE_VIEW, MODE_CONTROL):
+                selected = row.selected_position(mode)
+                if not selected:
+                    continue
+                if selected in assigned:
+                    row.set_selected_position(mode, "")
+                    continue
+                assigned[selected] = (connection_name, mode)
 
     def _show_info(self, text: str) -> None:
         """Show non-blocking informational feedback."""
@@ -743,14 +1137,23 @@ class MainWindow(QMainWindow):
         """Open or focus the visual layout tool window."""
         if self._layout_tool_window is None or not self._layout_tool_window.isVisible():
             self._layout_tool_window = LayoutToolWindow()
+            self._layout_tool_window.window_closed.connect(self._on_layout_tool_closed)
         self._layout_tool_window.show()
         self._layout_tool_window.raise_()
         self._layout_tool_window.activateWindow()
+
+    def _on_layout_tool_closed(self) -> None:
+        """Refresh row position selectors after editing position presets."""
+        self.position_names = [p.name for p in scan_positions()]
+        for row in self.rows.values():
+            row.refresh_option_sets(self.position_names, self.session_link_options)
+        self._clear_duplicate_positions_after_load()
 
     def _set_open_controls_enabled(self, enabled: bool) -> None:
         """Enable/disable all actions that can open new sessions."""
         self.view_all_btn.setEnabled(enabled)
         self.control_all_btn.setEnabled(enabled)
+        self.setup_positions_btn.setEnabled(enabled)
         for row in self.rows.values():
             row.view_btn.setEnabled(enabled and row.entry.view_vnc_path is not None)
             row.control_btn.setEnabled(enabled and row.entry.control_vnc_path is not None)

@@ -34,8 +34,8 @@ class OverlayLabel(QWidget):
         self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.setGeometry(
-            settings.label_x,
-            settings.label_y,
+            settings.x + settings.label_x,
+            settings.y + settings.label_y,
             max(30, settings.label_width),
             max(20, settings.label_height),
         )
@@ -104,7 +104,7 @@ class SessionManager:
             settings=settings,
             overlay=overlay,
             vnc_path=vnc_path,
-            label_offset=(settings.label_x - settings.x, settings.label_y - settings.y),
+            label_offset=(settings.label_x, settings.label_y),
         )
         self._sessions[key] = record
 

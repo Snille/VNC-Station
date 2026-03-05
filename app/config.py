@@ -2,10 +2,10 @@
 
 import json
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Mapping, Optional
 
-from .constants import DEFAULT_CONFIG_PATH, VNC_CONTROL_DIR, VNC_VIEW_DIR
-from .models import ConnectionEntry, SessionSettings
+from .constants import DEFAULT_CONFIG_PATH, VNC_CONTROL_DIR, VNC_POSITIONS_DIR, VNC_VIEW_DIR
+from .models import ConnectionEntry, PositionPreset, SessionSettings
 
 
 def _load_json(path: Path) -> Dict[str, object]:
@@ -30,6 +30,14 @@ def save_json(path: Path, data: Dict[str, object]) -> None:
         handle.write("\n")
 
 
+def _to_int(value: object, fallback: int) -> int:
+    """Parse int-like values found in JSON strings/numbers."""
+    try:
+        return int(str(value))
+    except (TypeError, ValueError):
+        return fallback
+
+
 def load_default_settings() -> SessionSettings:
     """Read defaults from default.json and convert to SessionSettings."""
     return SessionSettings.from_mapping(_load_json(DEFAULT_CONFIG_PATH))
@@ -43,6 +51,19 @@ def load_session_settings(config_path: Path) -> SessionSettings:
     merged["station_name"] = defaults.station_name
     merged.update({k: str(v) for k, v in _load_json(config_path).items()})
     return SessionSettings.from_mapping(merged)
+
+
+def load_session_overrides(config_path: Path) -> Dict[str, object]:
+    """Load only explicit per-session overrides from JSON."""
+    return _load_json(config_path)
+
+
+def update_session_overrides(config_path: Path, updates: Mapping[str, object]) -> None:
+    """Merge/update per-session override keys and persist to disk."""
+    data = _load_json(config_path)
+    for key, value in updates.items():
+        data[key] = value
+    save_json(config_path, data)
 
 
 def scan_connections() -> List[ConnectionEntry]:
@@ -59,6 +80,40 @@ def scan_connections() -> List[ConnectionEntry]:
         ConnectionEntry(name=n, view_vnc_path=view.get(n), control_vnc_path=control.get(n))
         for n in names
     ]
+
+
+def scan_positions() -> List[PositionPreset]:
+    """Read all position definitions from vnc-positions/*.json."""
+    VNC_POSITIONS_DIR.mkdir(parents=True, exist_ok=True)
+    presets: List[PositionPreset] = []
+    for path in sorted(VNC_POSITIONS_DIR.glob("*.json"), key=lambda p: p.name.lower()):
+        data = _load_json(path)
+        if not data:
+            continue
+        fallback_name = path.stem
+        name = str(data.get("name", fallback_name)).strip() or fallback_name
+        presets.append(
+            PositionPreset(
+                name=name,
+                x=_to_int(data.get("x"), 1),
+                y=_to_int(data.get("y"), 1),
+                width=max(100, _to_int(data.get("width"), 1300)),
+                height=max(100, _to_int(data.get("height"), 880)),
+                path=path,
+            )
+        )
+    return presets
+
+
+def position_by_name(name: str) -> Optional[PositionPreset]:
+    """Resolve one position preset by its display name."""
+    cleaned = name.strip().lower()
+    if not cleaned:
+        return None
+    for preset in scan_positions():
+        if preset.name.strip().lower() == cleaned:
+            return preset
+    return None
 
 
 def config_path_for(connection_name: str, mode: str) -> Path:

@@ -5,6 +5,7 @@ from typing import Dict
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (
     QDialog,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLineEdit,
@@ -40,8 +41,8 @@ class SettingsDialog(QDialog):
         self._add_spin(form, "width", "Window Width", settings.width, 100, 6000)
         self._add_spin(form, "height", "Window Height", settings.height, 100, 6000)
         self._add_text(form, "label_text", "Label Text", settings.label_text)
-        self._add_spin(form, "label_x", "Label X", settings.label_x, -10000, 10000)
-        self._add_spin(form, "label_y", "Label Y", settings.label_y, -10000, 10000)
+        self._add_spin(form, "label_x", "Label Offset X", settings.label_x, -10000, 10000)
+        self._add_spin(form, "label_y", "Label Offset Y", settings.label_y, -10000, 10000)
         self._add_spin(form, "label_width", "Label Width", settings.label_width, 30, 4000)
         self._add_spin(form, "label_height", "Label Height", settings.label_height, 20, 2000)
         self._add_text(form, "label_bg", "Label Background", settings.label_bg)
@@ -49,6 +50,7 @@ class SettingsDialog(QDialog):
         self._add_text(form, "label_font_color", "Label Font Color", settings.label_font_color)
         self._add_spin(form, "label_border_size", "Label Border Size", settings.label_border_size, 0, 40)
         self._add_text(form, "label_border_color", "Label Border Color", settings.label_border_color)
+        self._add_file_picker(form, "ks", "KS File", settings.ks)
 
         buttons = QHBoxLayout()
         layout.addLayout(buttons)
@@ -74,6 +76,25 @@ class SettingsDialog(QDialog):
         self._fields[key] = field
         form.addRow(label, field)
 
+    def _add_file_picker(self, form: QFormLayout, key: str, label: str, value: str) -> None:
+        """Add editable file path input with browse button."""
+        row = QHBoxLayout()
+        field = QLineEdit(value)
+        browse_btn = QPushButton("Browse...")
+
+        def browse() -> None:
+            path, _ = QFileDialog.getOpenFileName(self, "Select KS File", field.text().strip() or "")
+            if path:
+                field.setText(path)
+
+        browse_btn.clicked.connect(browse)
+        row.addWidget(field, 1)
+        row.addWidget(browse_btn)
+        wrapper = QVBoxLayout()
+        wrapper.addLayout(row)
+        self._fields[key] = field
+        form.addRow(label, wrapper)
+
     def values(self) -> SessionSettings:
         """Read all current UI fields back into a SessionSettings object."""
         try:
@@ -93,6 +114,7 @@ class SettingsDialog(QDialog):
                 label_border_size=self._fields["label_border_size"].value(),
                 label_border_color=self._fields["label_border_color"].text().strip() or "black",
                 station_name="",
+                ks=self._fields["ks"].text().strip(),
             )
         except Exception as exc:
             # Keep the dialog resilient; return defaults if field casting fails.

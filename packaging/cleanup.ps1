@@ -13,6 +13,7 @@ $targets = @(
     "build",
     "dist",
     "logs",
+    ".pyinstaller",
     ".pytest_cache",
     ".mypy_cache",
     ".ruff_cache",
@@ -50,4 +51,3 @@ if ($Deep) {
 }
 
 Write-Host "Cleanup complete." -ForegroundColor Green
-
