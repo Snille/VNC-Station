@@ -4,10 +4,11 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
-from PyQt5.QtCore import QSettings, QTimer, Qt, QUrl
-from PyQt5.QtGui import QCloseEvent, QIcon
+from PyQt5.QtCore import QSettings, QSize, QTimer, Qt, QUrl
+from PyQt5.QtGui import QCloseEvent, QIcon, QPixmap
 from PyQt5.QtMultimedia import QSoundEffect
 from PyQt5.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QFileDialog,
@@ -17,6 +18,8 @@ from PyQt5.QtWidgets import (
     QMainWindow,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -35,13 +38,27 @@ from .config import (
     update_session_overrides,
 )
 from .constants import (
+    APPLYSETUP_ICON_PATH,
+    CHAT_ICON_PATH,
+    CONTROL_ICON_PATH,
+    EDIT_ICON_PATH,
+    EXPORT_ICON_PATH,
     HELLO_INTERVAL_MS,
     ICON_PATH,
+    IMPORT_ICON_PATH,
+    LINK_ICON_PATH,
     MODE_CONTROL,
     MODE_VIEW,
+    MONITOR_ICON_PATH,
     NOTICE_SOUND_PATH,
+    SAVE_ICON_PATH,
+    SPREADSHEET_ICON_PATH,
     SESSION_BROADCAST_INTERVAL_MS,
     STATION_PRESENCE_CHECK_MS,
+    UNLOCK_ICON_PATH,
+    UNTAG_ICON_PATH,
+    VALIDATE_ICON_PATH,
+    VIEW_ICON_PATH,
 )
 from .logic import parse_chat_command
 from .models import ConnectionEntry, SessionSettings
@@ -61,6 +78,77 @@ from .layout_tool import LayoutToolWindow
 LOGGER = logging.getLogger(__name__)
 
 
+def _icon_size_for_font_size(point_size: int) -> int:
+    """Return a small icon size that tracks UI font size."""
+    return max(12, min(28, int(point_size * 1.25)))
+
+
+def _current_app_font_size() -> int:
+    app = QApplication.instance()
+    if app is None:
+        return 10
+    point_size = app.font().pointSize()
+    return point_size if point_size > 0 else 10
+
+
+def _apply_scaled_icon_size(button: QPushButton) -> None:
+    """Update one button icon size from current application font."""
+    if not bool(button.property("icon_scale_with_font")):
+        return
+    size_px = _icon_size_for_font_size(_current_app_font_size())
+    button.setIconSize(QSize(size_px, size_px))
+
+
+def _set_button_icon(button: QPushButton, icon_path: Path, size_px: int = 14) -> None:
+    """Apply a small icon when the asset exists (safe in source/frozen runs)."""
+    if not icon_path.exists():
+        return
+    button.setIcon(QIcon(str(icon_path)))
+    button.setProperty("icon_scale_with_font", True)
+    if size_px > 0:
+        button.setProperty("icon_base_size", int(size_px))
+    _apply_scaled_icon_size(button)
+
+
+def _make_icon_text_label(text: str, icon_path: Path, size_px: int = 14) -> QWidget:
+    """Build a compact icon+text label widget."""
+    wrapper = QWidget()
+    row = QHBoxLayout(wrapper)
+    row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(4)
+    if icon_path.exists():
+        icon_label = QLabel()
+        pixmap = QPixmap(str(icon_path)).scaled(
+            size_px, size_px, Qt.KeepAspectRatio, Qt.SmoothTransformation
+        )
+        icon_label.setPixmap(pixmap)
+        row.addWidget(icon_label)
+    row.addWidget(QLabel(text))
+    return wrapper
+
+
+def _set_compact_button(button: QPushButton) -> None:
+    """Prevent row layouts from stretching action buttons too wide."""
+    button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+    button.setMinimumHeight(24)
+
+
+def _set_compact_combo(combo: QComboBox, min_width_px: int = 20) -> None:
+    """Keep combo responsive with a very small pixel minimum width."""
+    combo.setMinimumWidth(max(20, int(min_width_px)))
+    combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+    combo.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Fixed)
+
+
+def _match_button_widths(*buttons: QPushButton) -> None:
+    """Give a button group the same width for visual consistency."""
+    if not buttons:
+        return
+    width = max(button.sizeHint().width() for button in buttons)
+    for button in buttons:
+        button.setMinimumWidth(width)
+
+
 class ConnectionRow:
     """UI bundle for one connection entry and its row-level buttons."""
 
@@ -77,32 +165,36 @@ class ConnectionRow:
         self._position_names = list(position_names)
         self._link_options = list(link_options)
         self._syncing = False
-        self.widget = QWidget()
-        outer = QVBoxLayout(self.widget)
-        outer.setContentsMargins(6, 4, 6, 4)
-        outer.setSpacing(4)
+        self.widget = QFrame()
+        self.widget.setObjectName("connectionRowCard")
+        outer = QHBoxLayout(self.widget)
+        outer.setContentsMargins(8, 5, 8, 5)
+        outer.setSpacing(6)
+
+        left_col = QVBoxLayout()
+        left_col.setSpacing(3)
+        outer.addLayout(left_col, 1)
+        right_col = QVBoxLayout()
+        right_col.setSpacing(3)
+        outer.addLayout(right_col)
 
         self.tag = QCheckBox()
-
         self.name_btn = QPushButton(entry.name)
-        self.name_btn.setStyleSheet("font-weight:700;")
+        self.name_btn.setStyleSheet("font-weight:600; text-align:left; padding:1px 4px;")
         self.name_btn.clicked.connect(lambda: self.tag.setChecked(not self.tag.isChecked()))
-        name_row = QHBoxLayout()
-        name_row.addWidget(self.tag)
-        name_row.addWidget(self.name_btn, 1)
-        self.ks_btn = QPushButton("KS")
-        self.ksv_btn = QPushButton("KSV")
-        self.ksc_btn = QPushButton("KSC")
-        self.ks_btn.clicked.connect(lambda: callbacks["open_ks"](entry.name, "shared"))
-        self.ksv_btn.clicked.connect(lambda: callbacks["open_ks"](entry.name, MODE_VIEW))
-        self.ksc_btn.clicked.connect(lambda: callbacks["open_ks"](entry.name, MODE_CONTROL))
-        name_row.addWidget(self.ks_btn)
-        name_row.addWidget(self.ksv_btn)
-        name_row.addWidget(self.ksc_btn)
-        outer.addLayout(name_row)
+        header_row = QHBoxLayout()
+        header_row.addWidget(self.tag)
+        header_row.addWidget(self.name_btn, 1)
+        left_col.addLayout(header_row)
+
+        self.owner_label = QLabel("Owner: available")
+        self.owner_label.setObjectName("ownerLabel")
+        left_col.addWidget(self.owner_label)
 
         self.position_view = QComboBox()
         self.position_control = QComboBox()
+        _set_compact_combo(self.position_view)
+        _set_compact_combo(self.position_control)
         self._fill_position_combo(self.position_view)
         self._fill_position_combo(self.position_control)
         self.position_view.currentTextChanged.connect(
@@ -111,61 +203,104 @@ class ConnectionRow:
         self.position_control.currentTextChanged.connect(
             lambda _text: self._notify_position_change(MODE_CONTROL)
         )
+        pos_header = QHBoxLayout()
+        pos_header.addWidget(_make_icon_text_label("Position", MONITOR_ICON_PATH))
+        pos_header.addStretch(1)
+        left_col.addLayout(pos_header)
         pos_row = QHBoxLayout()
-        pos_row.addWidget(QLabel("Pos V"))
+        pos_row.addWidget(QLabel("V"))
         pos_row.addWidget(self.position_view, 1)
-        pos_row.addWidget(QLabel("Pos C"))
+        pos_row.addWidget(QLabel("C"))
         pos_row.addWidget(self.position_control, 1)
-        outer.addLayout(pos_row)
-
-        self.view_btn = QPushButton("View")
-        self.view_btn.clicked.connect(lambda: callbacks["open"](entry.name, MODE_VIEW))
-
-        self.control_btn = QPushButton("Control")
-        self.control_btn.clicked.connect(lambda: callbacks["open"](entry.name, MODE_CONTROL))
-        action_row = QHBoxLayout()
-        action_row.addWidget(self.view_btn)
-        action_row.addWidget(self.control_btn)
-        outer.addLayout(action_row)
+        left_col.addLayout(pos_row)
 
         self.link_view = QComboBox()
         self.link_control = QComboBox()
+        _set_compact_combo(self.link_view)
+        _set_compact_combo(self.link_control)
         self._fill_link_combo(self.link_view, MODE_VIEW)
         self._fill_link_combo(self.link_control, MODE_CONTROL)
         self.link_view.currentTextChanged.connect(lambda _text: self._notify_link_change(MODE_VIEW))
         self.link_control.currentTextChanged.connect(
             lambda _text: self._notify_link_change(MODE_CONTROL)
         )
+        link_header = QHBoxLayout()
+        link_header.addWidget(_make_icon_text_label("Link", LINK_ICON_PATH))
+        link_header.addStretch(1)
+        left_col.addLayout(link_header)
         link_row = QHBoxLayout()
-        link_row.addWidget(QLabel("Link V"))
+        link_row.addWidget(QLabel("V"))
         link_row.addWidget(self.link_view, 1)
-        link_row.addWidget(QLabel("Link C"))
+        link_row.addWidget(QLabel("C"))
         link_row.addWidget(self.link_control, 1)
-        outer.addLayout(link_row)
+        left_col.addLayout(link_row)
 
-        self.close_view_btn = QPushButton("Close view")
-        self.close_view_btn.clicked.connect(lambda: callbacks["close"](entry.name, MODE_VIEW))
+        self.ks_btn = QPushButton("KS")
+        self.ksv_btn = QPushButton("KSV")
+        self.ksc_btn = QPushButton("KSC")
+        _set_button_icon(self.ks_btn, SPREADSHEET_ICON_PATH)
+        _set_button_icon(self.ksv_btn, SPREADSHEET_ICON_PATH)
+        _set_button_icon(self.ksc_btn, SPREADSHEET_ICON_PATH)
+        _set_compact_button(self.ks_btn)
+        _set_compact_button(self.ksv_btn)
+        _set_compact_button(self.ksc_btn)
+        self.ks_btn.clicked.connect(lambda: callbacks["open_ks"](entry.name, "shared"))
+        self.ksv_btn.clicked.connect(lambda: callbacks["open_ks"](entry.name, MODE_VIEW))
+        self.ksc_btn.clicked.connect(lambda: callbacks["open_ks"](entry.name, MODE_CONTROL))
+        _match_button_widths(self.ks_btn, self.ksv_btn, self.ksc_btn)
+        ks_row = QHBoxLayout()
+        ks_row.addWidget(self.ks_btn)
+        ks_row.addWidget(self.ksv_btn)
+        ks_row.addWidget(self.ksc_btn)
+        right_col.addLayout(ks_row)
 
-        self.close_control_btn = QPushButton("Close control")
-        self.close_control_btn.clicked.connect(lambda: callbacks["close"](entry.name, MODE_CONTROL))
-        close_row = QHBoxLayout()
-        close_row.addWidget(self.close_view_btn)
-        close_row.addWidget(self.close_control_btn)
-        outer.addLayout(close_row)
+        self.view_btn = QPushButton("View")
+        _set_button_icon(self.view_btn, VIEW_ICON_PATH)
+        _set_compact_button(self.view_btn)
+        self.view_btn.clicked.connect(lambda: callbacks["open"](entry.name, MODE_VIEW))
+        self.control_btn = QPushButton("Control")
+        _set_button_icon(self.control_btn, CONTROL_ICON_PATH)
+        _set_compact_button(self.control_btn)
+        self.control_btn.clicked.connect(lambda: callbacks["open"](entry.name, MODE_CONTROL))
+        open_row = QHBoxLayout()
+        open_row.addWidget(self.view_btn)
+        open_row.addWidget(self.control_btn)
+        right_col.addLayout(open_row)
 
         self.edit_view_btn = QPushButton("Edit View")
+        _set_button_icon(self.edit_view_btn, EDIT_ICON_PATH)
+        _set_compact_button(self.edit_view_btn)
         self.edit_view_btn.clicked.connect(lambda: callbacks["edit"](entry.name, MODE_VIEW))
-
         self.edit_control_btn = QPushButton("Edit Control")
+        _set_button_icon(self.edit_control_btn, EDIT_ICON_PATH)
+        _set_compact_button(self.edit_control_btn)
         self.edit_control_btn.clicked.connect(lambda: callbacks["edit"](entry.name, MODE_CONTROL))
         edit_row = QHBoxLayout()
         edit_row.addWidget(self.edit_view_btn)
         edit_row.addWidget(self.edit_control_btn)
-        outer.addLayout(edit_row)
+        right_col.addLayout(edit_row)
 
-        self.owner_label = QLabel("Owner: available")
-        self.owner_label.setStyleSheet("font-size:11px; color:#666;")
-        outer.addWidget(self.owner_label)
+        self.close_view_btn = QPushButton("Close view")
+        _set_button_icon(self.close_view_btn, UNLOCK_ICON_PATH)
+        _set_compact_button(self.close_view_btn)
+        self.close_view_btn.clicked.connect(lambda: callbacks["close"](entry.name, MODE_VIEW))
+        self.close_control_btn = QPushButton("Close control")
+        _set_button_icon(self.close_control_btn, UNLOCK_ICON_PATH)
+        _set_compact_button(self.close_control_btn)
+        self.close_control_btn.clicked.connect(lambda: callbacks["close"](entry.name, MODE_CONTROL))
+        close_row = QHBoxLayout()
+        close_row.addWidget(self.close_view_btn)
+        close_row.addWidget(self.close_control_btn)
+        right_col.addLayout(close_row)
+
+        _match_button_widths(
+            self.view_btn,
+            self.control_btn,
+            self.edit_view_btn,
+            self.edit_control_btn,
+            self.close_view_btn,
+            self.close_control_btn,
+        )
 
         view_available = entry.view_vnc_path is not None
         control_available = entry.control_vnc_path is not None
@@ -282,10 +417,14 @@ class ConnectionRow:
         """Set clear visual state for available/unavailable mode buttons."""
         button.setEnabled(available)
         if available:
-            button.setStyleSheet(f"background:{active_bg}; color:white; font-weight:700;")
+            button.setStyleSheet(
+                f"background:{active_bg}; color:white; font-weight:600; padding:1px 6px; border:none;"
+            )
             button.setToolTip("")
             return
-        button.setStyleSheet("background:#adb5bd; color:#495057; font-weight:700;")
+        button.setStyleSheet(
+            "background:#edf0f3; color:#6b7280; font-weight:500; padding:1px 6px; border:none;"
+        )
         button.setToolTip("No .vnc file available for this mode")
 
     @staticmethod
@@ -295,10 +434,14 @@ class ConnectionRow:
         """Set visual state for secondary mode buttons (close/edit style variants)."""
         button.setEnabled(available)
         if available:
-            button.setStyleSheet(f"background:{active_bg}; color:{active_fg}; font-weight:700;")
+            button.setStyleSheet(
+                f"background:{active_bg}; color:{active_fg}; font-weight:600; padding:1px 6px; border:none;"
+            )
             button.setToolTip("")
             return
-        button.setStyleSheet("background:#adb5bd; color:#495057; font-weight:700;")
+        button.setStyleSheet(
+            "background:#edf0f3; color:#6b7280; font-weight:500; padding:1px 6px; border:none;"
+        )
         button.setToolTip("No .vnc file available for this mode")
 
 
@@ -314,6 +457,8 @@ class MainWindow(QMainWindow):
         self.topic = "#General"
         self.away_message = ""
         self.theme_mode = str(self.settings_store.value("theme_mode", "Auto"))
+        self.font_size = self._load_font_size_setting()
+        self._apply_global_font_size(self.font_size, persist=False)
         self.effective_theme = "Dark" if windows_prefers_dark() else "Light"
         self.reconnect_on_drop = str(self.settings_store.value("reconnect_on_drop", "false")).lower() == "true"
         self.connections = scan_connections()
@@ -413,6 +558,8 @@ class MainWindow(QMainWindow):
         root.addLayout(setup_row)
         setup_row.addStretch(1)
         self.setup_positions_btn = QPushButton("Setup Positions")
+        _set_button_icon(self.setup_positions_btn, APPLYSETUP_ICON_PATH)
+        _set_compact_button(self.setup_positions_btn)
         self.setup_positions_btn.setStyleSheet("background:#1971c2; color:white; font-weight:700;")
         self.setup_positions_btn.clicked.connect(self._setup_positions)
         setup_row.addWidget(self.setup_positions_btn)
@@ -421,31 +568,46 @@ class MainWindow(QMainWindow):
         actions_row1 = QHBoxLayout()
         root.addLayout(actions_row1)
         self.view_all_btn = QPushButton("View all tagged")
+        _set_button_icon(self.view_all_btn, VIEW_ICON_PATH)
+        _set_compact_button(self.view_all_btn)
         self.view_all_btn.setStyleSheet("background:#2f9e44; color:white; font-weight:700;")
         self.view_all_btn.clicked.connect(lambda: self._open_tagged(MODE_VIEW))
         self.control_all_btn = QPushButton("Control all tagged")
+        _set_button_icon(self.control_all_btn, CONTROL_ICON_PATH)
+        _set_compact_button(self.control_all_btn)
         self.control_all_btn.setStyleSheet("background:#c92a2a; color:white; font-weight:700;")
         self.control_all_btn.clicked.connect(lambda: self._open_tagged(MODE_CONTROL))
+        _match_button_widths(self.view_all_btn, self.control_all_btn)
         actions_row1.addWidget(self.view_all_btn)
         actions_row1.addWidget(self.control_all_btn)
 
         actions_row2 = QHBoxLayout()
         root.addLayout(actions_row2)
         close_tagged = QPushButton("Close all tagged")
+        _set_button_icon(close_tagged, UNLOCK_ICON_PATH)
+        _set_compact_button(close_tagged)
         close_tagged.clicked.connect(self._close_tagged_sessions)
         close_tagged.setStyleSheet("background:#8f7500; color:white; font-weight:700;")
         close_all = QPushButton("Close all sessions")
+        _set_button_icon(close_all, UNLOCK_ICON_PATH)
+        _set_compact_button(close_all)
         close_all.clicked.connect(self._close_all_sessions)
         close_all.setStyleSheet("background:#8f7500; color:white; font-weight:700;")
+        _match_button_widths(close_tagged, close_all)
         actions_row2.addWidget(close_tagged)
         actions_row2.addWidget(close_all)
 
         actions_row3 = QHBoxLayout()
         root.addLayout(actions_row3)
         untag_all = QPushButton("Untag all")
+        _set_button_icon(untag_all, UNTAG_ICON_PATH)
+        _set_compact_button(untag_all)
         untag_all.clicked.connect(self._untag_all)
         self.chat_btn = QPushButton("Chat")
+        _set_button_icon(self.chat_btn, CHAT_ICON_PATH)
+        _set_compact_button(self.chat_btn)
         self.chat_btn.clicked.connect(self._open_chat)
+        _match_button_widths(untag_all, self.chat_btn)
         actions_row3.addWidget(untag_all)
         actions_row3.addWidget(self.chat_btn)
 
@@ -453,9 +615,25 @@ class MainWindow(QMainWindow):
         root.addLayout(actions_row4)
         actions_row4.addStretch(1)
         tools_stack = QVBoxLayout()
+        tools_top_row = QHBoxLayout()
+        sizes_btn = QPushButton("Sizes")
+        _set_button_icon(sizes_btn, EDIT_ICON_PATH)
+        _set_compact_button(sizes_btn)
+        sizes_btn.clicked.connect(self._open_layout_tool)
+        validate_btn = QPushButton("Validate config")
+        _set_button_icon(validate_btn, VALIDATE_ICON_PATH)
+        _set_compact_button(validate_btn)
+        validate_btn.clicked.connect(self._run_validation)
+        _match_button_widths(sizes_btn, validate_btn)
+        tools_top_row.addWidget(sizes_btn)
+        tools_top_row.addWidget(validate_btn)
+        tools_stack.addLayout(tools_top_row)
+
         take_row = QHBoxLayout()
         self.takeover_checkbox = QCheckBox("Take over session")
         import_btn = QPushButton("Import config")
+        _set_button_icon(import_btn, IMPORT_ICON_PATH)
+        _set_compact_button(import_btn)
         import_btn.clicked.connect(self._import_config_bundle)
         take_row.addWidget(self.takeover_checkbox)
         take_row.addWidget(import_btn)
@@ -466,7 +644,10 @@ class MainWindow(QMainWindow):
         self.reconnect_checkbox.setChecked(self.reconnect_on_drop)
         self.reconnect_checkbox.toggled.connect(self._set_reconnect_on_drop)
         export_btn = QPushButton("Export config")
+        _set_button_icon(export_btn, EXPORT_ICON_PATH)
+        _set_compact_button(export_btn)
         export_btn.clicked.connect(self._export_config_bundle)
+        _match_button_widths(import_btn, export_btn)
         reconnect_row.addWidget(self.reconnect_checkbox)
         reconnect_row.addWidget(export_btn)
         tools_stack.addLayout(reconnect_row)
@@ -481,19 +662,69 @@ class MainWindow(QMainWindow):
         self.theme_combo = QComboBox()
         self.theme_combo.addItems(["Auto", "Light", "Dark"])
         self.theme_combo.currentTextChanged.connect(self._apply_theme)
-        sizes_btn = QPushButton("Sizes")
-        sizes_btn.clicked.connect(self._open_layout_tool)
-        validate_btn = QPushButton("Validate config")
-        validate_btn.clicked.connect(self._run_validation)
+        font_label = QLabel("Font Size:")
+        self.font_size_spin = QSpinBox()
+        self.font_size_spin.setRange(8, 32)
+        self.font_size_spin.setSuffix(" pt")
+        self.font_size_spin.setValue(self.font_size)
+        apply_font_btn = QPushButton("Apply")
+        _set_button_icon(apply_font_btn, SAVE_ICON_PATH)
+        _set_compact_button(apply_font_btn)
+        apply_font_btn.clicked.connect(self._apply_font_size_from_ui)
+        _match_button_widths(apply_font_btn)
         actions_row5.addWidget(theme_label)
         actions_row5.addWidget(self.theme_combo)
-        actions_row5.addWidget(sizes_btn)
-        actions_row5.addWidget(validate_btn)
+        actions_row5.addWidget(font_label)
+        actions_row5.addWidget(self.font_size_spin)
+        actions_row5.addWidget(apply_font_btn)
         actions_row5.addStretch(1)
 
         theme_idx = self.theme_combo.findText(self.theme_mode)
         self.theme_combo.setCurrentIndex(max(0, theme_idx))
         self._apply_theme(self.theme_mode)
+
+    @staticmethod
+    def _default_app_font_size() -> int:
+        app = QApplication.instance()
+        if app is None:
+            return 10
+        point_size = app.font().pointSize()
+        return point_size if point_size > 0 else 10
+
+    def _load_font_size_setting(self) -> int:
+        default_size = self._default_app_font_size()
+        raw_value = self.settings_store.value("font_size", default_size)
+        try:
+            value = int(str(raw_value))
+        except (TypeError, ValueError):
+            value = default_size
+        return max(8, min(32, value))
+
+    def _apply_font_size_from_ui(self) -> None:
+        self._apply_global_font_size(self.font_size_spin.value(), persist=True)
+        self._show_info(f"Font size applied: {self.font_size} pt")
+
+    def _apply_global_font_size(self, size: int, persist: bool = True) -> None:
+        app = QApplication.instance()
+        if app is None:
+            return
+        clamped = max(8, min(32, int(size)))
+        font = app.font()
+        if font.pointSize() != clamped:
+            font.setPointSize(clamped)
+            app.setFont(font)
+            # Force-refresh existing widgets that may not fully inherit app font live.
+            for top_level in app.topLevelWidgets():
+                top_level.setFont(font)
+                for child in top_level.findChildren(QWidget):
+                    child.setFont(font)
+                    if isinstance(child, QPushButton):
+                        _apply_scaled_icon_size(child)
+                if isinstance(top_level, QPushButton):
+                    _apply_scaled_icon_size(top_level)
+        self.font_size = clamped
+        if persist:
+            self.settings_store.setValue("font_size", clamped)
 
     def _apply_theme(self, mode: str) -> None:
         """Apply selected theme to both main window and chat window."""
@@ -502,16 +733,20 @@ class MainWindow(QMainWindow):
         if mode == "Auto":
             self.effective_theme = "Dark" if windows_prefers_dark() else "Light"
         effective = self.effective_theme if mode == "Auto" else mode
-        stylesheet = ""
+        base_button_style = "QPushButton{padding:2px 6px;}"
+        light_row_style = (
+            "QFrame#connectionRowCard{background:#fbfcfd; border:1px solid #e5e7eb; border-radius:6px;}"
+            "QLabel#ownerLabel{color:#6b7280; font-size:11px;}"
+        )
+        stylesheet = f"{base_button_style}{light_row_style}"
         if effective == "Dark":
             stylesheet = (
                 "QWidget{background:#1f2328;color:#e6edf3;}"
                 "QLineEdit,QTextEdit,QComboBox,QSpinBox{background:#0d1117;color:#e6edf3;border:1px solid #30363d;}"
+                "QFrame#connectionRowCard{background:#262c34; border:1px solid #3b4350; border-radius:6px;}"
+                "QLabel#ownerLabel{color:#9aa4b2; font-size:11px;}"
+                f"{base_button_style}"
             )
-        elif effective == "Light":
-            stylesheet = ""
-        else:
-            stylesheet = ""
 
         self.setStyleSheet(stylesheet)
         self.chat_window.setStyleSheet(stylesheet)
@@ -672,8 +907,23 @@ class MainWindow(QMainWindow):
         return False
 
     def _close_session(self, connection_name: str, mode: str) -> None:
-        """Close one specific session."""
-        self.session_manager.close_session((connection_name, mode))
+        """Close one specific session and any configured linked session chain."""
+        self._close_session_with_link(connection_name, mode, visited=set())
+
+    def _close_session_with_link(
+        self, connection_name: str, mode: str, visited: Set[Tuple[str, str]]
+    ) -> None:
+        key = (connection_name, mode)
+        if key in visited:
+            return
+        visited.add(key)
+        self.session_manager.close_session(key)
+        link_token = self._selected_link_token(connection_name, mode)
+        parsed = self._parse_session_token(link_token)
+        if parsed is None:
+            return
+        linked_connection, linked_mode = parsed
+        self._close_session_with_link(linked_connection, linked_mode, visited)
 
     def _close_all_sessions(self) -> None:
         """Close all currently running sessions."""

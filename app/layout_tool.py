@@ -3,8 +3,8 @@
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from PyQt5.QtCore import QPoint, QRect, Qt, pyqtSignal
-from PyQt5.QtGui import QIcon
+from PyQt5.QtCore import QPoint, QRect, QSize, Qt, pyqtSignal
+from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
     QComboBox,
@@ -30,6 +30,8 @@ from .config import (
     scan_positions,
 )
 from .constants import CHAT_ICON_PATH, GEARS_ICON_PATH, ICON_PATH, MODE_CONTROL, MODE_VIEW, VNC_POSITIONS_DIR
+from .constants import MONITOR_ICON_PATH
+from .constants import SAVE_ICON_PATH
 from .models import SessionSettings
 from .theme import windows_prefers_dark
 
@@ -160,6 +162,29 @@ class FramelessPreviewWindow(QWidget):
             self.setCursor(Qt.SizeAllCursor)
 
 
+def _set_button_icon(button: QPushButton, icon_path: Path, size_px: int = 14) -> None:
+    if not icon_path.exists():
+        return
+    button.setIcon(QIcon(str(icon_path)))
+    button.setIconSize(QSize(size_px, size_px))
+
+
+def _make_icon_text_label(text: str, icon_path: Path, size_px: int = 14) -> QWidget:
+    wrapper = QWidget()
+    row = QHBoxLayout(wrapper)
+    row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(4)
+    if icon_path.exists():
+        icon_label = QLabel()
+        pixmap = QPixmap(str(icon_path)).scaled(
+            size_px, size_px, Qt.KeepAspectRatio, Qt.SmoothTransformation
+        )
+        icon_label.setPixmap(pixmap)
+        row.addWidget(icon_label)
+    row.addWidget(QLabel(text))
+    return wrapper
+
+
 class SaveTargetDialog(QDialog):
     """Select which existing .vnc target (view/control) receives saved JSON."""
 
@@ -181,6 +206,7 @@ class SaveTargetDialog(QDialog):
         buttons.addStretch(1)
         cancel = QPushButton("Cancel")
         ok = QPushButton("Save")
+        _set_button_icon(ok, SAVE_ICON_PATH)
         cancel.clicked.connect(self.reject)
         ok.clicked.connect(self.accept)
         buttons.addWidget(cancel)
@@ -238,7 +264,7 @@ class LayoutToolWindow(QMainWindow):
         self._apply_settings_to_previews()
         self._apply_theme("Auto")
         self.vnc_preview.show()
-        self.label_preview.show()
+        self._apply_editor_mode(self.mode_box.currentText())
 
     def _build_ui(self) -> None:
         root_widget = QWidget(self)
@@ -257,8 +283,18 @@ class LayoutToolWindow(QMainWindow):
         theme_row.addWidget(self.theme_box)
         theme_row.addStretch(1)
 
-        load_row = QHBoxLayout()
-        top.addLayout(load_row)
+        mode_row = QHBoxLayout()
+        top.addLayout(mode_row)
+        mode_row.addWidget(QLabel("Edit mode:"))
+        self.mode_box = QComboBox()
+        self.mode_box.addItems(["Position", "Session"])
+        self.mode_box.currentTextChanged.connect(self._apply_editor_mode)
+        mode_row.addWidget(self.mode_box)
+        mode_row.addStretch(1)
+
+        self.session_load_widget = QWidget()
+        load_row = QHBoxLayout(self.session_load_widget)
+        load_row.setContentsMargins(0, 0, 0, 0)
         load_row.addWidget(QLabel("Load settings:"))
         self.load_target_box = QComboBox()
         self._populate_load_targets()
@@ -267,12 +303,15 @@ class LayoutToolWindow(QMainWindow):
         load_btn.clicked.connect(self._load_selected_target_settings)
         load_row.addWidget(load_btn)
         save_current_btn = QPushButton("Save")
+        _set_button_icon(save_current_btn, SAVE_ICON_PATH)
         save_current_btn.clicked.connect(self._save_selected_target_settings)
         load_row.addWidget(save_current_btn)
+        top.addWidget(self.session_load_widget)
 
-        position_row = QHBoxLayout()
-        top.addLayout(position_row)
-        position_row.addWidget(QLabel("Positions:"))
+        self.position_tools_widget = QWidget()
+        position_row = QHBoxLayout(self.position_tools_widget)
+        position_row.setContentsMargins(0, 0, 0, 0)
+        position_row.addWidget(_make_icon_text_label("Positions:", MONITOR_ICON_PATH))
         self.position_box = QComboBox()
         self.position_box.setEditable(True)
         self._populate_position_targets()
@@ -280,38 +319,45 @@ class LayoutToolWindow(QMainWindow):
         load_pos_btn = QPushButton("Load Pos")
         load_pos_btn.clicked.connect(self._load_selected_position)
         save_pos_btn = QPushButton("Save Pos")
+        _set_button_icon(save_pos_btn, SAVE_ICON_PATH)
         save_pos_btn.clicked.connect(self._save_selected_position)
         position_row.addWidget(load_pos_btn)
         position_row.addWidget(save_pos_btn)
+        top.addWidget(self.position_tools_widget)
 
-        info = QLabel(
+        self.info_label = QLabel(
             "Drag inside each preview to move.\n"
             "Resize from edges/corners.\n"
             "Windows are frameless and can be moved outside screen bounds."
         )
-        info.setStyleSheet("color:#666;")
-        root.addWidget(info)
+        self.info_label.setStyleSheet("color:#666;")
+        root.addWidget(self.info_label)
 
-        form = QFormLayout()
-        root.addLayout(form)
-        self.x_spin = self._spin(form, "VNC X", -10000, 10000, self.settings.x)
-        self.y_spin = self._spin(form, "VNC Y", -10000, 10000, self.settings.y)
-        self.w_spin = self._spin(form, "VNC Width", 100, 8000, self.settings.width)
-        self.h_spin = self._spin(form, "VNC Height", 100, 8000, self.settings.height)
+        self.geometry_form_widget = QWidget()
+        geometry_form = QFormLayout(self.geometry_form_widget)
+        root.addWidget(self.geometry_form_widget)
+        self.x_spin = self._spin(geometry_form, "VNC X", -10000, 10000, self.settings.x)
+        self.y_spin = self._spin(geometry_form, "VNC Y", -10000, 10000, self.settings.y)
+        self.w_spin = self._spin(geometry_form, "VNC Width", 100, 8000, self.settings.width)
+        self.h_spin = self._spin(geometry_form, "VNC Height", 100, 8000, self.settings.height)
+
+        self.label_form_widget = QWidget()
+        label_form = QFormLayout(self.label_form_widget)
+        root.addWidget(self.label_form_widget)
         self.label_text = QLineEdit(self.settings.label_text)
-        form.addRow("Label Text", self.label_text)
-        self.lx_spin = self._spin(form, "Label Offset X", -10000, 10000, self.settings.label_x)
-        self.ly_spin = self._spin(form, "Label Offset Y", -10000, 10000, self.settings.label_y)
-        self.lw_spin = self._spin(form, "Label Width", 30, 8000, self.settings.label_width)
-        self.lh_spin = self._spin(form, "Label Height", 20, 4000, self.settings.label_height)
-        self.font_spin = self._spin(form, "Label Font", 8, 200, self.settings.label_font)
-        self.border_spin = self._spin(form, "Border Size", 0, 40, self.settings.label_border_size)
+        label_form.addRow("Label Text", self.label_text)
+        self.lx_spin = self._spin(label_form, "Label Offset X", -10000, 10000, self.settings.label_x)
+        self.ly_spin = self._spin(label_form, "Label Offset Y", -10000, 10000, self.settings.label_y)
+        self.lw_spin = self._spin(label_form, "Label Width", 30, 8000, self.settings.label_width)
+        self.lh_spin = self._spin(label_form, "Label Height", 20, 4000, self.settings.label_height)
+        self.font_spin = self._spin(label_form, "Label Font", 8, 200, self.settings.label_font)
+        self.border_spin = self._spin(label_form, "Border Size", 0, 40, self.settings.label_border_size)
         self.bg_text = QLineEdit(self.settings.label_bg)
         self.fg_text = QLineEdit(self.settings.label_font_color)
         self.border_text = QLineEdit(self.settings.label_border_color)
-        form.addRow("Label Background", self.bg_text)
-        form.addRow("Label Font Color", self.fg_text)
-        form.addRow("Label Border Color", self.border_text)
+        label_form.addRow("Label Background", self.bg_text)
+        label_form.addRow("Label Font Color", self.fg_text)
+        label_form.addRow("Label Border Color", self.border_text)
 
         for spin in [
             self.x_spin,
@@ -329,17 +375,20 @@ class LayoutToolWindow(QMainWindow):
         for line in [self.label_text, self.bg_text, self.fg_text, self.border_text]:
             line.textChanged.connect(self._sync_to_preview_windows)
 
-        buttons = QHBoxLayout()
-        root.addLayout(buttons)
+        self.session_buttons_widget = QWidget()
+        buttons = QHBoxLayout(self.session_buttons_widget)
+        buttons.setContentsMargins(0, 0, 0, 0)
+        root.addWidget(self.session_buttons_widget)
         reset_btn = QPushButton("Reset from default.json")
-        pull_btn = QPushButton("Read current preview positions")
         save_btn = QPushButton("Save to connection JSON")
+        _set_button_icon(save_btn, SAVE_ICON_PATH)
         reset_btn.clicked.connect(self._reset_defaults)
-        pull_btn.clicked.connect(self._sync_from_preview_windows)
         save_btn.clicked.connect(self._save_target_json)
         buttons.addWidget(reset_btn)
-        buttons.addWidget(pull_btn)
         buttons.addWidget(save_btn)
+
+        self.mode_box.setCurrentText("Position")
+        self._apply_editor_mode(self.mode_box.currentText())
 
     def _spin(self, form: QFormLayout, label: str, low: int, high: int, value: int) -> QSpinBox:
         field = QSpinBox()
@@ -351,13 +400,37 @@ class LayoutToolWindow(QMainWindow):
     def _apply_theme(self, mode: str) -> None:
         self.theme_mode = mode
         effective = "Dark" if mode == "Auto" and windows_prefers_dark() else ("Light" if mode == "Auto" else mode)
+        base_button_style = "QPushButton{padding:2px 6px;}"
         if effective == "Dark":
             self.setStyleSheet(
-                "QWidget{background:#1f2328;color:#e6edf3;} QLineEdit,QComboBox,QSpinBox{background:#0d1117;color:#e6edf3;border:1px solid #30363d;}"
+                "QWidget{background:#1f2328;color:#e6edf3;} "
+                "QLineEdit,QComboBox,QSpinBox{background:#0d1117;color:#e6edf3;border:1px solid #30363d;}"
+                f"{base_button_style}"
             )
         else:
-            self.setStyleSheet("")
+            self.setStyleSheet(base_button_style)
         self._apply_preview_styles()
+
+    def _apply_editor_mode(self, mode: str) -> None:
+        is_position_mode = mode.strip().lower() == "position"
+        self.session_load_widget.setVisible(not is_position_mode)
+        self.position_tools_widget.setVisible(is_position_mode)
+        self.label_form_widget.setVisible(not is_position_mode)
+        self.session_buttons_widget.setVisible(not is_position_mode)
+        if is_position_mode:
+            self.label_preview.hide()
+        else:
+            self.label_preview.show()
+            self.label_preview.raise_()
+        if is_position_mode:
+            self.info_label.setText(
+                "Position mode: editing VNC x/y/width/height only.\n"
+                "Label fields are hidden and unchanged."
+            )
+        else:
+            self.info_label.setText(
+                "Session mode: edit full VNC + label settings and save to connection JSON."
+            )
 
     def _apply_preview_styles(self) -> None:
         s = self._collect_settings()

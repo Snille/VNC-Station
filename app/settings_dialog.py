@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Dict
 
+from PyQt5.QtCore import QSize
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (
     QDialog,
@@ -16,8 +17,15 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
 )
 
-from .constants import GEARS_ICON_PATH
+from .constants import GEARS_ICON_PATH, SAVE_ICON_PATH
 from .models import SessionSettings
+
+
+def _set_button_icon(button: QPushButton, icon_path: Path, size_px: int = 14) -> None:
+    if not icon_path.exists():
+        return
+    button.setIcon(QIcon(str(icon_path)))
+    button.setIconSize(QSize(size_px, size_px))
 
 
 class SettingsDialog(QDialog):
@@ -31,6 +39,7 @@ class SettingsDialog(QDialog):
             self.setWindowIcon(QIcon(str(GEARS_ICON_PATH)))
         self.setModal(True)
         self.resize(290, 415)
+        self.setStyleSheet("QPushButton{padding:2px 6px;}")
         self._fields: Dict[str, object] = {}
 
         layout = QVBoxLayout(self)
@@ -58,6 +67,7 @@ class SettingsDialog(QDialog):
         buttons.addStretch(1)
         cancel = QPushButton("Cancel")
         save = QPushButton("Save")
+        _set_button_icon(save, SAVE_ICON_PATH)
         save.clicked.connect(self.accept)
         cancel.clicked.connect(self.reject)
         buttons.addWidget(cancel)
