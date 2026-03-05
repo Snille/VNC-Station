@@ -33,6 +33,7 @@ This project is MIT licensed (see `LICENSE` in the repository root).
   - `vnc-view/` (contains per-target `.vnc` and optional `.json`)
   - `vnc-control/` (contains per-target `.vnc` and optional `.json`)
   - `vnc-positions/` (contains reusable position `.json` presets)
+  - `vnc-setups/` (contains saved setup `.json` presets for tags/positions/links)
 
 ### Expected File Layout
 
@@ -42,6 +43,7 @@ VNC-Station/
   vnc-view/
   vnc-control/
   vnc-positions/
+  vnc-setups/
   Example files/
   default.json
   tvnviewer.exe
@@ -135,7 +137,8 @@ Also make sure `python.exe` is allowed in Windows Defender Firewall.
 9. Use `Sizes` (next to the theme selector) to open the visual layout tool for coarse window/label positioning and managing `vnc-positions` presets.
 10. Select per-session `Pos V`/`Pos C`, then click `Setup Positions` to open all assigned sessions at their selected position and persist the selection.
 11. Select per-session `Link V`/`Link C` to auto-open a linked session together with View/Control actions.
-12. Configure `KS` paths in Edit dialogs; the row shows `KS` (shared path) or `KSV`/`KSC` (different view/control paths).
+12. Configure `KS` folder paths in Edit dialogs; at click time the app opens the latest modified file in that folder.
+13. Use the setup selector next to `Setup Positions` to load/save full setups (tags + selected positions + selected links).
 
 Startup note:
 - On launch, open actions are briefly locked while the app requests current session ownership from other stations.
@@ -146,13 +149,12 @@ Startup note:
 - Default startup size: `250x830` (if no saved size exists in app settings)
 - Connection list is the resizable/scrollable section
 - Bottom control rows:
-  1. `Setup Positions`
-  2. `View all tagged` + `Control all tagged`
-  3. `Close all tagged` + `Close all sessions`
-  4. `Untag all` + `Chat`
-  5. `Take over session` + `Import config` (centered)
-  6. `Reconnect on drop` + `Export config` (centered)
-  7. `Theme` + theme selector + `Sizes` + `Validate config` (centered)
+  1. `Setup Positions` + setup selector + `Save` + `Clear Setup`
+  2. `Untag all` + `View all tagged` + `Control all tagged`
+  3. `Chat` + `Close all tagged` + `Close all sessions`
+  4. `Sizes` + `Validate config` + `Import config` + `Export config`
+  5. `Take over session` + `Reconnect on drop`
+  6. `Theme` + theme selector + `Font Size` + `Apply`
 
 ## Chat Commands
 
@@ -175,7 +177,9 @@ Startup note:
 - Setup Positions action: opens all sessions with selected positions and persists those position references.
 - Unique position assignment guard: one position cannot be selected by more than one session at the same time.
 - Per-mode session linking (`Link V` / `Link C`): opens linked sessions together with view/control actions.
-- Per-session `KS` file path buttons (`KS`, `KSV`, `KSC`) with direct open from the main list.
+- Linked close behavior: closing a session also closes linked sessions recursively (loop-safe).
+- Per-session `KS` folder/file buttons (`KS`, `KSV`, `KSC`) with direct open from the main list.
+- Setup presets (`vnc-setups/*.json`) store and restore all row tags, selected positions, and selected links.
 - Overlay labels that follow VNC windows: keep session identity visible on screen.
 - Session lock awareness across stations: avoid accidental duplicate control/view.
 - Optional takeover mode: allow controlled override when needed.
@@ -200,6 +204,9 @@ Startup note:
 - `Sizes` opens the visual layout tool:
   - movable frameless `VNC Preview` window (cross-screen(s))
   - movable/resizable frameless `Label Preview` window (always-on-top)
+  - two edit modes:
+    - `Position`: only VNC geometry editing and position load/save
+    - `Session`: full VNC + label settings editing
   - label coordinates are offsets relative to the VNC window top-left
   - `Load` target selector (`connection [view/control]`) with default fallback if JSON is missing
   - `Positions` selector with `Load Pos` / `Save Pos` for `vnc-positions/*.json`
@@ -238,7 +245,9 @@ Cleanup generated build artifacts:
 - If a session has `position_name` set, that position preset overrides launch `x/y/width/height`.
 - Overlay label `label_x`/`label_y` are treated as offsets from the VNC window top-left.
 - If a session has `linked_session` set, linked sessions are auto-opened for View/Control actions.
+- Closing a session also follows `linked_session` and closes linked sessions recursively.
 - A small always-on-top overlay label is created and periodically repositioned to follow the VNC window.
+- Setup presets are loaded from `vnc-setups/*.json`; applying a setup resets rows first, then applies saved tags/positions/links.
 - Stations communicate over UDP broadcast on port `50000`:
   - presence discovery (`hello`)
   - session open/close state
@@ -256,3 +265,4 @@ Cleanup generated build artifacts:
   - 3-4x 4K screens
   - 1-2x Full HD screens
   - mixed-DPI setup checks for VNC window placement and label overlay alignment
+- Implement access to the Home Assistant API to fetch alarms from machine sensors.

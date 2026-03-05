@@ -1,6 +1,8 @@
 """Main application window: connection list, controls, chat, and coordination."""
+import json
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -55,6 +57,7 @@ from .constants import (
     SPREADSHEET_ICON_PATH,
     SESSION_BROADCAST_INTERVAL_MS,
     STATION_PRESENCE_CHECK_MS,
+    VNC_SETUPS_DIR,
     UNLOCK_ICON_PATH,
     UNTAG_ICON_PATH,
     VALIDATE_ICON_PATH,
@@ -563,10 +566,30 @@ class MainWindow(QMainWindow):
         self.setup_positions_btn.setStyleSheet("background:#1971c2; color:white; font-weight:700;")
         self.setup_positions_btn.clicked.connect(self._setup_positions)
         setup_row.addWidget(self.setup_positions_btn)
+        self.setup_select = QComboBox()
+        self.setup_select.setEditable(True)
+        self.setup_select.setMinimumWidth(20)
+        self.setup_select.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setup_select.currentIndexChanged.connect(self._on_setup_selection_changed)
+        setup_row.addWidget(self.setup_select, 1)
+        self.setup_save_btn = QPushButton("Save")
+        _set_button_icon(self.setup_save_btn, SAVE_ICON_PATH)
+        _set_compact_button(self.setup_save_btn)
+        self.setup_save_btn.clicked.connect(self._save_current_setup)
+        setup_row.addWidget(self.setup_save_btn)
+        self.setup_clear_btn = QPushButton("Clear Setup")
+        _set_compact_button(self.setup_clear_btn)
+        self.setup_clear_btn.clicked.connect(self._clear_setup_state)
+        setup_row.addWidget(self.setup_clear_btn)
         setup_row.addStretch(1)
+        self._refresh_setup_targets()
 
         actions_row1 = QHBoxLayout()
         root.addLayout(actions_row1)
+        untag_all = QPushButton("Untag all")
+        _set_button_icon(untag_all, UNTAG_ICON_PATH)
+        _set_compact_button(untag_all)
+        untag_all.clicked.connect(self._untag_all)
         self.view_all_btn = QPushButton("View all tagged")
         _set_button_icon(self.view_all_btn, VIEW_ICON_PATH)
         _set_compact_button(self.view_all_btn)
@@ -577,12 +600,17 @@ class MainWindow(QMainWindow):
         _set_compact_button(self.control_all_btn)
         self.control_all_btn.setStyleSheet("background:#c92a2a; color:white; font-weight:700;")
         self.control_all_btn.clicked.connect(lambda: self._open_tagged(MODE_CONTROL))
-        _match_button_widths(self.view_all_btn, self.control_all_btn)
+        _match_button_widths(untag_all, self.view_all_btn, self.control_all_btn)
+        actions_row1.addWidget(untag_all)
         actions_row1.addWidget(self.view_all_btn)
         actions_row1.addWidget(self.control_all_btn)
 
         actions_row2 = QHBoxLayout()
         root.addLayout(actions_row2)
+        self.chat_btn = QPushButton("Chat")
+        _set_button_icon(self.chat_btn, CHAT_ICON_PATH)
+        _set_compact_button(self.chat_btn)
+        self.chat_btn.clicked.connect(self._open_chat)
         close_tagged = QPushButton("Close all tagged")
         _set_button_icon(close_tagged, UNLOCK_ICON_PATH)
         _set_compact_button(close_tagged)
@@ -593,29 +621,13 @@ class MainWindow(QMainWindow):
         _set_compact_button(close_all)
         close_all.clicked.connect(self._close_all_sessions)
         close_all.setStyleSheet("background:#8f7500; color:white; font-weight:700;")
-        _match_button_widths(close_tagged, close_all)
+        _match_button_widths(self.chat_btn, close_tagged, close_all)
+        actions_row2.addWidget(self.chat_btn)
         actions_row2.addWidget(close_tagged)
         actions_row2.addWidget(close_all)
 
         actions_row3 = QHBoxLayout()
         root.addLayout(actions_row3)
-        untag_all = QPushButton("Untag all")
-        _set_button_icon(untag_all, UNTAG_ICON_PATH)
-        _set_compact_button(untag_all)
-        untag_all.clicked.connect(self._untag_all)
-        self.chat_btn = QPushButton("Chat")
-        _set_button_icon(self.chat_btn, CHAT_ICON_PATH)
-        _set_compact_button(self.chat_btn)
-        self.chat_btn.clicked.connect(self._open_chat)
-        _match_button_widths(untag_all, self.chat_btn)
-        actions_row3.addWidget(untag_all)
-        actions_row3.addWidget(self.chat_btn)
-
-        actions_row4 = QHBoxLayout()
-        root.addLayout(actions_row4)
-        actions_row4.addStretch(1)
-        tools_stack = QVBoxLayout()
-        tools_top_row = QHBoxLayout()
         sizes_btn = QPushButton("Sizes")
         _set_button_icon(sizes_btn, EDIT_ICON_PATH)
         _set_compact_button(sizes_btn)
@@ -624,35 +636,29 @@ class MainWindow(QMainWindow):
         _set_button_icon(validate_btn, VALIDATE_ICON_PATH)
         _set_compact_button(validate_btn)
         validate_btn.clicked.connect(self._run_validation)
-        _match_button_widths(sizes_btn, validate_btn)
-        tools_top_row.addWidget(sizes_btn)
-        tools_top_row.addWidget(validate_btn)
-        tools_stack.addLayout(tools_top_row)
-
-        take_row = QHBoxLayout()
-        self.takeover_checkbox = QCheckBox("Take over session")
         import_btn = QPushButton("Import config")
         _set_button_icon(import_btn, IMPORT_ICON_PATH)
         _set_compact_button(import_btn)
         import_btn.clicked.connect(self._import_config_bundle)
-        take_row.addWidget(self.takeover_checkbox)
-        take_row.addWidget(import_btn)
-        tools_stack.addLayout(take_row)
-
-        reconnect_row = QHBoxLayout()
-        self.reconnect_checkbox = QCheckBox("Reconnect on drop")
-        self.reconnect_checkbox.setChecked(self.reconnect_on_drop)
-        self.reconnect_checkbox.toggled.connect(self._set_reconnect_on_drop)
         export_btn = QPushButton("Export config")
         _set_button_icon(export_btn, EXPORT_ICON_PATH)
         _set_compact_button(export_btn)
         export_btn.clicked.connect(self._export_config_bundle)
-        _match_button_widths(import_btn, export_btn)
-        reconnect_row.addWidget(self.reconnect_checkbox)
-        reconnect_row.addWidget(export_btn)
-        tools_stack.addLayout(reconnect_row)
+        _match_button_widths(sizes_btn, validate_btn, import_btn, export_btn)
+        actions_row3.addWidget(sizes_btn)
+        actions_row3.addWidget(validate_btn)
+        actions_row3.addWidget(import_btn)
+        actions_row3.addWidget(export_btn)
 
-        actions_row4.addLayout(tools_stack)
+        actions_row4 = QHBoxLayout()
+        root.addLayout(actions_row4)
+        actions_row4.addStretch(1)
+        self.takeover_checkbox = QCheckBox("Take over session")
+        self.reconnect_checkbox = QCheckBox("Reconnect on drop")
+        self.reconnect_checkbox.setChecked(self.reconnect_on_drop)
+        self.reconnect_checkbox.toggled.connect(self._set_reconnect_on_drop)
+        actions_row4.addWidget(self.takeover_checkbox)
+        actions_row4.addWidget(self.reconnect_checkbox)
         actions_row4.addStretch(1)
 
         actions_row5 = QHBoxLayout()
@@ -773,6 +779,125 @@ class MainWindow(QMainWindow):
             if entry.name == name:
                 return entry
         return None
+
+    @staticmethod
+    def _sanitize_setup_name(name: str) -> str:
+        cleaned = name.strip()
+        cleaned = re.sub(r"[<>:\"/\\|?*\x00-\x1F]", "_", cleaned)
+        cleaned = cleaned.strip(" .")
+        return cleaned
+
+    def _setup_path_for_name(self, name: str) -> Optional[Path]:
+        safe_name = self._sanitize_setup_name(name)
+        if not safe_name:
+            return None
+        return VNC_SETUPS_DIR / f"{safe_name}.json"
+
+    def _refresh_setup_targets(self) -> None:
+        VNC_SETUPS_DIR.mkdir(parents=True, exist_ok=True)
+        current_text = self.setup_select.currentText().strip() if hasattr(self, "setup_select") else ""
+        names = sorted((p.stem for p in VNC_SETUPS_DIR.glob("*.json")), key=str.lower)
+        self.setup_select.blockSignals(True)
+        self.setup_select.clear()
+        self.setup_select.addItem("")
+        for name in names:
+            self.setup_select.addItem(name)
+        if current_text:
+            idx = self.setup_select.findText(current_text)
+            if idx >= 0:
+                self.setup_select.setCurrentIndex(idx)
+            else:
+                self.setup_select.setEditText(current_text)
+        self.setup_select.blockSignals(False)
+
+    def _save_current_setup(self) -> None:
+        raw_name = self.setup_select.currentText().strip()
+        path = self._setup_path_for_name(raw_name)
+        if path is None:
+            self._show_info("Enter a setup name before saving.")
+            return
+        payload: Dict[str, object] = {
+            "name": path.stem,
+            "connections": {},
+        }
+        connections: Dict[str, object] = {}
+        for connection_name, row in self.rows.items():
+            connections[connection_name] = {
+                "tagged": bool(row.tag.isChecked()),
+                "position_view": row.selected_position(MODE_VIEW),
+                "position_control": row.selected_position(MODE_CONTROL),
+                "link_view": row.selected_link(MODE_VIEW),
+                "link_control": row.selected_link(MODE_CONTROL),
+            }
+        payload["connections"] = connections
+        save_json(path, payload)
+        self._refresh_setup_targets()
+        self.setup_select.setCurrentText(path.stem)
+        self._show_info(f"Saved setup: {path.stem}")
+
+    def _on_setup_selection_changed(self, index: int) -> None:
+        if index < 0:
+            return
+        selected_name = self.setup_select.currentText().strip()
+        if not selected_name:
+            return
+        path = self._setup_path_for_name(selected_name)
+        if path is None or not path.exists():
+            return
+        try:
+            with path.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+        except (OSError, json.JSONDecodeError) as exc:
+            self._show_info(f"Failed to load setup '{selected_name}': {exc}")
+            return
+        if not isinstance(data, dict):
+            self._show_info(f"Invalid setup format in '{selected_name}'.")
+            return
+        connections = data.get("connections", {})
+        if not isinstance(connections, dict):
+            self._show_info(f"Invalid setup connections in '{selected_name}'.")
+            return
+        # Reset all rows first so missing keys/rows in the setup become defaults.
+        for connection_name, row in self.rows.items():
+            row.tag.setChecked(False)
+            row.set_selected_position(MODE_VIEW, "")
+            row.set_selected_position(MODE_CONTROL, "")
+            row.set_selected_link(MODE_VIEW, "")
+            row.set_selected_link(MODE_CONTROL, "")
+
+        for connection_name, config in connections.items():
+            row = self.rows.get(str(connection_name))
+            if row is None or not isinstance(config, dict):
+                continue
+            row.tag.setChecked(bool(config.get("tagged", row.tag.isChecked())))
+            pos_v = str(config.get("position_view", "")).strip()
+            pos_c = str(config.get("position_control", "")).strip()
+            link_v = str(config.get("link_view", "")).strip()
+            link_c = str(config.get("link_control", "")).strip()
+            row.set_selected_position(MODE_VIEW, pos_v)
+            row.set_selected_position(MODE_CONTROL, pos_c)
+            row.set_selected_link(MODE_VIEW, link_v)
+            row.set_selected_link(MODE_CONTROL, link_c)
+
+        for connection_name in self.rows.keys():
+            self._persist_ui_selections(connection_name, MODE_VIEW)
+            self._persist_ui_selections(connection_name, MODE_CONTROL)
+        self._clear_duplicate_positions_after_load()
+        self._show_info(f"Applied setup: {selected_name}")
+
+    def _clear_setup_state(self) -> None:
+        """Clear all setup-driven UI state: tags, positions, and links."""
+        for connection_name, row in self.rows.items():
+            row.tag.setChecked(False)
+            row.set_selected_position(MODE_VIEW, "")
+            row.set_selected_position(MODE_CONTROL, "")
+            row.set_selected_link(MODE_VIEW, "")
+            row.set_selected_link(MODE_CONTROL, "")
+            self._persist_ui_selections(connection_name, MODE_VIEW)
+            self._persist_ui_selections(connection_name, MODE_CONTROL)
+        if hasattr(self, "setup_select"):
+            self.setup_select.setCurrentIndex(0)
+        self._show_info("Setup cleared.")
 
     def _build_session_link_options(self) -> List[Tuple[str, str]]:
         """Build selectable link targets from all available view/control sessions."""
@@ -1352,6 +1477,8 @@ class MainWindow(QMainWindow):
         self.rows_layout.addStretch(1)
         self._clear_duplicate_positions_after_load()
         self._refresh_owner_labels()
+        if hasattr(self, "setup_select"):
+            self._refresh_setup_targets()
 
     def _populate_row_from_saved_settings(self, row: ConnectionRow) -> None:
         view_settings = load_session_settings(config_path_for(row.entry.name, MODE_VIEW))

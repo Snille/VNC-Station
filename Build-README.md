@@ -29,7 +29,20 @@ Create this structure at repository root:
 │  ├─ images/
 │  │  ├─ icon.png
 │  │  ├─ chat.png
-│  │  └─ gear.png
+│  │  ├─ gear.png
+│  │  ├─ view.png
+│  │  ├─ control.png
+│  │  ├─ edit.png
+│  │  ├─ import.png
+│  │  ├─ export.png
+│  │  ├─ validate.png
+│  │  ├─ save.png
+│  │  ├─ untag.png
+│  │  ├─ unlock.png
+│  │  ├─ applysetup.png
+│  │  ├─ spreadsheet.png
+│  │  ├─ link.png
+│  │  └─ monitor.png
 │  ├─ sounds/
 │  │  └─ notice.wav
 │  ├─ __init__.py
@@ -57,6 +70,7 @@ Create this structure at repository root:
 ├─ vnc-view/
 ├─ vnc-control/
 ├─ vnc-positions/
+├─ vnc-setups/
 ├─ logs/
 ├─ default.json
 ├─ requirements.txt
@@ -66,6 +80,7 @@ Create this structure at repository root:
 Notes:
 - `vnc-view/` and `vnc-control/` contain operator-specific `.vnc` and `.json`.
 - `vnc-positions/` contains reusable position presets (`*.json`).
+- `vnc-setups/` contains saved setup snapshots (`*.json`) for tags + selected positions + selected links.
 - These folders must exist even when empty.
 - `tvnviewer.exe` must be in project root.
 
@@ -107,7 +122,21 @@ Same schema as above except `station_name` is optional/ignored.
 Additional per-connection keys:
 - `position_name` (selected position preset name from `vnc-positions`, optional)
 - `linked_session` (token format `<ConnectionName>|view|control`, optional)
-- `ks` (full path to file, optional)
+- `ks` (folder or file path, optional; if folder, open latest modified file at click time)
+
+### 4.4 Setup files
+
+Location:
+- `vnc-setups/<SetupName>.json`
+
+Schema:
+- `name` (setup name)
+- `connections` object keyed by connection name:
+  - `tagged` (bool)
+  - `position_view` (string)
+  - `position_control` (string)
+  - `link_view` (string session token or empty)
+  - `link_control` (string session token or empty)
 
 ### 4.3 Position preset files
 
@@ -117,7 +146,7 @@ Location:
 Required keys:
 - `x`, `y`, `width`, `height`, `name`
 
-### 4.4 Connection identity
+### 4.5 Connection identity
 
 A connection is identified by filename stem of `.vnc`.
 
@@ -154,14 +183,17 @@ Default size:
 
 Connection list is scrollable and is the only section that expands on manual resize.
 
-For each connection, render rows including:
-1. `[tag-checkbox] [Name button bold] [KS|KSV|KSC (dynamic)]`
-2. `Pos V` selector + `Pos C` selector
-3. `[View] [Control]`
-4. `Link V` selector + `Link C` selector
-5. `[Close view] [Close control]`
-6. `[Edit View] [Edit Control]`
-7. `Owner: ...` status line
+For each connection, render compact two-column card rows including:
+- left column:
+  - `[tag-checkbox] [Name button]`
+  - `Owner: ...` status line
+  - position selectors (`V`/`C`)
+  - link selectors (`V`/`C`)
+- right column:
+  - `[KS|KSV|KSC (dynamic)]`
+  - `[View] [Control]`
+  - `[Edit View] [Edit Control]`
+  - `[Close view] [Close control]`
 
 Connection separators:
 - horizontal line between entries
@@ -175,13 +207,19 @@ Name button click:
 - toggles tag checkbox
 
 Bottom fixed controls (in this exact order):
-1. `[Setup Positions]`
-2. `[View all tagged] [Control all tagged]`
-3. `[Close all tagged] [Close all sessions]`
-4. `[Untag all] [Chat]`
-5. `[Take over session checkbox] [Import config]` (centered row)
-6. `[Reconnect on drop checkbox] [Export config]` (centered row)
-7. `[Theme label] [Theme selector Auto/Light/Dark] [Sizes button] [Validate config]` (centered row)
+1. `[Setup Positions] [setup selector editable] [Save] [Clear Setup]`
+2. `[Untag all] [View all tagged] [Control all tagged]`
+3. `[Chat] [Close all tagged] [Close all sessions]`
+4. `[Sizes] [Validate config] [Import config] [Export config]`
+5. `[Take over session checkbox] [Reconnect on drop checkbox]`
+6. `[Theme label] [Theme selector Auto/Light/Dark] [Font Size] [Apply]`
+
+Setup selector behavior:
+- loads setup names from `vnc-setups/*.json`
+- selecting setup immediately applies saved state
+- setup apply resets all rows first, then applies saved values
+- save writes current tags + selected positions + selected links
+- clear resets tags + selected positions + selected links
 
 `Sizes` button behavior:
 - opens `layout_tool.py` UI for visual pre-placement of VNC/label settings
@@ -213,7 +251,7 @@ Fields:
 - label_font_color
 - label_border_size
 - label_border_color
-- ks (file path with browse button)
+- ks (folder path with browse button)
 
 Save behavior:
 - writes JSON to corresponding mode folder
@@ -276,11 +314,13 @@ Open behavior additions:
 - if `linked_session` is set, opening a session also opens the linked session.
 - `Setup Positions` opens all sessions that currently have a selected position.
 - one position preset can only be selected by one session at a time.
+- selecting a setup applies saved tags + selected positions + selected links immediately.
 
 Closing:
 - close overlay
 - terminate process (terminate -> short wait -> kill if needed)
 - broadcast session close on network
+- if `linked_session` is set, closing follows link chain recursively (loop-safe)
 
 App exit:
 - close all open sessions and overlays
@@ -389,6 +429,10 @@ Required icons:
 - main app icon: `app/images/icon.png`
 - chat window icon: `app/images/chat.png`
 - settings dialog icon: `app/images/gear.png`
+- button icons:
+  - `view.png`, `control.png`, `edit.png`, `import.png`, `export.png`,
+    `validate.png`, `save.png`, `untag.png`, `unlock.png`, `applysetup.png`,
+    `spreadsheet.png`, `link.png`, `monitor.png`
 
 ## 12. Example Files Package
 
@@ -473,7 +517,9 @@ python -m unittest discover -s tests -v
 Packaging requirement:
 - build must use windowed mode (`--windowed`) so end users do not see a console window.
 - build output must include runtime folders: `vnc-view`, `vnc-control`, `vnc-positions`.
+- build output must include runtime folder: `vnc-setups`.
 - build output must copy any existing `vnc-positions/*.json` presets into `dist`.
+- build output should preserve any existing `vnc-setups/*.json` presets into `dist`.
 
 ## 16. Verification Checklist (must all pass)
 
@@ -491,6 +537,8 @@ Packaging requirement:
 - Setup Positions opens sessions on selected position presets.
 - Position selectors prevent duplicate assignment of the same preset.
 - Linked sessions open together with View/Control actions.
+- Linked sessions close together with Close actions.
+- Setup selector loads/saves from `vnc-setups` and applies tags/positions/links.
 - KS button naming logic:
   - one visible button => `KS`
   - two visible buttons => `KSV` and `KSC`

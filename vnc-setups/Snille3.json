@@ -1,0 +1,33 @@
+{
+  "name": "Snille3",
+  "connections": {
+    "Linux Mint-01": {
+      "tagged": true,
+      "position_view": "",
+      "position_control": "",
+      "link_view": "",
+      "link_control": ""
+    },
+    "Linux Mint-02": {
+      "tagged": true,
+      "position_view": "",
+      "position_control": "",
+      "link_view": "",
+      "link_control": ""
+    },
+    "Linux Mint-03": {
+      "tagged": true,
+      "position_view": "",
+      "position_control": "",
+      "link_view": "",
+      "link_control": ""
+    },
+    "Linux Mint-04": {
+      "tagged": true,
+      "position_view": "",
+      "position_control": "",
+      "link_view": "",
+      "link_control": ""
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "Snilles2",
+  "connections": {
+    "Linux Mint-01": {
+      "tagged": false,
+      "position_view": "Position 01",
+      "position_control": "",
+      "link_view": "",
+      "link_control": ""
+    },
+    "Linux Mint-02": {
+      "tagged": false,
+      "position_view": "Position 02",
+      "position_control": "",
+      "link_view": "",
+      "link_control": ""
+    },
+    "Linux Mint-03": {
+      "tagged": true,
+      "position_view": "Position 03",
+      "position_control": "",
+      "link_view": "",
+      "link_control": ""
+    },
+    "Linux Mint-04": {
+      "tagged": true,
+      "position_view": "Position 04",
+      "position_control": "",
+      "link_view": "",
+      "link_control": ""
+    }
+  }
+}
