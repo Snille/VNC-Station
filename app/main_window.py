@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
 from PyQt5.QtCore import QSettings, QSize, QTimer, Qt, QUrl
-from PyQt5.QtGui import QCloseEvent, QIcon, QPixmap
+from PyQt5.QtGui import QCloseEvent, QFont, QIcon, QPixmap
 from PyQt5.QtMultimedia import QSoundEffect
 from PyQt5.QtWidgets import (
     QApplication,
@@ -43,6 +43,7 @@ from .constants import (
     APPLYSETUP_ICON_PATH,
     CHAT_ICON_PATH,
     CONTROL_ICON_PATH,
+    DELETE_ICON_PATH,
     EDIT_ICON_PATH,
     EXPORT_ICON_PATH,
     HELLO_INTERVAL_MS,
@@ -79,11 +80,12 @@ from .vnc import SessionManager
 from .layout_tool import LayoutToolWindow
 
 LOGGER = logging.getLogger(__name__)
+ICON_TEXT_GAP_PREFIX = "\u2009"  # thin space: slightly tighter icon-to-text gap
 
 
 def _icon_size_for_font_size(point_size: int) -> int:
     """Return a small icon size that tracks UI font size."""
-    return max(12, min(28, int(point_size * 1.25)))
+    return max(13, min(30, int(point_size * 1.35)))
 
 
 def _current_app_font_size() -> int:
@@ -102,7 +104,15 @@ def _apply_scaled_icon_size(button: QPushButton) -> None:
     button.setIconSize(QSize(size_px, size_px))
 
 
-def _set_button_icon(button: QPushButton, icon_path: Path, size_px: int = 14) -> None:
+def _ensure_icon_text_spacing(button: QPushButton) -> None:
+    """Add a small gap before button text when an icon is present."""
+    text = button.text()
+    if not text or text.startswith((" ", ICON_TEXT_GAP_PREFIX)):
+        return
+    button.setText(f"{ICON_TEXT_GAP_PREFIX}{text}")
+
+
+def _set_button_icon(button: QPushButton, icon_path: Path, size_px: int = 16) -> None:
     """Apply a small icon when the asset exists (safe in source/frozen runs)."""
     if not icon_path.exists():
         return
@@ -111,6 +121,7 @@ def _set_button_icon(button: QPushButton, icon_path: Path, size_px: int = 14) ->
     if size_px > 0:
         button.setProperty("icon_base_size", int(size_px))
     _apply_scaled_icon_size(button)
+    _ensure_icon_text_spacing(button)
 
 
 def _make_icon_text_label(text: str, icon_path: Path, size_px: int = 14) -> QWidget:
@@ -183,7 +194,7 @@ class ConnectionRow:
 
         self.tag = QCheckBox()
         self.name_btn = QPushButton(entry.name)
-        self.name_btn.setStyleSheet("font-weight:600; text-align:left; padding:1px 4px;")
+        self.name_btn.setStyleSheet("font-weight:600; text-align:left; padding:1px 3px; border-radius:4px;")
         self.name_btn.clicked.connect(lambda: self.tag.setChecked(not self.tag.isChecked()))
         header_row = QHBoxLayout()
         header_row.addWidget(self.tag)
@@ -260,11 +271,11 @@ class ConnectionRow:
         self.view_btn = QPushButton("View")
         _set_button_icon(self.view_btn, VIEW_ICON_PATH)
         _set_compact_button(self.view_btn)
-        self.view_btn.clicked.connect(lambda: callbacks["open"](entry.name, MODE_VIEW))
+        self.view_btn.clicked.connect(lambda: callbacks["toggle_open"](entry.name, MODE_VIEW))
         self.control_btn = QPushButton("Control")
         _set_button_icon(self.control_btn, CONTROL_ICON_PATH)
         _set_compact_button(self.control_btn)
-        self.control_btn.clicked.connect(lambda: callbacks["open"](entry.name, MODE_CONTROL))
+        self.control_btn.clicked.connect(lambda: callbacks["toggle_open"](entry.name, MODE_CONTROL))
         open_row = QHBoxLayout()
         open_row.addWidget(self.view_btn)
         open_row.addWidget(self.control_btn)
@@ -283,26 +294,11 @@ class ConnectionRow:
         edit_row.addWidget(self.edit_control_btn)
         right_col.addLayout(edit_row)
 
-        self.close_view_btn = QPushButton("Close view")
-        _set_button_icon(self.close_view_btn, UNLOCK_ICON_PATH)
-        _set_compact_button(self.close_view_btn)
-        self.close_view_btn.clicked.connect(lambda: callbacks["close"](entry.name, MODE_VIEW))
-        self.close_control_btn = QPushButton("Close control")
-        _set_button_icon(self.close_control_btn, UNLOCK_ICON_PATH)
-        _set_compact_button(self.close_control_btn)
-        self.close_control_btn.clicked.connect(lambda: callbacks["close"](entry.name, MODE_CONTROL))
-        close_row = QHBoxLayout()
-        close_row.addWidget(self.close_view_btn)
-        close_row.addWidget(self.close_control_btn)
-        right_col.addLayout(close_row)
-
         _match_button_widths(
             self.view_btn,
             self.control_btn,
             self.edit_view_btn,
             self.edit_control_btn,
-            self.close_view_btn,
-            self.close_control_btn,
         )
 
         view_available = entry.view_vnc_path is not None
@@ -310,13 +306,20 @@ class ConnectionRow:
 
         self._apply_mode_button_style(self.view_btn, view_available, "#2f9e44")
         self._apply_mode_button_style(self.control_btn, control_available, "#c92a2a")
-        self._apply_secondary_mode_button_style(self.close_view_btn, view_available, "#8f7500", "white")
-        self._apply_secondary_mode_button_style(self.close_control_btn, control_available, "#8f7500", "white")
         self._apply_mode_button_style(self.edit_view_btn, view_available, "#1971c2")
         self._apply_mode_button_style(self.edit_control_btn, control_available, "#1971c2")
         self._apply_mode_button_style(self.ksv_btn, view_available, "#6741d9")
         self._apply_mode_button_style(self.ksc_btn, control_available, "#6741d9")
         self._refresh_ks_buttons("", "")
+
+    def set_mode_open_state(self, mode: str, is_open: bool, available: bool) -> None:
+        """Toggle row action text between open/close while keeping icon."""
+        if mode == MODE_VIEW:
+            self.view_btn.setText(f"{ICON_TEXT_GAP_PREFIX}{'Close' if is_open else 'View'}")
+            self._apply_mode_button_style(self.view_btn, available, "#2f9e44")
+            return
+        self.control_btn.setText(f"{ICON_TEXT_GAP_PREFIX}{'Close' if is_open else 'Control'}")
+        self._apply_mode_button_style(self.control_btn, available, "#c92a2a")
 
     def _notify_position_change(self, mode: str) -> None:
         if self._syncing:
@@ -407,10 +410,10 @@ class ConnectionRow:
         self.ksv_btn.setVisible(view_only or both_different)
         self.ksc_btn.setVisible(control_only or both_different)
         self.ks_btn.setEnabled(same)
-        self.ksv_btn.setText("KS" if view_only else "KSV")
-        self.ksc_btn.setText("KS" if control_only else "KSC")
+        self.ksv_btn.setText(f"{ICON_TEXT_GAP_PREFIX}KS" if view_only else f"{ICON_TEXT_GAP_PREFIX}KSV")
+        self.ksc_btn.setText(f"{ICON_TEXT_GAP_PREFIX}KS" if control_only else f"{ICON_TEXT_GAP_PREFIX}KSC")
         if same:
-            self.ks_btn.setStyleSheet("background:#6741d9; color:white; font-weight:700;")
+            self.ks_btn.setStyleSheet("background:#6741d9; color:white; font-weight:700; border-radius:4px;")
 
     def set_ks_paths(self, view_ks: str, control_ks: str) -> None:
         self._refresh_ks_buttons(view_ks.strip(), control_ks.strip())
@@ -421,32 +424,14 @@ class ConnectionRow:
         button.setEnabled(available)
         if available:
             button.setStyleSheet(
-                f"background:{active_bg}; color:white; font-weight:600; padding:1px 6px; border:none;"
+                f"background:{active_bg}; color:white; font-weight:600; padding:1px 5px; border:none; border-radius:4px;"
             )
             button.setToolTip("")
             return
         button.setStyleSheet(
-            "background:#edf0f3; color:#6b7280; font-weight:500; padding:1px 6px; border:none;"
+            "background:#edf0f3; color:#6b7280; font-weight:500; padding:1px 5px; border:none; border-radius:4px;"
         )
         button.setToolTip("No .vnc file available for this mode")
-
-    @staticmethod
-    def _apply_secondary_mode_button_style(
-        button: QPushButton, available: bool, active_bg: str, active_fg: str
-    ) -> None:
-        """Set visual state for secondary mode buttons (close/edit style variants)."""
-        button.setEnabled(available)
-        if available:
-            button.setStyleSheet(
-                f"background:{active_bg}; color:{active_fg}; font-weight:600; padding:1px 6px; border:none;"
-            )
-            button.setToolTip("")
-            return
-        button.setStyleSheet(
-            "background:#edf0f3; color:#6b7280; font-weight:500; padding:1px 6px; border:none;"
-        )
-        button.setToolTip("No .vnc file available for this mode")
-
 
 class MainWindow(QMainWindow):
     """Primary controller window that coordinates all app subsystems."""
@@ -557,98 +542,120 @@ class MainWindow(QMainWindow):
         scroll.setWidget(content)
         self._rebuild_connection_rows()
 
-        setup_row = QHBoxLayout()
-        root.addLayout(setup_row)
-        setup_row.addStretch(1)
-        self.setup_positions_btn = QPushButton("Setup Positions")
-        _set_button_icon(self.setup_positions_btn, APPLYSETUP_ICON_PATH)
-        _set_compact_button(self.setup_positions_btn)
-        self.setup_positions_btn.setStyleSheet("background:#1971c2; color:white; font-weight:700;")
-        self.setup_positions_btn.clicked.connect(self._setup_positions)
-        setup_row.addWidget(self.setup_positions_btn)
+        setup_manage_row = QHBoxLayout()
+        root.addLayout(setup_manage_row)
         self.setup_select = QComboBox()
         self.setup_select.setEditable(True)
         self.setup_select.setMinimumWidth(20)
         self.setup_select.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setup_select.currentIndexChanged.connect(self._on_setup_selection_changed)
-        setup_row.addWidget(self.setup_select, 1)
+        setup_manage_row.addWidget(self.setup_select, 1)
         self.setup_save_btn = QPushButton("Save")
         _set_button_icon(self.setup_save_btn, SAVE_ICON_PATH)
         _set_compact_button(self.setup_save_btn)
+        self.setup_save_btn.setStyleSheet("background:#6741d9; color:white; font-weight:700; border-radius:4px;")
         self.setup_save_btn.clicked.connect(self._save_current_setup)
-        setup_row.addWidget(self.setup_save_btn)
+        setup_manage_row.addWidget(self.setup_save_btn)
         self.setup_clear_btn = QPushButton("Clear Setup")
         _set_compact_button(self.setup_clear_btn)
+        self.setup_clear_btn.setStyleSheet("background:#1971c2; color:white; font-weight:700; border-radius:4px;")
         self.setup_clear_btn.clicked.connect(self._clear_setup_state)
-        setup_row.addWidget(self.setup_clear_btn)
-        setup_row.addStretch(1)
+        setup_manage_row.addWidget(self.setup_clear_btn)
+        self.setup_delete_btn = QPushButton("Delete")
+        _set_button_icon(self.setup_delete_btn, DELETE_ICON_PATH)
+        _set_compact_button(self.setup_delete_btn)
+        self.setup_delete_btn.setStyleSheet("background:#bd001b; color:white; font-weight:700; border-radius:4px;")
+        self.setup_delete_btn.clicked.connect(self._delete_current_setup)
+        setup_manage_row.addWidget(self.setup_delete_btn)
+        self._apply_setup_manage_row_font()
+
+        setup_actions_row = QHBoxLayout()
+        root.addLayout(setup_actions_row)
+        setup_actions_row.addStretch(1)
+        self.setup_view_btn = QPushButton("Setup View")
+        _set_button_icon(self.setup_view_btn, APPLYSETUP_ICON_PATH)
+        _set_compact_button(self.setup_view_btn)
+        self.setup_view_btn.setStyleSheet("background:#2f9e44; color:white; font-weight:700; border-radius:4px;")
+        self.setup_view_btn.clicked.connect(lambda: self._toggle_setup_mode(MODE_VIEW))
+        setup_actions_row.addWidget(self.setup_view_btn)
+        self.setup_control_btn = QPushButton("Setup Control")
+        _set_button_icon(self.setup_control_btn, APPLYSETUP_ICON_PATH)
+        _set_compact_button(self.setup_control_btn)
+        self.setup_control_btn.setStyleSheet(
+            "background:#c92a2a; color:white; font-weight:700; border-radius:4px;"
+        )
+        self.setup_control_btn.clicked.connect(lambda: self._toggle_setup_mode(MODE_CONTROL))
+        setup_actions_row.addWidget(self.setup_control_btn)
+        setup_actions_row.addStretch(1)
+        self._refresh_setup_mode_buttons()
         self._refresh_setup_targets()
 
         actions_row1 = QHBoxLayout()
         root.addLayout(actions_row1)
+        actions_row1.addStretch(1)
         untag_all = QPushButton("Untag all")
         _set_button_icon(untag_all, UNTAG_ICON_PATH)
         _set_compact_button(untag_all)
+        untag_all.setStyleSheet("background:#6741d9; color:white; font-weight:700; border-radius:4px;")
         untag_all.clicked.connect(self._untag_all)
-        self.view_all_btn = QPushButton("View all tagged")
+        self.view_all_btn = QPushButton("View tagged")
         _set_button_icon(self.view_all_btn, VIEW_ICON_PATH)
         _set_compact_button(self.view_all_btn)
-        self.view_all_btn.setStyleSheet("background:#2f9e44; color:white; font-weight:700;")
-        self.view_all_btn.clicked.connect(lambda: self._open_tagged(MODE_VIEW))
-        self.control_all_btn = QPushButton("Control all tagged")
+        self.view_all_btn.setStyleSheet("background:#2f9e44; color:white; font-weight:700; border-radius:4px;")
+        self.view_all_btn.clicked.connect(lambda: self._toggle_tagged_mode(MODE_VIEW))
+        self.control_all_btn = QPushButton("Control tagged")
         _set_button_icon(self.control_all_btn, CONTROL_ICON_PATH)
         _set_compact_button(self.control_all_btn)
-        self.control_all_btn.setStyleSheet("background:#c92a2a; color:white; font-weight:700;")
-        self.control_all_btn.clicked.connect(lambda: self._open_tagged(MODE_CONTROL))
-        _match_button_widths(untag_all, self.view_all_btn, self.control_all_btn)
-        actions_row1.addWidget(untag_all)
+        self.control_all_btn.setStyleSheet("background:#c92a2a; color:white; font-weight:700; border-radius:4px;")
+        self.control_all_btn.clicked.connect(lambda: self._toggle_tagged_mode(MODE_CONTROL))
+        _match_button_widths(self.view_all_btn, self.control_all_btn)
         actions_row1.addWidget(self.view_all_btn)
         actions_row1.addWidget(self.control_all_btn)
+        actions_row1.addStretch(1)
+        self._refresh_tagged_mode_buttons()
 
         actions_row2 = QHBoxLayout()
         root.addLayout(actions_row2)
+        actions_row2.addStretch(1)
+        actions_row2.addWidget(untag_all)
         self.chat_btn = QPushButton("Chat")
         _set_button_icon(self.chat_btn, CHAT_ICON_PATH)
         _set_compact_button(self.chat_btn)
+        self.chat_btn.setStyleSheet("background:#660063; color:white; font-weight:700; border-radius:4px;")
         self.chat_btn.clicked.connect(self._open_chat)
-        close_tagged = QPushButton("Close all tagged")
-        _set_button_icon(close_tagged, UNLOCK_ICON_PATH)
-        _set_compact_button(close_tagged)
-        close_tagged.clicked.connect(self._close_tagged_sessions)
-        close_tagged.setStyleSheet("background:#8f7500; color:white; font-weight:700;")
-        close_all = QPushButton("Close all sessions")
-        _set_button_icon(close_all, UNLOCK_ICON_PATH)
-        _set_compact_button(close_all)
-        close_all.clicked.connect(self._close_all_sessions)
-        close_all.setStyleSheet("background:#8f7500; color:white; font-weight:700;")
-        _match_button_widths(self.chat_btn, close_tagged, close_all)
+        sizes_btn = QPushButton("Positions && Sizes")
+        _set_button_icon(sizes_btn, EDIT_ICON_PATH)
+        _set_compact_button(sizes_btn)
+        sizes_btn.setStyleSheet("background:#1971c2; color:white; font-weight:700; border-radius:4px;")
+        sizes_btn.clicked.connect(self._open_layout_tool)
+        _match_button_widths(untag_all, self.chat_btn, sizes_btn)
         actions_row2.addWidget(self.chat_btn)
-        actions_row2.addWidget(close_tagged)
-        actions_row2.addWidget(close_all)
+        actions_row2.addWidget(sizes_btn)
+        actions_row2.addStretch(1)
 
         actions_row3 = QHBoxLayout()
         root.addLayout(actions_row3)
-        sizes_btn = QPushButton("Sizes")
-        _set_button_icon(sizes_btn, EDIT_ICON_PATH)
-        _set_compact_button(sizes_btn)
-        sizes_btn.clicked.connect(self._open_layout_tool)
+        actions_row3.addStretch(1)
         validate_btn = QPushButton("Validate config")
         _set_button_icon(validate_btn, VALIDATE_ICON_PATH)
         _set_compact_button(validate_btn)
+        validate_btn.setStyleSheet("background:#006b57; color:white; font-weight:700; border-radius:4px;")
         validate_btn.clicked.connect(self._run_validation)
         import_btn = QPushButton("Import config")
         _set_button_icon(import_btn, IMPORT_ICON_PATH)
         _set_compact_button(import_btn)
+        import_btn.setStyleSheet("background:#006b57; color:white; font-weight:700; border-radius:4px;")
         import_btn.clicked.connect(self._import_config_bundle)
         export_btn = QPushButton("Export config")
         _set_button_icon(export_btn, EXPORT_ICON_PATH)
         _set_compact_button(export_btn)
+        export_btn.setStyleSheet("background:#006b57; color:white; font-weight:700; border-radius:4px;")
         export_btn.clicked.connect(self._export_config_bundle)
-        _match_button_widths(sizes_btn, validate_btn, import_btn, export_btn)
-        actions_row3.addWidget(sizes_btn)
+        _match_button_widths(validate_btn, import_btn, export_btn)
         actions_row3.addWidget(validate_btn)
         actions_row3.addWidget(import_btn)
         actions_row3.addWidget(export_btn)
+        actions_row3.addStretch(1)
 
         actions_row4 = QHBoxLayout()
         root.addLayout(actions_row4)
@@ -676,6 +683,7 @@ class MainWindow(QMainWindow):
         apply_font_btn = QPushButton("Apply")
         _set_button_icon(apply_font_btn, SAVE_ICON_PATH)
         _set_compact_button(apply_font_btn)
+        apply_font_btn.setStyleSheet("background:#660063; color:white; font-weight:700; border-radius:4px;")
         apply_font_btn.clicked.connect(self._apply_font_size_from_ui)
         _match_button_widths(apply_font_btn)
         actions_row5.addWidget(theme_label)
@@ -729,8 +737,26 @@ class MainWindow(QMainWindow):
                 if isinstance(top_level, QPushButton):
                     _apply_scaled_icon_size(top_level)
         self.font_size = clamped
+        self._apply_setup_manage_row_font()
         if persist:
             self.settings_store.setValue("font_size", clamped)
+
+    def _apply_setup_manage_row_font(self) -> None:
+        """Use slightly larger text for setup selector and setup action buttons."""
+        if not hasattr(self, "setup_select"):
+            return
+        app = QApplication.instance()
+        if app is None:
+            return
+        base_size = app.font().pointSize()
+        if base_size <= 0:
+            return
+        bigger = QFont(app.font())
+        bigger.setPointSize(base_size + 2)
+        self.setup_select.setFont(bigger)
+        self.setup_save_btn.setFont(bigger)
+        self.setup_clear_btn.setFont(bigger)
+        self.setup_delete_btn.setFont(bigger)
 
     def _apply_theme(self, mode: str) -> None:
         """Apply selected theme to both main window and chat window."""
@@ -739,7 +765,7 @@ class MainWindow(QMainWindow):
         if mode == "Auto":
             self.effective_theme = "Dark" if windows_prefers_dark() else "Light"
         effective = self.effective_theme if mode == "Auto" else mode
-        base_button_style = "QPushButton{padding:2px 6px;}"
+        base_button_style = "QPushButton{padding:1px 5px; border-radius:4px;}"
         light_row_style = (
             "QFrame#connectionRowCard{background:#fbfcfd; border:1px solid #e5e7eb; border-radius:6px;}"
             "QLabel#ownerLabel{color:#6b7280; font-size:11px;}"
@@ -756,6 +782,8 @@ class MainWindow(QMainWindow):
 
         self.setStyleSheet(stylesheet)
         self.chat_window.setStyleSheet(stylesheet)
+        if self._layout_tool_window is not None:
+            self._layout_tool_window.set_theme_mode(mode)
         # Toast uses opposite contrast of the selected/effective app theme.
         if effective == "Dark":
             self.toast.set_theme("light")
@@ -796,6 +824,8 @@ class MainWindow(QMainWindow):
     def _refresh_setup_targets(self) -> None:
         VNC_SETUPS_DIR.mkdir(parents=True, exist_ok=True)
         current_text = self.setup_select.currentText().strip() if hasattr(self, "setup_select") else ""
+        if not current_text:
+            current_text = str(self.settings_store.value("last_setup_name", "")).strip()
         names = sorted((p.stem for p in VNC_SETUPS_DIR.glob("*.json")), key=str.lower)
         self.setup_select.blockSignals(True)
         self.setup_select.clear()
@@ -833,12 +863,34 @@ class MainWindow(QMainWindow):
         save_json(path, payload)
         self._refresh_setup_targets()
         self.setup_select.setCurrentText(path.stem)
+        self.settings_store.setValue("last_setup_name", path.stem)
         self._show_info(f"Saved setup: {path.stem}")
+
+    def _delete_current_setup(self) -> None:
+        raw_name = self.setup_select.currentText().strip()
+        path = self._setup_path_for_name(raw_name)
+        if path is None or not raw_name:
+            self._show_info("Select a setup name to delete.")
+            return
+        if not path.exists():
+            self._show_info(f"Setup not found: {raw_name}")
+            return
+        try:
+            path.unlink()
+        except OSError as exc:
+            self._show_info(f"Failed to delete setup '{raw_name}': {exc}")
+            return
+        self._refresh_setup_targets()
+        self.setup_select.setCurrentIndex(0)
+        if str(self.settings_store.value("last_setup_name", "")).strip().lower() == raw_name.lower():
+            self.settings_store.setValue("last_setup_name", "")
+        self._show_info(f"Deleted setup: {raw_name}")
 
     def _on_setup_selection_changed(self, index: int) -> None:
         if index < 0:
             return
         selected_name = self.setup_select.currentText().strip()
+        self.settings_store.setValue("last_setup_name", selected_name)
         if not selected_name:
             return
         path = self._setup_path_for_name(selected_name)
@@ -1028,6 +1080,8 @@ class MainWindow(QMainWindow):
                 # Broadcast takeover notice so all other stations log it as well.
                 self.network.send_takeover(connection_name, remote_holder)
             self._refresh_owner_labels()
+            self._refresh_setup_mode_buttons()
+            self._refresh_tagged_mode_buttons()
             return True
         return False
 
@@ -1064,6 +1118,7 @@ class MainWindow(QMainWindow):
                 self._close_session(row.entry.name, MODE_CONTROL)
         if not any_tagged:
             self._show_info("No tagged connections.")
+        self._refresh_tagged_mode_buttons()
 
     def _open_tagged(self, mode: str) -> None:
         """Open selected mode for every currently tagged connection row."""
@@ -1075,28 +1130,111 @@ class MainWindow(QMainWindow):
         if not any_tagged:
             self._show_info("No tagged connections.")
 
-    def _setup_positions(self) -> None:
-        """Open all sessions that have a selected position and persist position refs."""
+    def _close_tagged_mode(self, mode: str) -> None:
+        """Close one mode for all currently tagged connection rows."""
+        any_tagged = False
+        for row in self.rows.values():
+            if not row.tag.isChecked():
+                continue
+            any_tagged = True
+            self._close_session(row.entry.name, mode)
+        if not any_tagged:
+            self._show_info("No tagged connections.")
+
+    def _has_open_tagged_mode(self, mode: str) -> bool:
+        """Return True when any tagged row currently has this local mode open."""
+        for row in self.rows.values():
+            if not row.tag.isChecked():
+                continue
+            if (row.entry.name, mode) in self.session_manager.sessions:
+                return True
+        return False
+
+    def _toggle_tagged_mode(self, mode: str) -> None:
+        """Toggle tagged open/close action for a specific mode."""
+        if self._has_open_tagged_mode(mode):
+            self._close_tagged_mode(mode)
+        else:
+            self._open_tagged(mode)
+        self._refresh_tagged_mode_buttons()
+
+    def _refresh_tagged_mode_buttons(self) -> None:
+        if hasattr(self, "view_all_btn"):
+            view_label = "Close tagged" if self._has_open_tagged_mode(MODE_VIEW) else "View tagged"
+            self.view_all_btn.setText(f"{ICON_TEXT_GAP_PREFIX}{view_label}")
+        if hasattr(self, "control_all_btn"):
+            control_label = "Close tagged" if self._has_open_tagged_mode(MODE_CONTROL) else "Control tagged"
+            self.control_all_btn.setText(f"{ICON_TEXT_GAP_PREFIX}{control_label}")
+
+    def _toggle_session(self, connection_name: str, mode: str) -> None:
+        """Toggle one row mode: open when closed, close when open."""
+        key = (connection_name, mode)
+        if key in self.session_manager.sessions:
+            self._close_session(connection_name, mode)
+            return
+        self._open_session(connection_name, mode)
+
+    def _toggle_setup_mode(self, mode: str) -> None:
+        """Toggle setup mode action for one mode: open all or close all local sessions."""
+        if self._has_local_sessions_for_mode(mode):
+            self._close_setup_mode_sessions(mode)
+            return
+        self._open_setup_mode_sessions(mode)
+
+    def _open_setup_mode_sessions(self, mode: str) -> None:
+        """Open all available sessions for one mode without linked-session chaining."""
         if self._startup_sync_pending:
             self._show_info("Please wait: synchronizing session ownership...")
             return
-        if not self._validate_unique_position_assignments():
+        if mode == MODE_VIEW and not self._validate_unique_position_assignments():
             return
-        selected_targets: List[Tuple[str, str]] = []
+        opened_any = False
+        selected_any = False
         for row in self.rows.values():
-            for mode in (MODE_VIEW, MODE_CONTROL):
-                if row.selected_position(mode):
-                    selected_targets.append((row.entry.name, mode))
-        if not selected_targets:
-            self._show_info("No positions selected.")
+            if not row.selected_position(mode):
+                continue
+            selected_any = True
+            has_vnc = row.entry.view_vnc_path is not None if mode == MODE_VIEW else row.entry.control_vnc_path is not None
+            if not has_vnc:
+                continue
+            self._persist_ui_selections(row.entry.name, mode)
+            opened_any = self._open_single_session(row.entry.name, mode) or opened_any
+        if not selected_any:
+            self._show_info(f"No {mode} positions selected.")
             return
-        for connection_name, mode in selected_targets:
-            self._persist_ui_selections(connection_name, mode)
-            self._open_session_with_link(connection_name, mode, visited=set())
+        if not opened_any:
+            self._show_info(f"No {mode} sessions were opened.")
+        self._refresh_setup_mode_buttons()
+
+    def _close_setup_mode_sessions(self, mode: str) -> None:
+        """Close only local sessions for one mode (no linked-session close propagation)."""
+        keys_to_close = [key for key in self.session_manager.sessions.keys() if key[1] == mode]
+        if not keys_to_close:
+            self._show_info(f"No open {mode} sessions.")
+            self._refresh_setup_mode_buttons()
+            return
+        for key in keys_to_close:
+            self.session_manager.close_session(key)
+        self._refresh_owner_labels()
+        self._refresh_setup_mode_buttons()
+
+    def _has_local_sessions_for_mode(self, mode: str) -> bool:
+        return any(open_mode == mode for _connection_name, open_mode in self.session_manager.sessions.keys())
+
+    def _refresh_setup_mode_buttons(self) -> None:
+        if hasattr(self, "setup_view_btn"):
+            view_label = "Close View" if self._has_local_sessions_for_mode(MODE_VIEW) else "Setup View"
+            self.setup_view_btn.setText(f"{ICON_TEXT_GAP_PREFIX}{view_label}")
+        if hasattr(self, "setup_control_btn"):
+            control_label = "Close Control" if self._has_local_sessions_for_mode(MODE_CONTROL) else "Setup Control"
+            self.setup_control_btn.setText(f"{ICON_TEXT_GAP_PREFIX}{control_label}")
 
     def _on_position_selection_changed(self, connection_name: str, mode: str) -> None:
         row = self.rows.get(connection_name)
         if row is None:
+            return
+        if mode == MODE_CONTROL:
+            # Control positions are allowed to overlap other assignments.
             return
         selected = row.selected_position(mode)
         if not selected:
@@ -1121,6 +1259,8 @@ class MainWindow(QMainWindow):
         assignments: Dict[str, Tuple[str, str]] = {}
         for connection_name, row in self.rows.items():
             for mode in (MODE_VIEW, MODE_CONTROL):
+                if mode == MODE_CONTROL:
+                    continue
                 selected = row.selected_position(mode)
                 if not selected:
                     continue
@@ -1159,6 +1299,7 @@ class MainWindow(QMainWindow):
 
         try:
             os.startfile(str(target))
+            self._show_info(f"Opened KS file: {target.name}")
         except OSError as exc:
             self._show_info(f"Failed to open KS file: {exc}")
 
@@ -1166,6 +1307,7 @@ class MainWindow(QMainWindow):
         """Clear all row selection checkboxes."""
         for row in self.rows.values():
             row.tag.setChecked(False)
+        self._refresh_tagged_mode_buttons()
 
     def _edit_session(self, connection_name: str, mode: str) -> None:
         """Open settings editor for one connection/mode and save if accepted."""
@@ -1194,6 +1336,8 @@ class MainWindow(QMainWindow):
         LOGGER.info("Session closed: %s [%s]", connection_name, mode)
         self.network.send_session(connection_name, mode, False)
         self._refresh_owner_labels()
+        self._refresh_setup_mode_buttons()
+        self._refresh_tagged_mode_buttons()
 
     def _on_session_unexpected_exit(self, key: Tuple[str, str]) -> None:
         """Handle dropped VNC process and optionally auto-reconnect."""
@@ -1386,16 +1530,22 @@ class MainWindow(QMainWindow):
             local_modes = [m for (conn, m) in self.session_manager.sessions.keys() if conn == name]
             if local_modes:
                 row.owner_label.setText(f"Owner: {self.station_name} ({'/'.join(sorted(local_modes))})")
-                continue
-            matches = []
-            for (conn, mode), (holder, age_seconds) in remote_info.items():
-                if conn == name:
-                    matches.append((holder, mode, int(age_seconds)))
-            if matches:
-                holder, mode, age_seconds = sorted(matches, key=lambda x: x[2])[0]
-                row.owner_label.setText(f"Owner: {holder} [{mode}] {age_seconds}s")
             else:
-                row.owner_label.setText("Owner: available")
+                matches = []
+                for (conn, mode), (holder, age_seconds) in remote_info.items():
+                    if conn == name:
+                        matches.append((holder, mode, int(age_seconds)))
+                if matches:
+                    holder, mode, age_seconds = sorted(matches, key=lambda x: x[2])[0]
+                    row.owner_label.setText(f"Owner: {holder} [{mode}] {age_seconds}s")
+                else:
+                    row.owner_label.setText("Owner: available")
+            row.set_mode_open_state(
+                MODE_VIEW, MODE_VIEW in local_modes, row.entry.view_vnc_path is not None
+            )
+            row.set_mode_open_state(
+                MODE_CONTROL, MODE_CONTROL in local_modes, row.entry.control_vnc_path is not None
+            )
 
     def _check_station_presence_changes(self) -> None:
         """Emit online/offline notices based on station set deltas."""
@@ -1458,6 +1608,7 @@ class MainWindow(QMainWindow):
                 entry,
                 {
                     "open": self._open_session,
+                    "toggle_open": self._toggle_session,
                     "close": self._close_session,
                     "edit": self._edit_session,
                     "open_ks": self._open_ks_file,
@@ -1468,6 +1619,7 @@ class MainWindow(QMainWindow):
                 self.session_link_options,
             )
             self._populate_row_from_saved_settings(row)
+            row.tag.toggled.connect(lambda _checked, self=self: self._refresh_tagged_mode_buttons())
             self.rows[entry.name] = row
             self.rows_layout.addWidget(row.widget)
             line = QFrame()
@@ -1502,6 +1654,8 @@ class MainWindow(QMainWindow):
         assigned: Dict[str, Tuple[str, str]] = {}
         for connection_name, row in self.rows.items():
             for mode in (MODE_VIEW, MODE_CONTROL):
+                if mode == MODE_CONTROL:
+                    continue
                 selected = row.selected_position(mode)
                 if not selected:
                     continue
@@ -1518,7 +1672,7 @@ class MainWindow(QMainWindow):
     def _open_layout_tool(self) -> None:
         """Open or focus the visual layout tool window."""
         if self._layout_tool_window is None or not self._layout_tool_window.isVisible():
-            self._layout_tool_window = LayoutToolWindow()
+            self._layout_tool_window = LayoutToolWindow(theme_mode=self.theme_mode)
             self._layout_tool_window.window_closed.connect(self._on_layout_tool_closed)
         self._layout_tool_window.show()
         self._layout_tool_window.raise_()
@@ -1535,7 +1689,8 @@ class MainWindow(QMainWindow):
         """Enable/disable all actions that can open new sessions."""
         self.view_all_btn.setEnabled(enabled)
         self.control_all_btn.setEnabled(enabled)
-        self.setup_positions_btn.setEnabled(enabled)
+        self.setup_view_btn.setEnabled(enabled)
+        self.setup_control_btn.setEnabled(enabled)
         for row in self.rows.values():
             row.view_btn.setEnabled(enabled and row.entry.view_vnc_path is not None)
             row.control_btn.setEnabled(enabled and row.entry.control_vnc_path is not None)

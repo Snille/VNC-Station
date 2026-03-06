@@ -43,6 +43,7 @@ if (-not (Test-Path $DistRoot)) {
 New-Item -ItemType Directory -Force -Path (Join-Path $DistRoot "vnc-view") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $DistRoot "vnc-control") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $DistRoot "vnc-positions") | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $DistRoot "vnc-setups") | Out-Null
 
 # Copy required runtime files next to the launcher executable.
 $ViewerSrc = Join-Path $RepoRoot "tvnviewer.exe"
@@ -71,6 +72,18 @@ if (Test-Path $PositionsSrc) {
 }
 else {
     Write-Warning "vnc-positions folder not found in repo root; empty folder created in dist."
+}
+
+# Copy available setup presets to distribution (optional runtime content).
+$SetupsSrc = Join-Path $RepoRoot "vnc-setups"
+$SetupsDst = Join-Path $DistRoot "vnc-setups"
+if (Test-Path $SetupsSrc) {
+    Get-ChildItem -Path $SetupsSrc -Filter "*.json" -File -ErrorAction SilentlyContinue | ForEach-Object {
+        Copy-Item -Force -Path $_.FullName -Destination (Join-Path $SetupsDst $_.Name)
+    }
+}
+else {
+    Write-Warning "vnc-setups folder not found in repo root; empty folder created in dist."
 }
 
 Write-Host ("Build complete. See " + $DistRoot) -ForegroundColor Green

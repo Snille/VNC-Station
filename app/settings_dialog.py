@@ -17,7 +17,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
 )
 
-from .constants import GEARS_ICON_PATH, SAVE_ICON_PATH
+from .constants import CANCEL_ICON_PATH, GEARS_ICON_PATH, SAVE_ICON_PATH
 from .models import SessionSettings
 
 
@@ -67,7 +67,10 @@ class SettingsDialog(QDialog):
         buttons.addStretch(1)
         cancel = QPushButton("Cancel")
         save = QPushButton("Save")
+        _set_button_icon(cancel, CANCEL_ICON_PATH)
+        cancel.setStyleSheet("background:#1971c2; color:white; font-weight:700; border-radius:4px;")
         _set_button_icon(save, SAVE_ICON_PATH)
+        save.setStyleSheet("background:#6741d9; color:white; font-weight:700; border-radius:4px;")
         save.clicked.connect(self.accept)
         cancel.clicked.connect(self.reject)
         buttons.addWidget(cancel)

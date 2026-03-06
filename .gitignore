@@ -44,3 +44,5 @@ vnc-control/*
 !vnc-control/.gitkeep
 vnc-positions/*
 !vnc-positions/.gitkeep
+vnc-setups/*
+!vnc-setups/.gitkeep

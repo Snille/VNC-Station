@@ -29,11 +29,22 @@ from .config import (
     scan_connections,
     scan_positions,
 )
-from .constants import CHAT_ICON_PATH, GEARS_ICON_PATH, ICON_PATH, MODE_CONTROL, MODE_VIEW, VNC_POSITIONS_DIR
+from .constants import (
+    CANCEL_ICON_PATH,
+    CHAT_ICON_PATH,
+    GEARS_ICON_PATH,
+    ICON_PATH,
+    MODE_CONTROL,
+    MODE_VIEW,
+    OPEN_ICON_PATH,
+    VNC_POSITIONS_DIR,
+)
 from .constants import MONITOR_ICON_PATH
 from .constants import SAVE_ICON_PATH
 from .models import SessionSettings
 from .theme import windows_prefers_dark
+
+ICON_TEXT_GAP_PREFIX = "\u2009"  # thin space: slightly tighter icon-to-text gap
 
 
 class FramelessPreviewWindow(QWidget):
@@ -162,11 +173,14 @@ class FramelessPreviewWindow(QWidget):
             self.setCursor(Qt.SizeAllCursor)
 
 
-def _set_button_icon(button: QPushButton, icon_path: Path, size_px: int = 14) -> None:
+def _set_button_icon(button: QPushButton, icon_path: Path, size_px: int = 16) -> None:
     if not icon_path.exists():
         return
     button.setIcon(QIcon(str(icon_path)))
     button.setIconSize(QSize(size_px, size_px))
+    text = button.text()
+    if text and not text.startswith((" ", ICON_TEXT_GAP_PREFIX)):
+        button.setText(f"{ICON_TEXT_GAP_PREFIX}{text}")
 
 
 def _make_icon_text_label(text: str, icon_path: Path, size_px: int = 14) -> QWidget:
@@ -206,7 +220,10 @@ class SaveTargetDialog(QDialog):
         buttons.addStretch(1)
         cancel = QPushButton("Cancel")
         ok = QPushButton("Save")
+        _set_button_icon(cancel, CANCEL_ICON_PATH)
+        cancel.setStyleSheet("background:#1971c2; color:white; font-weight:700; border-radius:4px;")
         _set_button_icon(ok, SAVE_ICON_PATH)
+        ok.setStyleSheet("background:#6741d9; color:white; font-weight:700; border-radius:4px;")
         cancel.clicked.connect(self.reject)
         ok.clicked.connect(self.accept)
         buttons.addWidget(cancel)
@@ -233,10 +250,10 @@ class LayoutToolWindow(QMainWindow):
 
     window_closed = pyqtSignal()
 
-    def __init__(self) -> None:
+    def __init__(self, theme_mode: str = "Auto") -> None:
         super().__init__()
         self.settings = load_default_settings()
-        self.theme_mode = "Auto"
+        self.theme_mode = theme_mode
         self._syncing_form = False
         self._load_targets: List[Tuple[str, str]] = []
         self._position_paths_by_name: dict[str, Path] = {}
@@ -262,7 +279,7 @@ class LayoutToolWindow(QMainWindow):
 
         self._build_ui()
         self._apply_settings_to_previews()
-        self._apply_theme("Auto")
+        self._apply_theme(self.theme_mode)
         self.vnc_preview.show()
         self._apply_editor_mode(self.mode_box.currentText())
 
@@ -273,15 +290,6 @@ class LayoutToolWindow(QMainWindow):
 
         top = QVBoxLayout()
         root.addLayout(top)
-
-        theme_row = QHBoxLayout()
-        top.addLayout(theme_row)
-        theme_row.addWidget(QLabel("Select theme:"))
-        self.theme_box = QComboBox()
-        self.theme_box.addItems(["Auto", "Light", "Dark"])
-        self.theme_box.currentTextChanged.connect(self._apply_theme)
-        theme_row.addWidget(self.theme_box)
-        theme_row.addStretch(1)
 
         mode_row = QHBoxLayout()
         top.addLayout(mode_row)
@@ -300,10 +308,13 @@ class LayoutToolWindow(QMainWindow):
         self._populate_load_targets()
         load_row.addWidget(self.load_target_box, 1)
         load_btn = QPushButton("Load")
+        _set_button_icon(load_btn, OPEN_ICON_PATH)
+        load_btn.setStyleSheet("background:#660063; color:white; font-weight:700; border-radius:4px;")
         load_btn.clicked.connect(self._load_selected_target_settings)
         load_row.addWidget(load_btn)
         save_current_btn = QPushButton("Save")
         _set_button_icon(save_current_btn, SAVE_ICON_PATH)
+        save_current_btn.setStyleSheet("background:#6741d9; color:white; font-weight:700; border-radius:4px;")
         save_current_btn.clicked.connect(self._save_selected_target_settings)
         load_row.addWidget(save_current_btn)
         top.addWidget(self.session_load_widget)
@@ -317,9 +328,12 @@ class LayoutToolWindow(QMainWindow):
         self._populate_position_targets()
         position_row.addWidget(self.position_box, 1)
         load_pos_btn = QPushButton("Load Pos")
+        _set_button_icon(load_pos_btn, OPEN_ICON_PATH)
+        load_pos_btn.setStyleSheet("background:#660063; color:white; font-weight:700; border-radius:4px;")
         load_pos_btn.clicked.connect(self._load_selected_position)
         save_pos_btn = QPushButton("Save Pos")
         _set_button_icon(save_pos_btn, SAVE_ICON_PATH)
+        save_pos_btn.setStyleSheet("background:#6741d9; color:white; font-weight:700; border-radius:4px;")
         save_pos_btn.clicked.connect(self._save_selected_position)
         position_row.addWidget(load_pos_btn)
         position_row.addWidget(save_pos_btn)
@@ -382,10 +396,21 @@ class LayoutToolWindow(QMainWindow):
         reset_btn = QPushButton("Reset from default.json")
         save_btn = QPushButton("Save to connection JSON")
         _set_button_icon(save_btn, SAVE_ICON_PATH)
+        save_btn.setStyleSheet("background:#6741d9; color:white; font-weight:700; border-radius:4px;")
         reset_btn.clicked.connect(self._reset_defaults)
         save_btn.clicked.connect(self._save_target_json)
         buttons.addWidget(reset_btn)
         buttons.addWidget(save_btn)
+
+        close_row = QHBoxLayout()
+        root.addLayout(close_row)
+        close_row.addStretch(1)
+        close_btn = QPushButton("Close")
+        _set_button_icon(close_btn, CANCEL_ICON_PATH)
+        close_btn.setStyleSheet("background:#1971c2; color:white; font-weight:700; border-radius:4px;")
+        close_btn.clicked.connect(self.close)
+        close_row.addWidget(close_btn)
+        close_row.addStretch(1)
 
         self.mode_box.setCurrentText("Position")
         self._apply_editor_mode(self.mode_box.currentText())
@@ -400,7 +425,7 @@ class LayoutToolWindow(QMainWindow):
     def _apply_theme(self, mode: str) -> None:
         self.theme_mode = mode
         effective = "Dark" if mode == "Auto" and windows_prefers_dark() else ("Light" if mode == "Auto" else mode)
-        base_button_style = "QPushButton{padding:2px 6px;}"
+        base_button_style = "QPushButton{padding:1px 5px; border-radius:4px;}"
         if effective == "Dark":
             self.setStyleSheet(
                 "QWidget{background:#1f2328;color:#e6edf3;} "
@@ -410,6 +435,10 @@ class LayoutToolWindow(QMainWindow):
         else:
             self.setStyleSheet(base_button_style)
         self._apply_preview_styles()
+
+    def set_theme_mode(self, mode: str) -> None:
+        """Apply theme mode from main window selector."""
+        self._apply_theme(mode)
 
     def _apply_editor_mode(self, mode: str) -> None:
         is_position_mode = mode.strip().lower() == "position"

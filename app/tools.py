@@ -12,6 +12,7 @@ from .constants import (
     VIEWER_EXE_PATH,
     VNC_CONTROL_DIR,
     VNC_POSITIONS_DIR,
+    VNC_SETUPS_DIR,
     VNC_VIEW_DIR,
 )
 
@@ -35,6 +36,28 @@ _SETTINGS_KEYS = {
     "ks",
 }
 
+_BUNDLE_RULES = (
+    ("vnc-view", VNC_VIEW_DIR, (".json", ".vnc")),
+    ("vnc-control", VNC_CONTROL_DIR, (".json", ".vnc")),
+    ("vnc-positions", VNC_POSITIONS_DIR, (".json",)),
+    ("vnc-setups", VNC_SETUPS_DIR, (".json",)),
+)
+
+
+def _validate_json_files_in_folder(folder: Path, findings: List[str]) -> None:
+    """Validate that all JSON files in folder parse as JSON objects."""
+    if not folder.exists():
+        findings.append(f"Missing folder: {folder}")
+        return
+    for json_path in folder.glob("*.json"):
+        try:
+            with json_path.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+            if not isinstance(data, dict):
+                findings.append(f"Invalid JSON object in {json_path}")
+        except Exception as exc:
+            findings.append(f"Failed to parse {json_path}: {exc}")
+
 
 def validate_runtime_configuration() -> List[str]:
     """Validate important files/config and return findings."""
@@ -43,23 +66,32 @@ def validate_runtime_configuration() -> List[str]:
         findings.append(f"Missing viewer executable: {VIEWER_EXE_PATH}")
     if not DEFAULT_CONFIG_PATH.exists():
         findings.append(f"Missing default.json: {DEFAULT_CONFIG_PATH}")
+    else:
+        try:
+            with DEFAULT_CONFIG_PATH.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+            if not isinstance(data, dict):
+                findings.append(f"Invalid JSON object in {DEFAULT_CONFIG_PATH}")
+        except Exception as exc:
+            findings.append(f"Failed to parse {DEFAULT_CONFIG_PATH}: {exc}")
 
     for folder in (VNC_VIEW_DIR, VNC_CONTROL_DIR):
-        if not folder.exists():
+        if folder.exists():
+            for json_path in folder.glob("*.json"):
+                try:
+                    with json_path.open("r", encoding="utf-8") as handle:
+                        data = json.load(handle)
+                    if not isinstance(data, dict):
+                        findings.append(f"Invalid JSON object in {json_path}")
+                        continue
+                    unknown = set(data.keys()) - _SETTINGS_KEYS
+                    if unknown:
+                        findings.append(f"Unknown keys in {json_path.name}: {', '.join(sorted(unknown))}")
+                except Exception as exc:
+                    findings.append(f"Failed to parse {json_path}: {exc}")
+        else:
             findings.append(f"Missing folder: {folder}")
             continue
-        for json_path in folder.glob("*.json"):
-            try:
-                with json_path.open("r", encoding="utf-8") as handle:
-                    data = json.load(handle)
-                if not isinstance(data, dict):
-                    findings.append(f"Invalid JSON object in {json_path}")
-                    continue
-                unknown = set(data.keys()) - _SETTINGS_KEYS
-                if unknown:
-                    findings.append(f"Unknown keys in {json_path.name}: {', '.join(sorted(unknown))}")
-            except Exception as exc:
-                findings.append(f"Failed to parse {json_path}: {exc}")
 
         json_stems = {p.stem for p in folder.glob("*.json")}
         vnc_stems = {p.stem for p in folder.glob("*.vnc")}
@@ -67,6 +99,9 @@ def validate_runtime_configuration() -> List[str]:
             findings.append(f"{folder.name}: {missing_vnc}.json exists but {missing_vnc}.vnc is missing")
         for missing_json in sorted(vnc_stems - json_stems):
             findings.append(f"{folder.name}: {missing_json}.vnc exists but {missing_json}.json is missing (optional)")
+
+    _validate_json_files_in_folder(VNC_POSITIONS_DIR, findings)
+    _validate_json_files_in_folder(VNC_SETUPS_DIR, findings)
 
     return findings
 
@@ -77,14 +112,11 @@ def export_config_bundle(destination_zip: Path) -> Path:
     with zipfile.ZipFile(destination_zip, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         if DEFAULT_CONFIG_PATH.exists():
             zf.write(DEFAULT_CONFIG_PATH, arcname="default.json")
-        for folder in (VNC_VIEW_DIR, VNC_CONTROL_DIR):
-            for ext in ("*.json", "*.vnc"):
-                for file_path in folder.glob(ext):
+        for _prefix, folder, suffixes in _BUNDLE_RULES:
+            for suffix in suffixes:
+                for file_path in folder.glob(f"*{suffix}"):
                     rel = file_path.relative_to(ROOT_DIR)
                     zf.write(file_path, arcname=str(rel))
-        for file_path in VNC_POSITIONS_DIR.glob("*.json"):
-            rel = file_path.relative_to(ROOT_DIR)
-            zf.write(file_path, arcname=str(rel))
     return destination_zip
 
 
@@ -97,20 +129,28 @@ def suggested_export_name() -> str:
 def import_config_bundle(zip_path: Path) -> List[str]:
     """Import config JSON/.vnc files from a bundle zip and return applied file list."""
     applied: List[str] = []
+    allowed_paths = {prefix: set(suffixes) for prefix, _folder, suffixes in _BUNDLE_RULES}
     with zipfile.ZipFile(zip_path, "r") as zf:
         for member in zf.namelist():
             norm = member.replace("\\", "/")
-            if (
-                norm == "default.json"
-                or norm.startswith("vnc-view/")
-                or norm.startswith("vnc-control/")
-                or norm.startswith("vnc-positions/")
-            ):
-                if not (norm.endswith(".json") or norm.endswith(".vnc")):
-                    continue
+            if norm == "default.json":
                 target = ROOT_DIR / Path(norm)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with zf.open(member, "r") as src, target.open("wb") as dst:
                     dst.write(src.read())
                 applied.append(str(target))
+                continue
+            for prefix, suffixes in allowed_paths.items():
+                prefix_path = f"{prefix}/"
+                if not norm.startswith(prefix_path):
+                    continue
+                path_obj = Path(norm)
+                if path_obj.suffix.lower() not in suffixes:
+                    break
+                target = ROOT_DIR / path_obj
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with zf.open(member, "r") as src, target.open("wb") as dst:
+                    dst.write(src.read())
+                applied.append(str(target))
+                break
     return applied

@@ -9,13 +9,15 @@ Windows desktop app (PyQt5) for managing multiple TightVNC sessions in `view` an
     <td align="center"><strong>Main</strong></td>
     <td align="center"><strong>Settings</strong></td>
     <td align="center"><strong>Chat</strong></td>
-    <td align="center"><strong>Sizes Tool</strong></td>
+    <td align="center"><strong>Sessions</strong></td>
+    <td align="center"><strong>Positions & Sizes</strong></td>
   </tr>
   <tr>
-    <td><a href="Example%20files/Screenshots/main.png"><img src="Example%20files/Screenshots/main.png" alt="Main Window" width="220"></a></td>
-    <td><a href="Example%20files/Screenshots/settings.png"><img src="Example%20files/Screenshots/settings.png" alt="Settings Window" width="220"></a></td>
-    <td><a href="Example%20files/Screenshots/chat.png"><img src="Example%20files/Screenshots/chat.png" alt="Chat Window" width="220"></a></td>
-    <td><a href="Example%20files/Screenshots/sizes.png"><img src="Example%20files/Screenshots/sizes.png" alt="Sizes Tool Window" width="220"></a></td>
+    <td><a href="Example%20files/Screenshots/main.png"><img src="Example%20files/Screenshots/main.png" alt="Main Window" width="200"></a></td>
+    <td><a href="Example%20files/Screenshots/settings.png"><img src="Example%20files/Screenshots/settings.png" alt="Settings Window" width="200"></a></td>
+    <td><a href="Example%20files/Screenshots/chat.png"><img src="Example%20files/Screenshots/chat.png" alt="Chat Window" width="200"></a></td>
+    <td><a href="Example%20files/Screenshots/sessions.png"><img src="Example%20files/Screenshots/sessions.png" alt="Sessions View" width="200"></a></td>
+    <td><a href="Example%20files/Screenshots/positions.png"><img src="Example%20files/Screenshots/positions.png" alt="Positions and Sizes Window" width="200"></a></td>
   </tr>
 </table>
 
@@ -126,19 +128,17 @@ Also make sure `python.exe` is allowed in Windows Defender Firewall.
 
 ## How To Use The App (Typical Flow)
 
-1. Place `.vnc` target files in `vnc-view/` and/or `vnc-control/`.
+1. Place `.vnc` files in `vnc-view/` and/or `vnc-control/`.
 2. Start the app on one or more stations.
-3. Tag one or more targets.
-4. Open `View` or `Control` sessions (single or tagged batch).
-5. Use `Edit View` / `Edit Control` to tune window size and overlay label offset/style.
-6. Use chat for coordination across stations.
-7. Use `Take over session` if a target is already active on another station and must be force-opened.
-8. Use `Validate config`, `Export config`, and `Import config` for maintenance.
-9. Use `Sizes` (next to the theme selector) to open the visual layout tool for coarse window/label positioning and managing `vnc-positions` presets.
-10. Select per-session `Pos V`/`Pos C`, then click `Setup Positions` to open all assigned sessions at their selected position and persist the selection.
-11. Select per-session `Link V`/`Link C` to auto-open a linked session together with View/Control actions.
-12. Configure `KS` folder paths in Edit dialogs; at click time the app opens the latest modified file in that folder.
-13. Use the setup selector next to `Setup Positions` to load/save full setups (tags + selected positions + selected links).
+3. (Optional) assign position presets with `Pos V` / `Pos C`.
+4. Use row `View` / `Control` buttons to toggle one session at a time.
+5. Use `View tagged` / `Control tagged` to open or close tagged sessions per mode.
+6. Use `Setup View` / `Setup Control` to open (or close) all sessions for that mode that have a position selected.
+7. Use `Edit View` / `Edit Control` for per-session window + overlay settings.
+8. Use `Positions & Sizes` for visual layout editing and position preset management.
+9. Use setup presets: selector + `Save` / `Clear Setup` / `Delete`.
+10. Use `Validate config`, `Export config`, and `Import config` for maintenance.
+11. Configure `KS` in Edit dialogs; `KS/KSV/KSC` opens the configured file (or latest file in folder).
 
 Startup note:
 - On launch, open actions are briefly locked while the app requests current session ownership from other stations.
@@ -149,12 +149,13 @@ Startup note:
 - Default startup size: `250x830` (if no saved size exists in app settings)
 - Connection list is the resizable/scrollable section
 - Bottom control rows:
-  1. `Setup Positions` + setup selector + `Save` + `Clear Setup`
-  2. `Untag all` + `View all tagged` + `Control all tagged`
-  3. `Chat` + `Close all tagged` + `Close all sessions`
-  4. `Sizes` + `Validate config` + `Import config` + `Export config`
-  5. `Take over session` + `Reconnect on drop`
-  6. `Theme` + theme selector + `Font Size` + `Apply`
+  1. setup selector + `Save` + `Clear Setup` + `Delete`
+  2. `Setup View` / `Close View` + `Setup Control` / `Close Control`
+  3. `View tagged` / `Close tagged` + `Control tagged` / `Close tagged`
+  4. `Untag all` + `Chat` + `Positions & Sizes`
+  5. `Validate config` + `Import config` + `Export config`
+  6. `Take over session` + `Reconnect on drop`
+  7. `Theme` + theme selector + `Font Size` + `Apply`
 
 ## Chat Commands
 
@@ -168,18 +169,18 @@ Startup note:
 ## Features (And Why They Exist)
 
 - Connection discovery from `vnc-view/` and `vnc-control/`: quick setup by file drop.
-- Per-connection View/Control buttons: open the exact mode you need fast.
-- Per-connection Close buttons: close one mode without disturbing others.
-- Tagging + batch open/close actions: speed up repetitive multi-target operations.
+- Per-connection View/Control toggle buttons: open/close one mode from one button.
+- Tagging + mode-specific tagged toggles: batch open/close tagged sessions by mode.
 - Per-connection settings editor: tune VNC window and label appearance/position.
 - Position presets (`vnc-positions`): reusable window x/y/width/height layouts.
 - Per-mode position assignment (`Pos V` / `Pos C`): assign a preset to each view/control session.
-- Setup Positions action: opens all sessions with selected positions and persists those position references.
-- Unique position assignment guard: one position cannot be selected by more than one session at the same time.
+- Setup View/Control actions: open/close setup sessions by mode (position-selected rows only).
+- Unique position assignment guard on View mode: prevents duplicate View position assignment.
 - Per-mode session linking (`Link V` / `Link C`): opens linked sessions together with view/control actions.
 - Linked close behavior: closing a session also closes linked sessions recursively (loop-safe).
 - Per-session `KS` folder/file buttons (`KS`, `KSV`, `KSC`) with direct open from the main list.
 - Setup presets (`vnc-setups/*.json`) store and restore all row tags, selected positions, and selected links.
+- Last selected setup is persisted across restarts.
 - Overlay labels that follow VNC windows: keep session identity visible on screen.
 - Session lock awareness across stations: avoid accidental duplicate control/view.
 - Optional takeover mode: allow controlled override when needed.
@@ -192,16 +193,24 @@ Startup note:
 - Windows theme support (Auto/Light/Dark): keep UI consistent with operator environment.
 - Session cleanup on app exit: avoid orphaned VNC processes.
 - Config validation tool: catch missing/malformed files before operation.
-- Config import/export bundles: replicate JSON settings and VNC-files between stations quickly.
+- Config import/export bundles: replicate JSON and VNC files (including setup presets) between stations quickly.
 - Non-blocking toast notifications: reduce modal interruptions during operation.
 - Structured rotating logs in `logs/app.log`: easier troubleshooting and post-incident review.
 
 ## Maintenance Tools
 
-- `Validate config` checks for missing runtime files and malformed/mismatched JSON pairs.
-- `Export config` writes a zip bundle with `default.json`, all per-connection `.json` and `.vnc` files, and all `vnc-positions/*.json`.
-- `Import config` restores `default.json`, `vnc-view/*`, `vnc-control/*`, and `vnc-positions/*` files from a bundle and refreshes the list.
-- `Sizes` opens the visual layout tool:
+- `Validate config` checks:
+  - missing `tvnviewer.exe` / `default.json`
+  - malformed JSON in `default.json`, `vnc-view`, `vnc-control`, `vnc-positions`, and `vnc-setups`
+  - unknown keys and missing `.json`/`.vnc` pairings for view/control session configs
+- `Export config` bundles:
+  - `default.json`
+  - `vnc-view/*.json` + `vnc-view/*.vnc`
+  - `vnc-control/*.json` + `vnc-control/*.vnc`
+  - `vnc-positions/*.json`
+  - `vnc-setups/*.json`
+- `Import config` restores the same set from bundle zip and refreshes the UI.
+- `Positions & Sizes` opens the visual layout tool:
   - movable frameless `VNC Preview` window (cross-screen(s))
   - movable/resizable frameless `Label Preview` window (always-on-top)
   - two edit modes:
@@ -266,3 +275,4 @@ Cleanup generated build artifacts:
   - 1-2x Full HD screens
   - mixed-DPI setup checks for VNC window placement and label overlay alignment
 - Implement access to the Home Assistant API to fetch alarms from machine sensors.
+- Write a complete user manual for the whole application.

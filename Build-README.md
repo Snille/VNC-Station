@@ -191,9 +191,8 @@ For each connection, render compact two-column card rows including:
   - link selectors (`V`/`C`)
 - right column:
   - `[KS|KSV|KSC (dynamic)]`
-  - `[View] [Control]`
+  - `[View|Close] [Control|Close]` (text toggles with local session state)
   - `[Edit View] [Edit Control]`
-  - `[Close view] [Close control]`
 
 Connection separators:
 - horizontal line between entries
@@ -207,12 +206,13 @@ Name button click:
 - toggles tag checkbox
 
 Bottom fixed controls (in this exact order):
-1. `[Setup Positions] [setup selector editable] [Save] [Clear Setup]`
-2. `[Untag all] [View all tagged] [Control all tagged]`
-3. `[Chat] [Close all tagged] [Close all sessions]`
-4. `[Sizes] [Validate config] [Import config] [Export config]`
-5. `[Take over session checkbox] [Reconnect on drop checkbox]`
-6. `[Theme label] [Theme selector Auto/Light/Dark] [Font Size] [Apply]`
+1. `[setup selector editable] [Save] [Clear Setup] [Delete]`
+2. `[Setup View|Close View] [Setup Control|Close Control]`
+3. `[View tagged|Close tagged] [Control tagged|Close tagged]`
+4. `[Untag all] [Chat] [Positions & Sizes]`
+5. `[Validate config] [Import config] [Export config]`
+6. `[Take over session checkbox] [Reconnect on drop checkbox]`
+7. `[Theme label] [Theme selector Auto/Light/Dark] [Font Size] [Apply]`
 
 Setup selector behavior:
 - loads setup names from `vnc-setups/*.json`
@@ -220,8 +220,10 @@ Setup selector behavior:
 - setup apply resets all rows first, then applies saved values
 - save writes current tags + selected positions + selected links
 - clear resets tags + selected positions + selected links
+- delete removes selected setup JSON
+- last selected setup is persisted and restored on next app start
 
-`Sizes` button behavior:
+`Positions & Sizes` button behavior:
 - opens `layout_tool.py` UI for visual pre-placement of VNC/label settings
 - tool provides `Load settings` selector for `connection [view/control]`
 - tool provides `Positions` selector for `vnc-positions/*.json`
@@ -312,8 +314,9 @@ Per session:
 
 Open behavior additions:
 - if `linked_session` is set, opening a session also opens the linked session.
-- `Setup Positions` opens all sessions that currently have a selected position.
-- one position preset can only be selected by one session at a time.
+- `Setup View` opens all view sessions that currently have `Pos V` selected; `Setup Control` does the same for `Pos C`.
+- setup buttons toggle to close-only-that-mode behavior for local sessions.
+- position uniqueness guard applies to View assignments (Control duplicates allowed).
 - selecting a setup applies saved tags + selected positions + selected links immediately.
 
 Closing:
@@ -431,7 +434,8 @@ Required icons:
 - settings dialog icon: `app/images/gear.png`
 - button icons:
   - `view.png`, `control.png`, `edit.png`, `import.png`, `export.png`,
-    `validate.png`, `save.png`, `untag.png`, `unlock.png`, `applysetup.png`,
+    `validate.png`, `save.png`, `open.png`, `cancel.png`, `delete.png`,
+    `untag.png`, `unlock.png`, `applysetup.png`,
     `spreadsheet.png`, `link.png`, `monitor.png`
 
 ## 12. Example Files Package
@@ -534,10 +538,10 @@ Packaging requirement:
 - Overlay follows moved VNC window.
 - Overlay uses label offsets relative to VNC window.
 - Session lock blocks cross-station duplicate opens unless takeover checked.
-- Setup Positions opens sessions on selected position presets.
-- Position selectors prevent duplicate assignment of the same preset.
+- Setup View/Control open and close only the intended mode for selected-position rows.
+- Position selectors prevent duplicate assignment for View mode.
 - Linked sessions open together with View/Control actions.
-- Linked sessions close together with Close actions.
+- Linked sessions close together with row mode toggle close actions.
 - Setup selector loads/saves from `vnc-setups` and applies tags/positions/links.
 - KS button naming logic:
   - one visible button => `KS`
@@ -549,4 +553,4 @@ Packaging requirement:
 - Topic changes propagate to all online stations.
 - Away does not clear from remote activity, only local input.
 - UDP test script can validate two-way connectivity on port 50000.
-- Export/import bundles include `default.json`, `vnc-view/*`, `vnc-control/*`, and `vnc-positions/*.json`.
+- Export/import bundles include `default.json`, `vnc-view/*`, `vnc-control/*`, `vnc-positions/*.json`, and `vnc-setups/*.json`.
