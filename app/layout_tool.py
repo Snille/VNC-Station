@@ -37,6 +37,7 @@ from .constants import (
     MODE_CONTROL,
     MODE_VIEW,
     OPEN_ICON_PATH,
+    RESET_ICON_PATH,
     VNC_POSITIONS_DIR,
 )
 from .constants import MONITOR_ICON_PATH
@@ -395,7 +396,9 @@ class LayoutToolWindow(QMainWindow):
         root.addWidget(self.session_buttons_widget)
         reset_btn = QPushButton("Reset from default.json")
         save_btn = QPushButton("Save to connection JSON")
+        _set_button_icon(reset_btn, RESET_ICON_PATH)
         _set_button_icon(save_btn, SAVE_ICON_PATH)
+        reset_btn.setStyleSheet("background:#660063; color:white; font-weight:700; border-radius:4px;")
         save_btn.setStyleSheet("background:#6741d9; color:white; font-weight:700; border-radius:4px;")
         reset_btn.clicked.connect(self._reset_defaults)
         save_btn.clicked.connect(self._save_target_json)

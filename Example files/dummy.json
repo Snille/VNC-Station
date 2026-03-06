@@ -13,5 +13,7 @@
   "label_font_color": "black",
   "label_border_size": "4",
   "label_border_color": "green",
+  "position_name": "",
+  "linked_session": "",
   "ks": ""
 }

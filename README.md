@@ -9,8 +9,8 @@ Windows desktop app (PyQt5) for managing multiple TightVNC sessions in `view` an
     <td align="center"><strong>Main</strong></td>
     <td align="center"><strong>Settings</strong></td>
     <td align="center"><strong>Chat</strong></td>
-    <td align="center"><strong>Sessions</strong></td>
-    <td align="center"><strong>Positions & Sizes</strong></td>
+    <td align="center"><strong>Pos & Size of Sessions</strong></td>
+    <td align="center"><strong>Pos & Size of Positions</strong></td>
   </tr>
   <tr>
     <td><a href="Example%20files/Screenshots/main.png"><img src="Example%20files/Screenshots/main.png" alt="Main Window" width="200"></a></td>
@@ -47,6 +47,7 @@ VNC-Station/
   vnc-positions/
   vnc-setups/
   Example files/
+  tests/scripts/
   default.json
   tvnviewer.exe
   requirements.txt
@@ -56,11 +57,10 @@ Note: `vnc-view/` and `vnc-control/` are intentionally git-ignored for station-s
 
 ## Example Files (Templates)
 
-`Example files/` contains starter templates you can copy and rename:
+`Example files/` contains starter templates you can copy, rename and edit:
 
 - `dummy.vnc`
 - `dummy.json`
-- `udp-port-test.ps1`
 
 Suggested usage:
 
@@ -102,18 +102,18 @@ python -m app.main
 
 ## UDP Port Test Between Two Computers
 
-Use `Example files/udp-port-test.ps1` to verify UDP `50000` works in both directions.
+Use `tests/scripts/udp-port-test.ps1` to verify UDP `50000` works in both directions.
 
 ### Computer B (listener)
 
 ```powershell
-.\Example files\udp-port-test.ps1 -Mode listen -Port 50000
+.\tests\scripts\udp-port-test.ps1 -Mode listen -Port 50000
 ```
 
 ### Computer A (sender)
 
 ```powershell
-.\Example files\udp-port-test.ps1 -Mode send -Port 50000 -TargetIP <IP_OF_COMPUTER_B> -Message "Test from A"
+.\tests\scripts\udp-port-test.ps1 -Mode send -Port 50000 -TargetIP <IP_OF_COMPUTER_B> -Message "Test from A"
 ```
 
 Then swap roles and test back from B to A.

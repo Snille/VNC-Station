@@ -443,8 +443,9 @@ Required icons:
 Create `Example files/` with:
 - `dummy.vnc` template
 - `dummy.json` template
-- `udp-port-test.ps1`
 - `TightVNC-Viewer-Help.txt` reference
+
+Create `tests/scripts/udp-port-test.ps1` for network verification.
 
 `udp-port-test.ps1` must support:
 - listen mode: wait on UDP port and send ACK
