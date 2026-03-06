@@ -4,7 +4,13 @@ import json
 from pathlib import Path
 from typing import Dict, List, Mapping, Optional, Tuple
 
-from .constants import DEFAULT_CONFIG_PATH, VNC_CONTROL_DIR, VNC_POSITIONS_DIR, VNC_VIEW_DIR
+from .constants import (
+    DEFAULT_CONFIG_PATH,
+    DEFAULT_LOCAL_CONFIG_PATH,
+    VNC_CONTROL_DIR,
+    VNC_POSITIONS_DIR,
+    VNC_VIEW_DIR,
+)
 from .models import ConnectionEntry, PositionPreset, SessionSettings
 
 
@@ -39,17 +45,24 @@ def _to_int(value: object, fallback: int) -> int:
 
 
 def load_default_settings() -> SessionSettings:
-    """Read defaults from default.json and convert to SessionSettings."""
-    return SessionSettings.from_mapping(_load_json(DEFAULT_CONFIG_PATH))
+    """Read defaults from default.json + optional default.local.json."""
+    return SessionSettings.from_mapping(load_default_mapping())
+
+
+def load_default_mapping() -> Dict[str, object]:
+    """Load default settings with local overrides applied."""
+    merged = _load_json(DEFAULT_CONFIG_PATH)
+    local = _load_json(DEFAULT_LOCAL_CONFIG_PATH)
+    merged.update(local)
+    return merged
 
 
 def load_session_settings(config_path: Path) -> SessionSettings:
     """Load per-session settings merged on top of default settings."""
     defaults = load_default_settings()
-    # The JSON schema stores numeric values as strings, so we normalize to str.
     merged = defaults.to_json()
     merged["station_name"] = defaults.station_name
-    merged.update({k: str(v) for k, v in _load_json(config_path).items()})
+    merged.update(_load_json(config_path))
     return SessionSettings.from_mapping(merged)
 
 

@@ -3,7 +3,7 @@
 from pathlib import Path
 import sys
 
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.3.0"
 
 
 # Base directory for user/runtime files.
@@ -21,6 +21,7 @@ APP_DIR = RESOURCE_ROOT / "app"
 ICON_PATH = APP_DIR / "images" / "icon.png"
 CHAT_ICON_PATH = APP_DIR / "images" / "chat.png"
 GEARS_ICON_PATH = APP_DIR / "images" / "gear.png"
+HA_ICON_PATH = APP_DIR / "images" / "ha.png"
 VIEW_ICON_PATH = APP_DIR / "images" / "view.png"
 CONTROL_ICON_PATH = APP_DIR / "images" / "control.png"
 EDIT_ICON_PATH = APP_DIR / "images" / "edit.png"
@@ -39,6 +40,8 @@ SPREADSHEET_ICON_PATH = APP_DIR / "images" / "spreadsheet.png"
 LINK_ICON_PATH = APP_DIR / "images" / "link.png"
 MONITOR_ICON_PATH = APP_DIR / "images" / "monitor.png"
 NOTICE_SOUND_PATH = APP_DIR / "sounds" / "notice.wav"
+INDICATOR_DOOR_OPEN_ICON_PATH = APP_DIR / "images" / "indicator-dooropen.png"
+INDICATOR_DOOR_CLOSED_ICON_PATH = APP_DIR / "images" / "indicator-doorclosed.png"
 
 # Runtime/user-managed paths.
 VNC_CONTROL_DIR = ROOT_DIR / "vnc-control"
@@ -47,6 +50,7 @@ VNC_POSITIONS_DIR = ROOT_DIR / "vnc-positions"
 VNC_SETUPS_DIR = ROOT_DIR / "vnc-setups"
 LOG_DIR = ROOT_DIR / "logs"
 DEFAULT_CONFIG_PATH = ROOT_DIR / "default.json"
+DEFAULT_LOCAL_CONFIG_PATH = ROOT_DIR / "default.local.json"
 VIEWER_EXE_PATH = ROOT_DIR / "tvnviewer.exe"
 
 # UDP settings for station discovery/chat/session coordination.

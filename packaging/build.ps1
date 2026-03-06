@@ -33,7 +33,6 @@ if ($LASTEXITCODE -ne 0) { throw "Failed to install/upgrade pillow." }
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed." }
 
 $DistRoot = Join-Path $RepoRoot "dist\VNC-Station-Controller"
-$DistExeDir = Join-Path $DistRoot "_internal"
 
 if (-not (Test-Path $DistRoot)) {
     throw "Expected dist folder not found: $DistRoot"
@@ -44,6 +43,7 @@ New-Item -ItemType Directory -Force -Path (Join-Path $DistRoot "vnc-view") | Out
 New-Item -ItemType Directory -Force -Path (Join-Path $DistRoot "vnc-control") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $DistRoot "vnc-positions") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $DistRoot "vnc-setups") | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $DistRoot "logs") | Out-Null
 
 # Copy required runtime files next to the launcher executable.
 $ViewerSrc = Join-Path $RepoRoot "tvnviewer.exe"
@@ -84,6 +84,33 @@ if (Test-Path $SetupsSrc) {
 }
 else {
     Write-Warning "vnc-setups folder not found in repo root; empty folder created in dist."
+}
+
+# Copy available view/control files to distribution (optional runtime content).
+$ViewSrc = Join-Path $RepoRoot "vnc-view"
+$ViewDst = Join-Path $DistRoot "vnc-view"
+if (Test-Path $ViewSrc) {
+    Get-ChildItem -Path $ViewSrc -File -ErrorAction SilentlyContinue | Where-Object {
+        $_.Extension -in @(".json", ".vnc")
+    } | ForEach-Object {
+        Copy-Item -Force -Path $_.FullName -Destination (Join-Path $ViewDst $_.Name)
+    }
+}
+else {
+    Write-Warning "vnc-view folder not found in repo root; empty folder created in dist."
+}
+
+$ControlSrc = Join-Path $RepoRoot "vnc-control"
+$ControlDst = Join-Path $DistRoot "vnc-control"
+if (Test-Path $ControlSrc) {
+    Get-ChildItem -Path $ControlSrc -File -ErrorAction SilentlyContinue | Where-Object {
+        $_.Extension -in @(".json", ".vnc")
+    } | ForEach-Object {
+        Copy-Item -Force -Path $_.FullName -Destination (Join-Path $ControlDst $_.Name)
+    }
+}
+else {
+    Write-Warning "vnc-control folder not found in repo root; empty folder created in dist."
 }
 
 Write-Host ("Build complete. See " + $DistRoot) -ForegroundColor Green

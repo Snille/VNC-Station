@@ -3,11 +3,14 @@ import json
 import logging
 import os
 import re
+import threading
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
-from PyQt5.QtCore import QSettings, QSize, QTimer, Qt, QUrl
-from PyQt5.QtGui import QCloseEvent, QFont, QIcon, QPixmap
+from PyQt5.QtCore import QSettings, QSize, QTimer, Qt, QUrl, pyqtSignal
+from PyQt5.QtGui import QCloseEvent, QFont, QIcon, QMovie, QPixmap
 from PyQt5.QtMultimedia import QSoundEffect
 from PyQt5.QtWidgets import (
     QApplication,
@@ -21,7 +24,6 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -29,6 +31,7 @@ from PyQt5.QtWidgets import (
 from .chat_window import ChatWindow
 from .config import (
     config_path_for,
+    load_default_mapping,
     load_default_settings,
     load_session_overrides,
     load_session_settings,
@@ -43,9 +46,11 @@ from .constants import (
     APPLYSETUP_ICON_PATH,
     CHAT_ICON_PATH,
     CONTROL_ICON_PATH,
+    DEFAULT_LOCAL_CONFIG_PATH,
     DELETE_ICON_PATH,
     EDIT_ICON_PATH,
     EXPORT_ICON_PATH,
+    GEARS_ICON_PATH,
     HELLO_INTERVAL_MS,
     ICON_PATH,
     IMPORT_ICON_PATH,
@@ -68,6 +73,7 @@ from .logic import parse_chat_command
 from .models import ConnectionEntry, SessionSettings
 from .network import NetworkBus
 from .settings_dialog import SettingsDialog
+from .settings_window import SettingsWindow
 from .theme import windows_prefers_dark
 from .toast import ToastLabel
 from .tools import (
@@ -86,6 +92,11 @@ ICON_TEXT_GAP_PREFIX = "\u2009"  # thin space: slightly tighter icon-to-text gap
 def _icon_size_for_font_size(point_size: int) -> int:
     """Return a small icon size that tracks UI font size."""
     return max(13, min(30, int(point_size * 1.35)))
+
+
+def _door_indicator_size_for_font_size(point_size: int) -> int:
+    """Return a slightly larger door indicator size that scales with app font."""
+    return max(18, min(34, int(point_size * 1.8)))
 
 
 def _current_app_font_size() -> int:
@@ -179,6 +190,9 @@ class ConnectionRow:
         self._position_names = list(position_names)
         self._link_options = list(link_options)
         self._syncing = False
+        self._status_indicators: List[Tuple[str, str]] = []
+        self._status_indicator_movies: List[QMovie] = []
+        self._door_indicator_icon_px = _door_indicator_size_for_font_size(_current_app_font_size())
         self.widget = QFrame()
         self.widget.setObjectName("connectionRowCard")
         outer = QHBoxLayout(self.widget)
@@ -199,6 +213,12 @@ class ConnectionRow:
         header_row = QHBoxLayout()
         header_row.addWidget(self.tag)
         header_row.addWidget(self.name_btn, 1)
+        header_row.addStretch(1)
+        self.indicators_widget = QWidget()
+        self.indicators_layout = QHBoxLayout(self.indicators_widget)
+        self.indicators_layout.setContentsMargins(0, 0, 0, 0)
+        self.indicators_layout.setSpacing(2)
+        header_row.addWidget(self.indicators_widget)
         left_col.addLayout(header_row)
 
         self.owner_label = QLabel("Owner: available")
@@ -433,8 +453,59 @@ class ConnectionRow:
         )
         button.setToolTip("No .vnc file available for this mode")
 
+    def set_status_indicators(self, indicators: List[Tuple[str, str]]) -> None:
+        """Show multiple custom status icons in row header."""
+        self._status_indicators = []
+        for icon_path, tooltip in indicators:
+            path_text = str(icon_path).strip()
+            tip_text = str(tooltip).strip()
+            if path_text:
+                self._status_indicators.append((path_text, tip_text))
+        self._render_door_indicator()
+
+    def update_door_indicator_size(self, point_size: int) -> None:
+        """Scale door indicator icon based on current app font size."""
+        self._door_indicator_icon_px = _door_indicator_size_for_font_size(point_size)
+        self._render_door_indicator()
+
+    def _render_door_indicator(self) -> None:
+        for movie in self._status_indicator_movies:
+            movie.stop()
+        self._status_indicator_movies.clear()
+        while self.indicators_layout.count():
+            item = self.indicators_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        visible_count = 0
+        for icon_path_text, tooltip in self._status_indicators:
+            icon_path = Path(icon_path_text)
+            if not icon_path.exists():
+                continue
+            pixmap = QPixmap(str(icon_path)).scaled(
+                self._door_indicator_icon_px,
+                self._door_indicator_icon_px,
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation,
+            )
+            label = QLabel()
+            label.setFixedSize(self._door_indicator_icon_px + 2, self._door_indicator_icon_px + 2)
+            if icon_path.suffix.lower() == ".gif":
+                movie = QMovie(str(icon_path))
+                movie.setScaledSize(QSize(self._door_indicator_icon_px, self._door_indicator_icon_px))
+                label.setMovie(movie)
+                movie.start()
+                self._status_indicator_movies.append(movie)
+            else:
+                label.setPixmap(pixmap)
+            label.setToolTip(tooltip)
+            self.indicators_layout.addWidget(label)
+            visible_count += 1
+        self.indicators_widget.setVisible(visible_count > 0)
+
 class MainWindow(QMainWindow):
     """Primary controller window that coordinates all app subsystems."""
+    door_states_received = pyqtSignal(object)
 
     def __init__(self) -> None:
         """Initialize state, services, and build the full UI."""
@@ -461,6 +532,10 @@ class MainWindow(QMainWindow):
         self._startup_sync_pending = True
         self._startup_sync_attempts = 0
         self._layout_tool_window: Optional[LayoutToolWindow] = None
+        self._settings_window: Optional[SettingsWindow] = None
+        self._door_sensor_by_connection: Dict[str, List[Dict[str, str]]] = {}
+        self._ha_door_refresh_inflight = False
+        self._last_ha_door_error = ""
 
         self.session_manager = SessionManager(
             self._on_session_closed,
@@ -496,6 +571,7 @@ class MainWindow(QMainWindow):
         self.chat_window.set_topic(self.topic)
 
         self._build_ui()
+        self.door_states_received.connect(self._apply_door_sensor_states)
         self._set_open_controls_enabled(False)
         self._refresh_station_targets()
         # Announce this station immediately on startup.
@@ -517,6 +593,10 @@ class MainWindow(QMainWindow):
         self.startup_sync_timer = QTimer(self)
         self.startup_sync_timer.timeout.connect(self._process_startup_sync)
         self.startup_sync_timer.start(700)
+        self.ha_door_timer = QTimer(self)
+        self.ha_door_timer.timeout.connect(self._refresh_door_indicators)
+        self.ha_door_timer.start(7000)
+        QTimer.singleShot(600, self._refresh_door_indicators)
 
     def _build_ui(self) -> None:
         """Create widgets, connection list, and fixed bottom action rows."""
@@ -671,30 +751,14 @@ class MainWindow(QMainWindow):
         actions_row5 = QHBoxLayout()
         root.addLayout(actions_row5)
         actions_row5.addStretch(1)
-        theme_label = QLabel("Theme:")
-        self.theme_combo = QComboBox()
-        self.theme_combo.addItems(["Auto", "Light", "Dark"])
-        self.theme_combo.currentTextChanged.connect(self._apply_theme)
-        font_label = QLabel("Font Size:")
-        self.font_size_spin = QSpinBox()
-        self.font_size_spin.setRange(8, 32)
-        self.font_size_spin.setSuffix(" pt")
-        self.font_size_spin.setValue(self.font_size)
-        apply_font_btn = QPushButton("Apply")
-        _set_button_icon(apply_font_btn, SAVE_ICON_PATH)
-        _set_compact_button(apply_font_btn)
-        apply_font_btn.setStyleSheet("background:#660063; color:white; font-weight:700; border-radius:4px;")
-        apply_font_btn.clicked.connect(self._apply_font_size_from_ui)
-        _match_button_widths(apply_font_btn)
-        actions_row5.addWidget(theme_label)
-        actions_row5.addWidget(self.theme_combo)
-        actions_row5.addWidget(font_label)
-        actions_row5.addWidget(self.font_size_spin)
-        actions_row5.addWidget(apply_font_btn)
+        settings_btn = QPushButton("Change Settings")
+        _set_button_icon(settings_btn, GEARS_ICON_PATH)
+        _set_compact_button(settings_btn)
+        settings_btn.setStyleSheet("background:#1971c2; color:white; font-weight:700; border-radius:4px;")
+        settings_btn.clicked.connect(self._open_settings_window)
+        actions_row5.addWidget(settings_btn)
         actions_row5.addStretch(1)
 
-        theme_idx = self.theme_combo.findText(self.theme_mode)
-        self.theme_combo.setCurrentIndex(max(0, theme_idx))
         self._apply_theme(self.theme_mode)
 
     @staticmethod
@@ -713,10 +777,6 @@ class MainWindow(QMainWindow):
         except (TypeError, ValueError):
             value = default_size
         return max(8, min(32, value))
-
-    def _apply_font_size_from_ui(self) -> None:
-        self._apply_global_font_size(self.font_size_spin.value(), persist=True)
-        self._show_info(f"Font size applied: {self.font_size} pt")
 
     def _apply_global_font_size(self, size: int, persist: bool = True) -> None:
         app = QApplication.instance()
@@ -738,6 +798,7 @@ class MainWindow(QMainWindow):
                     _apply_scaled_icon_size(top_level)
         self.font_size = clamped
         self._apply_setup_manage_row_font()
+        self._refresh_door_indicator_sizes()
         if persist:
             self.settings_store.setValue("font_size", clamped)
 
@@ -757,6 +818,13 @@ class MainWindow(QMainWindow):
         self.setup_save_btn.setFont(bigger)
         self.setup_clear_btn.setFont(bigger)
         self.setup_delete_btn.setFont(bigger)
+
+    def _refresh_door_indicator_sizes(self) -> None:
+        """Recompute door indicator icon size for all rows using current font size."""
+        if not hasattr(self, "rows"):
+            return
+        for row in self.rows.values():
+            row.update_door_indicator_size(self.font_size)
 
     def _apply_theme(self, mode: str) -> None:
         """Apply selected theme to both main window and chat window."""
@@ -794,6 +862,263 @@ class MainWindow(QMainWindow):
         """Persist reconnect-on-drop operator preference."""
         self.reconnect_on_drop = bool(enabled)
         self.settings_store.setValue("reconnect_on_drop", "true" if enabled else "false")
+
+    def _load_default_json_mapping(self) -> Dict[str, object]:
+        """Read default settings merged with optional local overrides."""
+        data: Dict[str, object] = dict(load_default_mapping())
+
+        defaults = self.default_settings.to_json()
+        defaults["station_name"] = self.default_settings.station_name
+        for key, value in defaults.items():
+            data.setdefault(key, value)
+        data.setdefault("ha_url", "")
+        data.setdefault("ha_api_key", "")
+        return data
+
+    @staticmethod
+    def _state_to_bool(value: str) -> Optional[bool]:
+        text = value.strip().lower()
+        if text in {"on", "open", "true", "1"}:
+            return True
+        if text in {"off", "closed", "false", "0"}:
+            return False
+        return None
+
+    @staticmethod
+    def _format_tooltip(template: str, state_text: str, entity_id: str) -> str:
+        cleaned = template.strip()
+        if not cleaned:
+            return ""
+        try:
+            return cleaned.replace("{state}", state_text).replace("{entity_id}", entity_id)
+        except Exception:
+            return cleaned
+
+    def _refresh_door_sensor_targets(self) -> None:
+        """Map each connection row to saved HA sensor/icon configurations."""
+        mappings_by_connection: Dict[str, List[Dict[str, str]]] = {}
+        for connection_name in self.rows.keys():
+            merged_mappings: List[Dict[str, str]] = []
+            for mode in (MODE_VIEW, MODE_CONTROL):
+                settings = load_session_settings(config_path_for(connection_name, mode))
+                for mapping in settings.ha_sensor_icons:
+                    if not isinstance(mapping, dict):
+                        continue
+                    entity_id = str(mapping.get("entity_id", "")).strip()
+                    if not entity_id:
+                        continue
+                    merged_mappings.append(
+                        {
+                            "entity_id": entity_id,
+                            "icon": str(mapping.get("icon", "")).strip(),
+                            "icon_on": str(mapping.get("icon_on", "")).strip(),
+                            "icon_off": str(mapping.get("icon_off", "")).strip(),
+                            "tooltip": str(mapping.get("tooltip", "")).strip(),
+                        }
+                    )
+                if not settings.ha_sensor_icons:
+                    for sensor in settings.ha_sensors:
+                        entity_id = str(sensor).strip()
+                        if entity_id:
+                            merged_mappings.append(
+                                {
+                                    "entity_id": entity_id,
+                                    "icon": "",
+                                    "icon_on": "",
+                                    "icon_off": "",
+                                    "tooltip": "",
+                                }
+                            )
+            if merged_mappings:
+                deduped: List[Dict[str, str]] = []
+                by_entity: Dict[str, Dict[str, str]] = {}
+                for mapping in merged_mappings:
+                    key = mapping["entity_id"].lower()
+                    existing = by_entity.get(key)
+                    if existing is None:
+                        by_entity[key] = dict(mapping)
+                        continue
+                    # Same sensor in both view/control: keep one mapping and fill missing icons.
+                    if not existing.get("icon") and mapping.get("icon"):
+                        existing["icon"] = mapping.get("icon", "")
+                    if not existing.get("icon_on") and mapping.get("icon_on"):
+                        existing["icon_on"] = mapping.get("icon_on", "")
+                    if not existing.get("icon_off") and mapping.get("icon_off"):
+                        existing["icon_off"] = mapping.get("icon_off", "")
+                    if not existing.get("tooltip") and mapping.get("tooltip"):
+                        existing["tooltip"] = mapping.get("tooltip", "")
+                deduped.extend(by_entity.values())
+                mappings_by_connection[connection_name] = deduped
+        self._door_sensor_by_connection = mappings_by_connection
+        for connection_name, row in self.rows.items():
+            if connection_name not in self._door_sensor_by_connection:
+                row.set_status_indicators([])
+
+    def _refresh_door_indicators(self) -> None:
+        """Poll HA for sensor states and update row indicator icons."""
+        if self._ha_door_refresh_inflight:
+            return
+        self._refresh_door_sensor_targets()
+        if not self._door_sensor_by_connection:
+            return
+        defaults = self._load_default_json_mapping()
+        ha_url = str(defaults.get("ha_url", "")).strip()
+        ha_api_key = str(defaults.get("ha_api_key", "")).strip()
+        if not ha_url or not ha_api_key:
+            return
+
+        self._ha_door_refresh_inflight = True
+        mappings_snapshot = dict(self._door_sensor_by_connection)
+        thread = threading.Thread(
+            target=self._fetch_door_states_thread,
+            args=(ha_url, ha_api_key, mappings_snapshot),
+            daemon=True,
+        )
+        thread.start()
+
+    def _fetch_door_states_thread(
+        self, ha_url: str, ha_api_key: str, mappings_by_connection: Dict[str, List[Dict[str, str]]]
+    ) -> None:
+        indicators_by_connection: Dict[str, List[Dict[str, str]]] = {}
+        try:
+            url = ha_url.rstrip("/") + "/api/states"
+            request = urllib.request.Request(
+                url,
+                headers={
+                    "Authorization": f"Bearer {ha_api_key}",
+                    "Content-Type": "application/json",
+                },
+                method="GET",
+            )
+            with urllib.request.urlopen(request, timeout=7) as response:
+                body = response.read().decode("utf-8", errors="replace")
+            payload = json.loads(body)
+            if not isinstance(payload, list):
+                self._ha_door_refresh_inflight = False
+                return
+            by_entity: Dict[str, str] = {}
+            for item in payload:
+                if not isinstance(item, dict):
+                    continue
+                entity_id = str(item.get("entity_id", "")).strip().lower()
+                state = str(item.get("state", "")).strip()
+                if entity_id:
+                    by_entity[entity_id] = state
+            for connection_name, mappings in mappings_by_connection.items():
+                connection_indicators: List[Dict[str, str]] = []
+                for mapping in mappings:
+                    entity_id = str(mapping.get("entity_id", "")).strip().lower()
+                    if not entity_id:
+                        continue
+                    chosen_tip = ""
+                    state_text = str(by_entity.get(entity_id, "")).strip()
+                    if not state_text:
+                        continue
+                    tooltip_template = str(mapping.get("tooltip", "")).strip()
+                    templated_tip = self._format_tooltip(tooltip_template, state_text, entity_id)
+                    bool_state = self._state_to_bool(state_text)
+                    is_binary = entity_id.startswith("binary_sensor.") or entity_id.startswith("input_boolean.")
+                    icon_path = ""
+                    if is_binary:
+                        if bool_state is True:
+                            icon_path = str(mapping.get("icon_on", "")).strip()
+                            chosen_tip = templated_tip or ("Door open" if "door" in entity_id else "On")
+                        elif bool_state is False:
+                            icon_path = str(mapping.get("icon_off", "")).strip()
+                            chosen_tip = templated_tip or ("Door closed" if "door" in entity_id else "Off")
+                    if not icon_path:
+                        icon_path = str(mapping.get("icon", "")).strip()
+                        if icon_path:
+                            chosen_tip = templated_tip or state_text
+                    if not icon_path:
+                        continue
+                    if not chosen_tip:
+                        chosen_tip = templated_tip or state_text
+                    connection_indicators.append({"icon": icon_path, "tip": chosen_tip})
+                if connection_indicators:
+                    indicators_by_connection[connection_name] = connection_indicators
+            self.door_states_received.emit(indicators_by_connection)
+            self._last_ha_door_error = ""
+        except Exception as exc:
+            error_text = str(exc)
+            if error_text and error_text != self._last_ha_door_error:
+                LOGGER.warning("Door indicator HA refresh failed: %s", error_text)
+                self._last_ha_door_error = error_text
+        finally:
+            self._ha_door_refresh_inflight = False
+
+    def _apply_door_sensor_states(self, states_obj: object) -> None:
+        """Apply parsed status-icon mappings to row labels in the UI thread."""
+        if not isinstance(states_obj, dict):
+            return
+        seen_connections = set()
+        for connection_name, payload in states_obj.items():
+            row = self.rows.get(str(connection_name))
+            if row is None:
+                continue
+            seen_connections.add(str(connection_name))
+            indicators: List[Tuple[str, str]] = []
+            if isinstance(payload, list):
+                for item in payload:
+                    if not isinstance(item, dict):
+                        continue
+                    icon_path = str(item.get("icon", "")).strip()
+                    tooltip = str(item.get("tip", "")).strip()
+                    if icon_path:
+                        indicators.append((icon_path, tooltip))
+            row.set_status_indicators(indicators)
+        for connection_name, row in self.rows.items():
+            if connection_name in seen_connections:
+                continue
+            if connection_name not in self._door_sensor_by_connection:
+                continue
+            row.set_status_indicators([])
+
+    def _save_default_json_mapping(self, updates: Dict[str, str]) -> str:
+        """Persist app-level defaults to local override file and refresh runtime state."""
+        existing: Dict[str, object] = {}
+        if DEFAULT_LOCAL_CONFIG_PATH.exists():
+            try:
+                with DEFAULT_LOCAL_CONFIG_PATH.open("r", encoding="utf-8") as handle:
+                    raw = json.load(handle)
+                if isinstance(raw, dict):
+                    existing = dict(raw)
+            except (OSError, json.JSONDecodeError):
+                existing = {}
+        existing.update({k: str(v) for k, v in updates.items()})
+        save_json(DEFAULT_LOCAL_CONFIG_PATH, existing)
+        self.default_settings = load_default_settings()
+
+        new_station_name = self.default_settings.station_name.strip() or self.station_name
+        if new_station_name != self.station_name:
+            self.station_name = new_station_name
+            self.setWindowTitle(self.station_name)
+            self.network.set_station_name(self.station_name)
+            self.chat_window.set_station_title(self.station_name)
+            self.chat_window.add_notice(f"Station name updated to {self.station_name}")
+        return "Settings saved."
+
+    def _open_settings_window(self) -> None:
+        """Open or focus the global settings window."""
+        if self._settings_window is None or not self._settings_window.isVisible():
+            self._settings_window = SettingsWindow(
+                theme_mode=self.theme_mode,
+                font_size=self.font_size,
+                defaults=self._load_default_json_mapping(),
+                apply_theme=self._apply_theme,
+                apply_font_size=self._apply_global_font_size,
+                save_defaults=self._save_default_json_mapping,
+                show_toast=self._show_info,
+                parent=self,
+            )
+            self._settings_window.setAttribute(Qt.WA_DeleteOnClose, True)
+            self._settings_window.destroyed.connect(self._on_settings_window_closed)
+        self._settings_window.show()
+        self._settings_window.raise_()
+        self._settings_window.activateWindow()
+
+    def _on_settings_window_closed(self, _obj=None) -> None:
+        self._settings_window = None
 
     def _open_chat(self) -> None:
         """Show and focus the chat window."""
@@ -1329,6 +1654,7 @@ class MainWindow(QMainWindow):
             )
             save_json(config_path, data)
             self._refresh_row_ks_buttons(connection_name)
+            self._refresh_door_indicators()
 
     def _on_session_closed(self, key: Tuple[str, str]) -> None:
         """Broadcast session close event when local process exits/closes."""
@@ -1393,7 +1719,7 @@ class MainWindow(QMainWindow):
             self.chat_window.add_notice("/notify [Message] - Send notification (plays sound on receivers)")
             return
         if command == "/nick":
-            # /nick updates runtime identity and persists to default.json.
+            # /nick updates runtime identity and persists to default.local.json.
             new_name = payload
             if new_name:
                 self.station_name = new_name
@@ -1401,10 +1727,17 @@ class MainWindow(QMainWindow):
                 self.chat_window.set_station_title(new_name)
                 self.setWindowTitle(new_name)
                 self.default_settings.station_name = new_name
-                path = Path(__file__).resolve().parent.parent / "default.json"
-                merged = self.default_settings.to_json()
-                merged["station_name"] = new_name
-                save_json(path, merged)
+                local_data: Dict[str, object] = {}
+                if DEFAULT_LOCAL_CONFIG_PATH.exists():
+                    try:
+                        with DEFAULT_LOCAL_CONFIG_PATH.open("r", encoding="utf-8") as handle:
+                            raw_local = json.load(handle)
+                        if isinstance(raw_local, dict):
+                            local_data = dict(raw_local)
+                    except (OSError, json.JSONDecodeError):
+                        local_data = {}
+                local_data["station_name"] = new_name
+                save_json(DEFAULT_LOCAL_CONFIG_PATH, local_data)
                 self.chat_window.add_notice(f"Nickname changed to {new_name}")
                 LOGGER.info("Nick changed to: %s", new_name)
             return
@@ -1629,6 +1962,7 @@ class MainWindow(QMainWindow):
         self.rows_layout.addStretch(1)
         self._clear_duplicate_positions_after_load()
         self._refresh_owner_labels()
+        self._refresh_door_indicators()
         if hasattr(self, "setup_select"):
             self._refresh_setup_targets()
 
@@ -1725,7 +2059,11 @@ class MainWindow(QMainWindow):
         self.settings_store.setValue("main_height", self.height())
         self.settings_store.setValue("chat_width", self.chat_window.width())
         self.settings_store.setValue("chat_height", self.chat_window.height())
+        if hasattr(self, "ha_door_timer") and self.ha_door_timer.isActive():
+            self.ha_door_timer.stop()
         self.session_manager.close_all()
         self.network.close()
+        if self._settings_window is not None:
+            self._settings_window.close()
         self.chat_window.close()
         super().closeEvent(event)

@@ -30,6 +30,7 @@ Create this structure at repository root:
 │  │  ├─ icon.png
 │  │  ├─ chat.png
 │  │  ├─ gear.png
+│  │  ├─ ha.png
 │  │  ├─ view.png
 │  │  ├─ control.png
 │  │  ├─ edit.png
@@ -42,7 +43,9 @@ Create this structure at repository root:
 │  │  ├─ applysetup.png
 │  │  ├─ spreadsheet.png
 │  │  ├─ link.png
-│  │  └─ monitor.png
+│  │  ├─ monitor.png
+│  │  ├─ indicator-dooropen.png
+│  │  └─ indicator-doorclosed.png
 │  ├─ sounds/
 │  │  └─ notice.wav
 │  ├─ __init__.py
@@ -60,6 +63,7 @@ Create this structure at repository root:
 │  ├─ layout_tool.py
 │  ├─ chat_window.py
 │  ├─ settings_dialog.py
+│  ├─ settings_window.py
 │  └─ main_window.py
 ├─ tests/
 │  ├─ test_logic.py
@@ -73,6 +77,8 @@ Create this structure at repository root:
 ├─ vnc-setups/
 ├─ logs/
 ├─ default.json
+├─ default.local.json (optional, untracked local overrides)
+├─ default.local.json.example (template committed to repo)
 ├─ requirements.txt
 └─ tvnviewer.exe
 ```
@@ -110,6 +116,15 @@ Required keys:
 - `label_border_size`
 - `label_border_color`
 - `station_name`
+- `ha_url`
+- `ha_api_key`
+
+`default.local.json` (optional):
+- same key schema as `default.json`
+- values override `default.json` at runtime
+- intended for machine-local secrets such as `ha_api_key`
+- file is untracked (ignored by git)
+- create it by copying `default.local.json.example`
 
 ### 4.2 Per-connection config files
 
@@ -123,6 +138,13 @@ Additional per-connection keys:
 - `position_name` (selected position preset name from `vnc-positions`, optional)
 - `linked_session` (token format `<ConnectionName>|view|control`, optional)
 - `ks` (folder or file path, optional; if folder, open latest modified file at click time)
+- `ha_sensors` (list of selected entity IDs, optional)
+- `ha_sensor_icons` (list of mappings, optional):
+  - `entity_id`
+  - `icon` (single icon for non-binary sensors)
+  - `icon_on` (binary true/on icon)
+  - `icon_off` (binary false/off icon)
+  - `tooltip` (optional template supporting `{state}` and `{entity_id}`)
 
 ### 4.4 Setup files
 
@@ -212,7 +234,7 @@ Bottom fixed controls (in this exact order):
 4. `[Untag all] [Chat] [Positions & Sizes]`
 5. `[Validate config] [Import config] [Export config]`
 6. `[Take over session checkbox] [Reconnect on drop checkbox]`
-7. `[Theme label] [Theme selector Auto/Light/Dark] [Font Size] [Apply]`
+7. `[Change Settings]`
 
 Setup selector behavior:
 - loads setup names from `vnc-setups/*.json`
@@ -232,13 +254,13 @@ Setup selector behavior:
 - position `Load Pos`/`Save Pos` reads/writes `vnc-positions/*.json`
 - label coordinates are offsets from VNC window top-left (not absolute screen coordinates)
 
-## 5.3 Settings Dialog
+## 5.3 Edit Settings Dialog
 
 Window title:
 - `Edit View - <connection>` or `Edit Control - <connection>`
 
 Default size:
-- `290 x 415`
+- `620 x 820`
 
 Window icon:
 - `app/images/gear.png`
@@ -254,12 +276,38 @@ Fields:
 - label_border_size
 - label_border_color
 - ks (folder path with browse button)
+- HA sensor search + selected sensors list
+- per-sensor icon mapping:
+  - `Icon`
+  - `Binary true`
+  - `Binary false`
+  - `Tooltip` template (`{state}`, `{entity_id}`)
 
 Save behavior:
 - writes JSON to corresponding mode folder
-- value types saved as strings
+- preserves runtime fields such as `position_name` and `linked_session`
+- persists `ha_sensors` and `ha_sensor_icons`
 
-## 5.4 Chat Window
+## 5.4 App Settings Window
+
+Opened from main window `Change Settings`.
+
+Window title:
+- `Settings`
+
+Default size:
+- `460 x 760`
+
+Fields:
+- theme selector (`Auto`/`Light`/`Dark`)
+- font size + apply
+- all `default.json` fields
+- `Home Assistant URL`
+- `HA API Key`
+- `Test HA connection` button (`/api/` probe)
+- `Save`
+
+## 5.5 Chat Window
 
 Window title:
 - `VNC Chat - <station-name>`
@@ -389,7 +437,7 @@ Required commands:
 - `/nick NewName`
   - update local station name
   - update main window title and chat window title
-  - persist to `default.json` (`station_name`)
+  - persist to `default.local.json` (`station_name`)
   - broadcast hello with new name
   - all other stations must log rename notice:
     - `<old> is now known as <new>`
@@ -432,11 +480,20 @@ Required icons:
 - main app icon: `app/images/icon.png`
 - chat window icon: `app/images/chat.png`
 - settings dialog icon: `app/images/gear.png`
+- app settings window icon: `app/images/gear.png`
+- HA icon: `app/images/ha.png`
+- default status icons: `app/images/indicator-dooropen.png`, `app/images/indicator-doorclosed.png`
 - button icons:
   - `view.png`, `control.png`, `edit.png`, `import.png`, `export.png`,
     `validate.png`, `save.png`, `open.png`, `cancel.png`, `delete.png`,
     `untag.png`, `unlock.png`, `applysetup.png`,
     `spreadsheet.png`, `link.png`, `monitor.png`
+
+Custom HA sensor status icons (user-provided):
+- place files in `app/images/`
+- supported formats: `.png` and `.gif`
+- use transparent background
+- recommended size: `256x256` pixels
 
 ## 12. Example Files Package
 
@@ -523,6 +580,8 @@ Packaging requirement:
 - build must use windowed mode (`--windowed`) so end users do not see a console window.
 - build output must include runtime folders: `vnc-view`, `vnc-control`, `vnc-positions`.
 - build output must include runtime folder: `vnc-setups`.
+- build output must include runtime folder: `logs`.
+- build output should preserve any existing `vnc-view/*.json|*.vnc` and `vnc-control/*.json|*.vnc`.
 - build output must copy any existing `vnc-positions/*.json` presets into `dist`.
 - build output should preserve any existing `vnc-setups/*.json` presets into `dist`.
 
@@ -531,10 +590,11 @@ Packaging requirement:
 - App starts with no exceptions.
 - Main title equals station name.
 - Main default size is `250x830`.
-- Settings window default size is `290x415` with gear icon.
-- Settings window icon path is `app/images/gear.png`.
+- Edit settings dialog default size is `620x820` with gear icon.
+- App settings window default size is `460x760`.
 - Chat window uses chat icon.
 - Connection list layout and bottom controls match section 5.2.
+- `Change Settings` opens app settings window.
 - `.vnc` launch uses `-optionsfile=...`.
 - Overlay follows moved VNC window.
 - Overlay uses label offsets relative to VNC window.
@@ -553,5 +613,9 @@ Packaging requirement:
 - Nick change updates station list and removes old name.
 - Topic changes propagate to all online stations.
 - Away does not clear from remote activity, only local input.
+- HA connection test works with URL + token.
+- Edit dialogs can search HA sensors and persist `ha_sensor_icons`.
+- Main row indicators can display multiple icons simultaneously.
+- GIF indicators animate in main row indicator area.
 - UDP test script can validate two-way connectivity on port 50000.
 - Export/import bundles include `default.json`, `vnc-view/*`, `vnc-control/*`, `vnc-positions/*.json`, and `vnc-setups/*.json`.

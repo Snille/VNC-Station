@@ -36,6 +36,7 @@ Thumbs.db
 *.log
 *.tmp
 *.temp
+default.local.json
 
 # Keep these folders, but do not sync station-specific session files
 vnc-view/*

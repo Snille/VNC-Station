@@ -1,0 +1,4 @@
+{
+  "ha_url": "http://home-assistant.local:8123",
+  "ha_api_key": "YOUR_HA_API_KEY"
+}

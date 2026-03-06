@@ -1,0 +1,58 @@
+#!/usr/bin/env sh
+set -eu
+
+STAGED_FILES="$(git diff --cached --name-only --diff-filter=ACM)"
+
+if [ -z "$STAGED_FILES" ]; then
+  exit 0
+fi
+
+check_file() {
+  f="$1"
+  if [ ! -f "$f" ]; then
+    return 0
+  fi
+  python - "$f" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    data = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    # Non-JSON/invalid JSON is handled elsewhere.
+    raise SystemExit(0)
+
+if not isinstance(data, dict):
+    raise SystemExit(0)
+
+api_key = str(data.get("ha_api_key", "")).strip()
+if not api_key:
+    raise SystemExit(0)
+
+allowed_placeholders = {
+    "<ha_api_key>",
+    "YOUR_HA_API_KEY",
+    "CHANGE_ME",
+    "REDACTED",
+}
+if api_key in allowed_placeholders:
+    raise SystemExit(0)
+
+# Typical HA long-lived access tokens are JWT-like and start with eyJ.
+if api_key.startswith("eyJ") or len(api_key) > 24:
+    print(f"ERROR: {path} contains a non-placeholder ha_api_key. Remove it before commit.")
+    raise SystemExit(1)
+PY
+}
+
+for f in $STAGED_FILES; do
+  case "$f" in
+    default.json|default.local.json)
+      check_file "$f"
+      ;;
+  esac
+done
+
+exit 0

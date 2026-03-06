@@ -13,5 +13,12 @@
   "label_font_color": "black",
   "label_border_size": "5",
   "label_border_color": "yellow",
-  "station_name": "Station 01"
+  "station_name": "Station 01",
+  "position_name": "",
+  "linked_session": "",
+  "ks": "",
+  "ha_url": "",
+  "ha_api_key": "<ha_api_key>",
+  "ha_sensors": [],
+  "ha_sensor_icons": []
 }

@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 import time
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 
 @dataclass(frozen=True)
@@ -49,6 +49,8 @@ class SessionSettings:
     position_name: str = ""
     linked_session: str = ""
     ks: str = ""
+    ha_sensors: List[str] = field(default_factory=list)
+    ha_sensor_icons: List[Dict[str, str]] = field(default_factory=list)
 
     @staticmethod
     def from_mapping(data: Dict[str, object]) -> "SessionSettings":
@@ -61,6 +63,53 @@ class SessionSettings:
                 return fallback
 
         defaults = SessionSettings()
+
+        raw_sensors = data.get("ha_sensors", defaults.ha_sensors)
+        sensor_values: List[str] = []
+        if isinstance(raw_sensors, list):
+            for value in raw_sensors:
+                text = str(value).strip()
+                if text:
+                    sensor_values.append(text)
+        elif isinstance(raw_sensors, str):
+            for part in raw_sensors.split(","):
+                text = part.strip()
+                if text:
+                    sensor_values.append(text)
+
+        # Keep insertion order while removing duplicates.
+        deduped_sensors = list(dict.fromkeys(sensor_values))
+
+        raw_mappings = data.get("ha_sensor_icons", [])
+        parsed_mappings: List[Dict[str, str]] = []
+        if isinstance(raw_mappings, list):
+            for item in raw_mappings:
+                if not isinstance(item, dict):
+                    continue
+                entity_id = str(item.get("entity_id", "")).strip()
+                if not entity_id:
+                    continue
+                parsed_mappings.append(
+                    {
+                        "entity_id": entity_id,
+                        "icon": str(item.get("icon", "")).strip(),
+                        "icon_on": str(item.get("icon_on", "")).strip(),
+                        "icon_off": str(item.get("icon_off", "")).strip(),
+                        "tooltip": str(item.get("tooltip", "")).strip(),
+                    }
+                )
+        # Backward compatibility: convert legacy sensor strings into empty mappings.
+        if not parsed_mappings and deduped_sensors:
+            for entity_id in deduped_sensors:
+                parsed_mappings.append(
+                    {
+                        "entity_id": entity_id,
+                        "icon": "",
+                        "icon_on": "",
+                        "icon_off": "",
+                        "tooltip": "",
+                    }
+                )
         return SessionSettings(
             x=to_int(data.get("x"), defaults.x),
             y=to_int(data.get("y"), defaults.y),
@@ -80,10 +129,12 @@ class SessionSettings:
             position_name=str(data.get("position_name", defaults.position_name)),
             linked_session=str(data.get("linked_session", defaults.linked_session)),
             ks=str(data.get("ks", defaults.ks)),
+            ha_sensors=deduped_sensors,
+            ha_sensor_icons=parsed_mappings,
         )
 
-    def to_json(self) -> Dict[str, str]:
-        """Serialize settings to the on-disk schema (string values)."""
+    def to_json(self) -> Dict[str, object]:
+        """Serialize settings to the on-disk schema."""
         return {
             "x": str(self.x),
             "y": str(self.y),
@@ -102,6 +153,8 @@ class SessionSettings:
             "position_name": self.position_name,
             "linked_session": self.linked_session,
             "ks": self.ks,
+            "ha_sensors": list(self.ha_sensors),
+            "ha_sensor_icons": list(self.ha_sensor_icons),
         }
 
 
