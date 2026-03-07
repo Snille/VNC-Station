@@ -129,7 +129,7 @@ Example `default.local.json`:
 
 ```json
 {
-  "ha_url": "http://ha.spectrogon.com/",
+  "ha_url": "http://home.assistant.you:8123",
   "ha_api_key": "YOUR_REAL_HA_TOKEN"
 }
 ```
