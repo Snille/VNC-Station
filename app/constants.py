@@ -3,7 +3,7 @@
 from pathlib import Path
 import sys
 
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.3.2"
 
 
 # Base directory for user/runtime files.
@@ -32,6 +32,7 @@ SAVE_ICON_PATH = APP_DIR / "images" / "save.png"
 OPEN_ICON_PATH = APP_DIR / "images" / "open.png"
 CANCEL_ICON_PATH = APP_DIR / "images" / "cancel.png"
 DELETE_ICON_PATH = APP_DIR / "images" / "delete.png"
+CLEAR_ICON_PATH = APP_DIR / "images" / "clear.png"
 RESET_ICON_PATH = APP_DIR / "images" / "reset.png"
 UNTAG_ICON_PATH = APP_DIR / "images" / "untag.png"
 UNLOCK_ICON_PATH = APP_DIR / "images" / "unlock.png"

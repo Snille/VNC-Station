@@ -4,10 +4,11 @@ import json
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 from .constants import (
     DEFAULT_CONFIG_PATH,
+    DEFAULT_LOCAL_CONFIG_PATH,
     ROOT_DIR,
     VIEWER_EXE_PATH,
     VNC_CONTROL_DIR,
@@ -44,12 +45,14 @@ _BUNDLE_RULES = (
 )
 
 
-def _validate_json_files_in_folder(folder: Path, findings: List[str]) -> None:
+def _validate_json_files_in_folder(folder: Path, findings: List[str]) -> int:
     """Validate that all JSON files in folder parse as JSON objects."""
     if not folder.exists():
         findings.append(f"Missing folder: {folder}")
-        return
+        return 0
+    checked = 0
     for json_path in folder.glob("*.json"):
+        checked += 1
         try:
             with json_path.open("r", encoding="utf-8") as handle:
                 data = json.load(handle)
@@ -57,13 +60,23 @@ def _validate_json_files_in_folder(folder: Path, findings: List[str]) -> None:
                 findings.append(f"Invalid JSON object in {json_path}")
         except Exception as exc:
             findings.append(f"Failed to parse {json_path}: {exc}")
+    return checked
 
 
 def validate_runtime_configuration() -> List[str]:
     """Validate important files/config and return findings."""
+    findings, _checked_files = validate_runtime_configuration_details()
+    return findings
+
+
+def validate_runtime_configuration_details() -> Tuple[List[str], int]:
+    """Validate important files/config and return (findings, checked_files)."""
     findings: List[str] = []
+    checked_files = 0
+    checked_files += 1
     if not VIEWER_EXE_PATH.exists():
         findings.append(f"Missing viewer executable: {VIEWER_EXE_PATH}")
+    checked_files += 1
     if not DEFAULT_CONFIG_PATH.exists():
         findings.append(f"Missing default.json: {DEFAULT_CONFIG_PATH}")
     else:
@@ -74,10 +87,20 @@ def validate_runtime_configuration() -> List[str]:
                 findings.append(f"Invalid JSON object in {DEFAULT_CONFIG_PATH}")
         except Exception as exc:
             findings.append(f"Failed to parse {DEFAULT_CONFIG_PATH}: {exc}")
+    if DEFAULT_LOCAL_CONFIG_PATH.exists():
+        checked_files += 1
+        try:
+            with DEFAULT_LOCAL_CONFIG_PATH.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+            if not isinstance(data, dict):
+                findings.append(f"Invalid JSON object in {DEFAULT_LOCAL_CONFIG_PATH}")
+        except Exception as exc:
+            findings.append(f"Failed to parse {DEFAULT_LOCAL_CONFIG_PATH}: {exc}")
 
     for folder in (VNC_VIEW_DIR, VNC_CONTROL_DIR):
         if folder.exists():
             for json_path in folder.glob("*.json"):
+                checked_files += 1
                 try:
                     with json_path.open("r", encoding="utf-8") as handle:
                         data = json.load(handle)
@@ -93,17 +116,20 @@ def validate_runtime_configuration() -> List[str]:
             findings.append(f"Missing folder: {folder}")
             continue
 
-        json_stems = {p.stem for p in folder.glob("*.json")}
-        vnc_stems = {p.stem for p in folder.glob("*.vnc")}
+        json_files = list(folder.glob("*.json"))
+        vnc_files = list(folder.glob("*.vnc"))
+        checked_files += len(vnc_files)
+        json_stems = {p.stem for p in json_files}
+        vnc_stems = {p.stem for p in vnc_files}
         for missing_vnc in sorted(json_stems - vnc_stems):
             findings.append(f"{folder.name}: {missing_vnc}.json exists but {missing_vnc}.vnc is missing")
         for missing_json in sorted(vnc_stems - json_stems):
             findings.append(f"{folder.name}: {missing_json}.vnc exists but {missing_json}.json is missing (optional)")
 
-    _validate_json_files_in_folder(VNC_POSITIONS_DIR, findings)
-    _validate_json_files_in_folder(VNC_SETUPS_DIR, findings)
+    checked_files += _validate_json_files_in_folder(VNC_POSITIONS_DIR, findings)
+    checked_files += _validate_json_files_in_folder(VNC_SETUPS_DIR, findings)
 
-    return findings
+    return findings, checked_files
 
 
 def export_config_bundle(destination_zip: Path) -> Path:
@@ -112,6 +138,8 @@ def export_config_bundle(destination_zip: Path) -> Path:
     with zipfile.ZipFile(destination_zip, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         if DEFAULT_CONFIG_PATH.exists():
             zf.write(DEFAULT_CONFIG_PATH, arcname="default.json")
+        if DEFAULT_LOCAL_CONFIG_PATH.exists():
+            zf.write(DEFAULT_LOCAL_CONFIG_PATH, arcname="default.local.json")
         for _prefix, folder, suffixes in _BUNDLE_RULES:
             for suffix in suffixes:
                 for file_path in folder.glob(f"*{suffix}"):
@@ -134,6 +162,13 @@ def import_config_bundle(zip_path: Path) -> List[str]:
         for member in zf.namelist():
             norm = member.replace("\\", "/")
             if norm == "default.json":
+                target = ROOT_DIR / Path(norm)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with zf.open(member, "r") as src, target.open("wb") as dst:
+                    dst.write(src.read())
+                applied.append(str(target))
+                continue
+            if norm == "default.local.json":
                 target = ROOT_DIR / Path(norm)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with zf.open(member, "r") as src, target.open("wb") as dst:

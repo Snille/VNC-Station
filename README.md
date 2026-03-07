@@ -2,40 +2,44 @@
 
 Windows desktop app (PyQt5) for managing multiple TightVNC sessions in `view` and `control` mode, with station-to-station coordination over UDP and built-in chat.
 
-Current version: `1.3.0`
+Current version: `1.3.2`
 
 ## Screenshots
 
 <table>
   <tr>
-    <td align="center"><strong>Main 01</strong></td>
-    <td align="center"><strong>Main 02</strong></td>
+    <td align="center"><strong>Main (empty)</strong></td>
+    <td align="center"><strong>Main with sessions</strong></td>
     <td align="center"><strong>Main Settings</strong></td>
-    <td align="center"><strong>Sessions Settings</strong></td>
-  </tr>
-  <tr>
-    <td><a href="Example%20files/Screenshots/main-01.png"><img src="Example%20files/Screenshots/main-01.png" alt="Main 01" width="200"></a></td>
-    <td><a href="Example%20files/Screenshots/main-02.png"><img src="Example%20files/Screenshots/main-02.png" alt="Main 02" width="200"></a></td>
-    <td><a href="Example%20files/Screenshots/main-settings.png"><img src="Example%20files/Screenshots/main-settings.png" alt="Main Settings" width="200"></a></td>
-    <td><a href="Example%20files/Screenshots/sessions-settings.png"><img src="Example%20files/Screenshots/sessions-settings.png" alt="Sessions Settings" width="200"></a></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>Settings</strong></td>
     <td align="center"><strong>Chat</strong></td>
-    <td align="center"><strong>Layout Sessions</strong></td>
-    <td align="center"><strong>Layout Positions</strong></td>
   </tr>
   <tr>
-    <td><a href="Example%20files/Screenshots/settings.png"><img src="Example%20files/Screenshots/settings.png" alt="Settings Window" width="200"></a></td>
-    <td><a href="Example%20files/Screenshots/chat.png"><img src="Example%20files/Screenshots/chat.png" alt="Chat Window" width="200"></a></td>
-    <td><a href="Example%20files/Screenshots/layout-sessions.png"><img src="Example%20files/Screenshots/layout-sessions.png" alt="Layout Sessions" width="200"></a></td>
-    <td><a href="Example%20files/Screenshots/layout-positions.png"><img src="Example%20files/Screenshots/layout-positions.png" alt="Layout Positions" width="200"></a></td>
+    <td><a href="Example%20files/Screenshots/main-empty.png"><img src="Example%20files/Screenshots/main-empty.png" alt="Main (empty)" width="200"></a></td>
+    <td><a href="Example%20files/Screenshots/main-setup+link+tooltip.png"><img src="Example%20files/Screenshots/main-setup+link+tooltip.png" alt="Main with sessions" width="200"></a></td>
+    <td><a href="Example%20files/Screenshots/main-settings.png"><img src="Example%20files/Screenshots/main-settings.png" alt="Main Settings" width="200"></a></td>
+    <td><a href="Example%20files/Screenshots/station-chat.png"><img src="Example%20files/Screenshots/station-chat.png" alt="Chat" width="200"></a></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Session Layout</strong></td>
+    <td align="center"><strong>Position Layout</strong></td>
+    <td align="center"><strong>Edit View</strong></td>
+    <td align="center"><strong>Edit Control</strong></td>
+  </tr>
+  <tr>
+    <td><a href="Example%20files/Screenshots/sessnon-layout+vncpreview+label.png"><img src="Example%20files/Screenshots/sessnon-layout+vncpreview+label.png" alt="Session Layout" width="200"></a></td>
+    <td><a href="Example%20files/Screenshots/position-layout+vnc-preview.png"><img src="Example%20files/Screenshots/position-layout+vnc-preview.png" alt="Position Layout" width="200"></a></td>
+    <td><a href="Example%20files/Screenshots/edit-session-view.png"><img src="Example%20files/Screenshots/edit-session-view.png" alt="Edit View" width="200"></a></td>
+    <td><a href="Example%20files/Screenshots/edit-session-control.png"><img src="Example%20files/Screenshots/edit-session-control.png" alt="Edit Control" width="200"></a></td>
   </tr>
 </table>
 
-## License
+## Home Assistant Integration
 
-This project is MIT licensed (see `LICENSE` in the repository root).
+<p>
+  <a href="Example%20files/Screenshots/alarm-notifications-from-home-assistant.png">
+    <img src="Example%20files/Screenshots/alarm-notifications-from-home-assistant.png" alt="Alarm notifications from Home Assistant" width="840">
+  </a>
+</p>
 
 ## What You Need Before Starting
 
@@ -177,10 +181,10 @@ Also make sure `python.exe` is allowed in Windows Defender Firewall.
 7. Use `Edit View` / `Edit Control` for per-session window + overlay settings.
 8. Use `Positions & Sizes` for visual layout editing and position preset management.
 9. Use setup presets: selector + `Save` / `Clear Setup` / `Delete`.
-10. Use `Validate config`, `Export config`, and `Import config` for maintenance.
+10. Use `Change Settings` and run `Validate config`, `Export config`, or `Import config` from the Settings window.
 11. Configure `KS` in Edit dialogs; `KS/KSV/KSC` opens the configured file (or latest file in folder).
-12. Use `Change Settings` to open app settings (theme, font size, defaults, HA URL/key, HA connection test).
-13. In `Edit View` / `Edit Control`, add HA sensors and map icons (single icon or binary true/false icons).
+12. Use `Change Settings` to open app settings (theme, font size, defaults, HA URL/key, HA connection test, maintenance tools).
+13. In `Edit View` / `Edit Control`, add HA sensors and map icons (single icon or binary true/false icons), reorder `Selected Sensors` by drag-and-drop, and optionally set binary state color rules.
 
 Startup note:
 - On launch, open actions are briefly locked while the app requests current session ownership from other stations.
@@ -195,9 +199,8 @@ Startup note:
   2. `Setup View` / `Close View` + `Setup Control` / `Close Control`
   3. `View tagged` / `Close tagged` + `Control tagged` / `Close tagged`
   4. `Untag all` + `Chat` + `Positions & Sizes`
-  5. `Validate config` + `Import config` + `Export config`
-  6. `Take over session` + `Reconnect on drop`
-  7. `Change Settings`
+  5. `Take over session` + `Reconnect on drop`
+  6. `Change Settings`
 
 ## Chat Commands
 
@@ -221,11 +224,14 @@ Startup note:
 - Per-mode session linking (`Link V` / `Link C`): opens linked sessions together with view/control actions.
 - Linked close behavior: closing a session also closes linked sessions recursively (loop-safe).
 - Per-session `KS` folder/file buttons (`KS`, `KSV`, `KSC`) with direct open from the main list.
-- App-level `Change Settings` window for theme, font size, defaults, and HA connectivity.
+- App-level `Change Settings` window for theme, font size, defaults, HA connectivity, and maintenance tools.
 - HA connection testing (`/api/`) with toast feedback and success/fail button color feedback.
 - `Edit View`/`Edit Control` HA sensor search from Home Assistant (`/api/states`).
 - Per-sensor icon mapping: one icon for generic sensors, separate true/false icons for binary sensors.
-- Per-sensor tooltip templates with `{state}` and `{entity_id}` placeholders.
+- Per-sensor tooltip templates with `{name}`, `{state}`, and `{entity_id}` placeholders.
+- Drag-and-drop ordering in `Selected Sensors`; icon display order follows the saved list order.
+- Binary sensor state color rules can color the icon display area and session overlay label background.
+- Binary sensor state color rules do not change `View`/`Control` button colors.
 - Multi-icon row indicators: multiple mapped sensors can display side-by-side in each connection row.
 - Animated GIF indicators supported in the main window.
 - `input_boolean.*` is treated as binary for true/false icon mapping.
@@ -241,6 +247,7 @@ Startup note:
 - Global topic: keep all stations aligned on current context.
 - Station nick/away visibility: improve operational awareness.
 - Windows theme support (Auto/Light/Dark): keep UI consistent with operator environment.
+- Main/Chat/Settings/Edit/Layout windows restore last position+size on reopen.
 - Session cleanup on app exit: avoid orphaned VNC processes.
 - Config validation tool: catch missing/malformed files before operation.
 - Config import/export bundles: replicate JSON and VNC files (including setup presets) between stations quickly.
@@ -264,10 +271,12 @@ For binary-style entities (`binary_sensor.*`, `input_boolean.*`):
 
 - `Validate config` checks:
   - missing `tvnviewer.exe` / `default.json`
+  - malformed `default.local.json` (if file exists)
   - malformed JSON in `default.json`, `vnc-view`, `vnc-control`, `vnc-positions`, and `vnc-setups`
   - unknown keys and missing `.json`/`.vnc` pairings for view/control session configs
 - `Export config` bundles:
   - `default.json`
+  - `default.local.json` (if present)
   - `vnc-view/*.json` + `vnc-view/*.vnc`
   - `vnc-control/*.json` + `vnc-control/*.vnc`
   - `vnc-positions/*.json`
@@ -338,3 +347,7 @@ Cleanup generated build artifacts:
   - 1-2x Full HD screens
   - mixed-DPI setup checks for VNC window placement and label overlay alignment
 - Write a complete user manual for the whole application.
+
+## License
+
+This project is MIT licensed (see `LICENSE` in the repository root).

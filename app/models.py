@@ -96,6 +96,8 @@ class SessionSettings:
                         "icon_on": str(item.get("icon_on", "")).strip(),
                         "icon_off": str(item.get("icon_off", "")).strip(),
                         "tooltip": str(item.get("tooltip", "")).strip(),
+                        "bg_state": str(item.get("bg_state", "")).strip().lower(),
+                        "bg_color": str(item.get("bg_color", "")).strip(),
                     }
                 )
         # Backward compatibility: convert legacy sensor strings into empty mappings.
@@ -108,6 +110,8 @@ class SessionSettings:
                         "icon_on": "",
                         "icon_off": "",
                         "tooltip": "",
+                        "bg_state": "",
+                        "bg_color": "",
                     }
                 )
         return SessionSettings(

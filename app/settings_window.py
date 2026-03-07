@@ -6,7 +6,7 @@ import urllib.request
 from pathlib import Path
 from typing import Callable, Dict
 
-from PyQt5.QtCore import QSize, QTimer, pyqtSignal
+from PyQt5.QtCore import QSettings, QSize, QTimer, pyqtSignal
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (
     QComboBox,
@@ -22,6 +22,7 @@ from PyQt5.QtWidgets import (
 )
 
 from .constants import GEARS_ICON_PATH, HA_ICON_PATH, SAVE_ICON_PATH
+from .constants import EXPORT_ICON_PATH, IMPORT_ICON_PATH, VALIDATE_ICON_PATH
 
 DEFAULT_BUTTON_STYLE = "background:#1971c2; color:white; font-weight:700; border-radius:4px;"
 SUCCESS_BUTTON_STYLE = "background:#2f9e44; color:white; font-weight:700; border-radius:4px;"
@@ -57,6 +58,9 @@ class SettingsWindow(QDialog):
         apply_font_size: Callable[[int], None],
         save_defaults: Callable[[Dict[str, str]], str],
         show_toast: Callable[[str], None],
+        run_validation: Callable[[], None],
+        import_config: Callable[[], None],
+        export_config: Callable[[], None],
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -65,6 +69,9 @@ class SettingsWindow(QDialog):
         self._apply_font_size = apply_font_size
         self._save_defaults = save_defaults
         self._show_toast = show_toast
+        self._run_validation = run_validation
+        self._import_config = import_config
+        self._export_config = export_config
         self._fields: Dict[str, object] = {}
         self._default_values = defaults
         self._theme_mode = theme_mode
@@ -77,7 +84,10 @@ class SettingsWindow(QDialog):
         self.setWindowTitle("Settings")
         if GEARS_ICON_PATH.exists():
             self.setWindowIcon(QIcon(str(GEARS_ICON_PATH)))
-        self.resize(460, 760)
+        self._geometry_store = QSettings("VNCStation", "Controller")
+        saved_geometry = self._geometry_store.value("settings_window_geometry")
+        if not saved_geometry or not self.restoreGeometry(saved_geometry):
+            self.resize(460, 760)
 
         root = QVBoxLayout(self)
 
@@ -148,6 +158,29 @@ class SettingsWindow(QDialog):
         test_row.addWidget(self.test_ha_btn)
         test_row.addStretch(1)
         root.addLayout(test_row)
+
+        maintenance_label = QLabel("Maintenance")
+        maintenance_label.setStyleSheet("font-weight:700;")
+        root.addWidget(maintenance_label)
+        maintenance_row = QHBoxLayout()
+        maintenance_row.addStretch(1)
+        self.validate_btn = QPushButton("Validate config")
+        _set_button_icon(self.validate_btn, VALIDATE_ICON_PATH)
+        self.validate_btn.setStyleSheet("background:#006b57; color:white; font-weight:700; border-radius:4px;")
+        self.validate_btn.clicked.connect(self._run_validation)
+        self.import_btn = QPushButton("Import config")
+        _set_button_icon(self.import_btn, IMPORT_ICON_PATH)
+        self.import_btn.setStyleSheet("background:#006b57; color:white; font-weight:700; border-radius:4px;")
+        self.import_btn.clicked.connect(self._import_config)
+        self.export_btn = QPushButton("Export config")
+        _set_button_icon(self.export_btn, EXPORT_ICON_PATH)
+        self.export_btn.setStyleSheet("background:#006b57; color:white; font-weight:700; border-radius:4px;")
+        self.export_btn.clicked.connect(self._export_config)
+        maintenance_row.addWidget(self.validate_btn)
+        maintenance_row.addWidget(self.import_btn)
+        maintenance_row.addWidget(self.export_btn)
+        maintenance_row.addStretch(1)
+        root.addLayout(maintenance_row)
 
         save_row = QHBoxLayout()
         save_row.addStretch(1)
@@ -268,3 +301,7 @@ class SettingsWindow(QDialog):
 
     def _restore_ha_button_style(self) -> None:
         self.test_ha_btn.setStyleSheet(DEFAULT_BUTTON_STYLE)
+
+    def closeEvent(self, event) -> None:
+        self._geometry_store.setValue("settings_window_geometry", self.saveGeometry())
+        super().closeEvent(event)

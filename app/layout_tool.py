@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from PyQt5.QtCore import QPoint, QRect, QSize, Qt, pyqtSignal
+from PyQt5.QtCore import QPoint, QRect, QSettings, QSize, Qt, pyqtSignal
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
@@ -253,6 +253,7 @@ class LayoutToolWindow(QMainWindow):
 
     def __init__(self, theme_mode: str = "Auto") -> None:
         super().__init__()
+        self._geometry_store = QSettings("VNCStation", "Controller")
         self.settings = load_default_settings()
         self.theme_mode = theme_mode
         self._syncing_form = False
@@ -279,10 +280,22 @@ class LayoutToolWindow(QMainWindow):
         self.label_preview.changed.connect(self._sync_from_preview_windows)
 
         self._build_ui()
+        self._restore_saved_window_geometries()
         self._apply_settings_to_previews()
         self._apply_theme(self.theme_mode)
         self.vnc_preview.show()
         self._apply_editor_mode(self.mode_box.currentText())
+
+    def _restore_saved_window_geometries(self) -> None:
+        main_geometry = self._geometry_store.value("layout_tool_window_geometry")
+        if main_geometry:
+            self.restoreGeometry(main_geometry)
+        vnc_geometry = self._geometry_store.value("layout_tool_vnc_preview_geometry")
+        if vnc_geometry:
+            self.vnc_preview.restoreGeometry(vnc_geometry)
+        label_geometry = self._geometry_store.value("layout_tool_label_preview_geometry")
+        if label_geometry:
+            self.label_preview.restoreGeometry(label_geometry)
 
     def _build_ui(self) -> None:
         root_widget = QWidget(self)
@@ -675,6 +688,9 @@ class LayoutToolWindow(QMainWindow):
         return merged.to_json()
 
     def closeEvent(self, event) -> None:
+        self._geometry_store.setValue("layout_tool_window_geometry", self.saveGeometry())
+        self._geometry_store.setValue("layout_tool_vnc_preview_geometry", self.vnc_preview.saveGeometry())
+        self._geometry_store.setValue("layout_tool_label_preview_geometry", self.label_preview.saveGeometry())
         self.vnc_preview.close()
         self.label_preview.close()
         self.window_closed.emit()

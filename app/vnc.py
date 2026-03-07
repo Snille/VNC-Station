@@ -41,18 +41,23 @@ class OverlayLabel(QWidget):
         )
         self.label.setGeometry(0, 0, self.width(), self.height())
 
-    def _apply_style(self, settings: SessionSettings) -> None:
+    def _apply_style(self, settings: SessionSettings, background_override: str = "") -> None:
         """Apply current visual style for label text, background, and border."""
         border = max(0, settings.label_border_size)
+        background = background_override.strip() or settings.label_bg
         self.label.setStyleSheet(
             (
-                f"background: {settings.label_bg};"
+                f"background: {background};"
                 f"color: {settings.label_font_color};"
                 f"border: {border}px solid {settings.label_border_color};"
                 f"font-size: {max(8, settings.label_font)}px;"
                 "font-weight: 700;"
             )
         )
+
+    def set_background_override(self, settings: SessionSettings, color_text: str) -> None:
+        """Temporarily override label background color while keeping other label styles."""
+        self._apply_style(settings, color_text)
 
 
 class SessionManager:
@@ -136,6 +141,16 @@ class SessionManager:
         keys = list(self._sessions.keys())
         for key in keys:
             self.close_session(key)
+
+    def set_overlay_label_background(self, key: Tuple[str, str], color_text: str) -> None:
+        """Set or clear runtime overlay label background override for one session."""
+        record = self._sessions.get(key)
+        if record is None:
+            return
+        try:
+            record.overlay.set_background_override(record.settings, color_text.strip())
+        except Exception:
+            pass
 
     def _position_initial_window(self, key: Tuple[str, str]) -> None:
         """Find new viewer window and apply configured initial geometry."""

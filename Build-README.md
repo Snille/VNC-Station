@@ -144,7 +144,9 @@ Additional per-connection keys:
   - `icon` (single icon for non-binary sensors)
   - `icon_on` (binary true/on icon)
   - `icon_off` (binary false/off icon)
-  - `tooltip` (optional template supporting `{state}` and `{entity_id}`)
+  - `tooltip` (optional template supporting `{name}`, `{state}`, and `{entity_id}`)
+  - `bg_state` (`on` or `off`; optional state selector for color rule)
+  - `bg_color` (optional color applied when `bg_state` matches)
 
 ### 4.4 Setup files
 
@@ -232,9 +234,8 @@ Bottom fixed controls (in this exact order):
 2. `[Setup View|Close View] [Setup Control|Close Control]`
 3. `[View tagged|Close tagged] [Control tagged|Close tagged]`
 4. `[Untag all] [Chat] [Positions & Sizes]`
-5. `[Validate config] [Import config] [Export config]`
-6. `[Take over session checkbox] [Reconnect on drop checkbox]`
-7. `[Change Settings]`
+5. `[Take over session checkbox] [Reconnect on drop checkbox]`
+6. `[Change Settings]`
 
 Setup selector behavior:
 - loads setup names from `vnc-setups/*.json`
@@ -260,7 +261,7 @@ Window title:
 - `Edit View - <connection>` or `Edit Control - <connection>`
 
 Default size:
-- `620 x 820`
+- `620 x 820` when no saved geometry exists (otherwise restore last geometry)
 
 Window icon:
 - `app/images/gear.png`
@@ -281,7 +282,9 @@ Fields:
   - `Icon`
   - `Binary true`
   - `Binary false`
-  - `Tooltip` template (`{state}`, `{entity_id}`)
+  - `Tooltip` template (`{name}`, `{state}`, `{entity_id}`)
+  - `Sensor` row color rule (`on`/`off` + color selector)
+  - `Selected Sensors` supports drag-and-drop reordering
 
 Save behavior:
 - writes JSON to corresponding mode folder
@@ -296,7 +299,7 @@ Window title:
 - `Settings`
 
 Default size:
-- `460 x 760`
+- `460 x 760` when no saved geometry exists (otherwise restore last geometry)
 
 Fields:
 - theme selector (`Auto`/`Light`/`Dark`)
@@ -305,6 +308,9 @@ Fields:
 - `Home Assistant URL`
 - `HA API Key`
 - `Test HA connection` button (`/api/` probe)
+- `Validate config` button
+- `Import config` button
+- `Export config` button
 - `Save`
 
 ## 5.5 Chat Window
@@ -589,9 +595,9 @@ Packaging requirement:
 
 - App starts with no exceptions.
 - Main title equals station name.
-- Main default size is `250x830`.
-- Edit settings dialog default size is `620x820` with gear icon.
-- App settings window default size is `460x760`.
+- Main default size is `250x830` when no saved geometry exists.
+- Edit settings dialog default size is `620x820` (when no saved geometry exists) with gear icon.
+- App settings window default size is `460x760` when no saved geometry exists.
 - Chat window uses chat icon.
 - Connection list layout and bottom controls match section 5.2.
 - `Change Settings` opens app settings window.

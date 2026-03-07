@@ -7,10 +7,12 @@ import urllib.request
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from PyQt5.QtCore import QSize, Qt, pyqtSignal
+from PyQt5.QtCore import QSettings, QSize, Qt, pyqtSignal
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (
     QAbstractItemView,
+    QColorDialog,
+    QComboBox,
     QDialog,
     QFileDialog,
     QFormLayout,
@@ -25,7 +27,8 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
 )
 
-from .constants import APP_DIR, CANCEL_ICON_PATH, DEFAULT_CONFIG_PATH, GEARS_ICON_PATH, HA_ICON_PATH, SAVE_ICON_PATH
+from .config import load_default_mapping
+from .constants import APP_DIR, CANCEL_ICON_PATH, GEARS_ICON_PATH, HA_ICON_PATH, SAVE_ICON_PATH
 from .models import SessionSettings
 
 
@@ -50,7 +53,10 @@ class SettingsDialog(QDialog):
         if GEARS_ICON_PATH.exists():
             self.setWindowIcon(QIcon(str(GEARS_ICON_PATH)))
         self.setModal(True)
-        self.resize(620, 820)
+        self._geometry_store = QSettings("VNCStation", "Controller")
+        saved_geometry = self._geometry_store.value("edit_session_dialog_geometry")
+        if not saved_geometry or not self.restoreGeometry(saved_geometry):
+            self.resize(620, 820)
         self.setStyleSheet("QPushButton{padding:2px 6px;}")
         self._fields: Dict[str, object] = {}
         self._search_pending = False
@@ -104,6 +110,11 @@ class SettingsDialog(QDialog):
         layout.addWidget(selected_label)
         self.sensor_selected_list = QListWidget()
         self.sensor_selected_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.sensor_selected_list.setDragDropMode(QAbstractItemView.InternalMove)
+        self.sensor_selected_list.setDefaultDropAction(Qt.MoveAction)
+        self.sensor_selected_list.setDragEnabled(True)
+        self.sensor_selected_list.setAcceptDrops(True)
+        self.sensor_selected_list.setDropIndicatorShown(True)
         self.sensor_selected_list.currentItemChanged.connect(self._on_selected_sensor_changed)
         self.sensor_selected_list.itemClicked.connect(self._on_selected_sensor_clicked)
         layout.addWidget(self.sensor_selected_list)
@@ -129,7 +140,23 @@ class SettingsDialog(QDialog):
 
         self.sensor_entity_display = QLineEdit()
         self.sensor_entity_display.setReadOnly(True)
-        icon_form.addRow("Sensor", self.sensor_entity_display)
+        self.bg_state_combo = QComboBox()
+        self.bg_state_combo.addItem("on")
+        self.bg_state_combo.addItem("off")
+        self.bg_state_combo.setFixedWidth(58)
+        self.bg_state_combo.currentTextChanged.connect(self._on_icon_field_edited)
+        self.bg_color_input = QLineEdit()
+        self.bg_color_input.setPlaceholderText("bg color")
+        self.bg_color_input.setFixedWidth(100)
+        self.bg_color_input.textEdited.connect(self._on_icon_field_edited)
+        self.bg_color_btn = QPushButton("Pick color")
+        self.bg_color_btn.clicked.connect(self._pick_bg_color)
+        sensor_row = QHBoxLayout()
+        sensor_row.addWidget(self.sensor_entity_display, 1)
+        sensor_row.addWidget(self.bg_state_combo)
+        sensor_row.addWidget(self.bg_color_input)
+        sensor_row.addWidget(self.bg_color_btn)
+        icon_form.addRow("Sensor", sensor_row)
 
         self.icon_default_input = QLineEdit()
         self.icon_default_input.textEdited.connect(self._on_icon_field_edited)
@@ -159,7 +186,9 @@ class SettingsDialog(QDialog):
         icon_form.addRow("Binary false", icon_off_row)
 
         self.tooltip_template_input = QLineEdit()
-        self.tooltip_template_input.setPlaceholderText("Optional template, e.g. Temp: {state}")
+        self.tooltip_template_input.setPlaceholderText(
+            "Optinal template, e.g. Temp on: {name} is {state} with entity id: {entity_id}."
+        )
         self.tooltip_template_input.textEdited.connect(self._on_icon_field_edited)
         icon_form.addRow("Tooltip", self.tooltip_template_input)
 
@@ -185,6 +214,10 @@ class SettingsDialog(QDialog):
 
         self.sensor_search_finished.connect(self._on_sensor_search_finished)
         self._set_icon_editor_enabled(False)
+
+    def closeEvent(self, event) -> None:
+        self._geometry_store.setValue("edit_session_dialog_geometry", self.saveGeometry())
+        super().closeEvent(event)
 
     def _add_spin(self, form: QFormLayout, key: str, label: str, value: int, low: int, high: int) -> None:
         field = QSpinBox()
@@ -223,14 +256,11 @@ class SettingsDialog(QDialog):
 
     @staticmethod
     def _load_ha_credentials() -> Tuple[str, str]:
-        if not DEFAULT_CONFIG_PATH.exists():
-            return "", ""
         try:
-            with DEFAULT_CONFIG_PATH.open("r", encoding="utf-8") as handle:
-                data = json.load(handle)
+            data = load_default_mapping()
             if not isinstance(data, dict):
                 return "", ""
-        except (OSError, json.JSONDecodeError):
+        except Exception:
             return "", ""
         return str(data.get("ha_url", "")).strip(), str(data.get("ha_api_key", "")).strip()
 
@@ -241,7 +271,17 @@ class SettingsDialog(QDialog):
             for sensor in settings.ha_sensors:
                 text = str(sensor).strip()
                 if text:
-                    mappings.append({"entity_id": text, "icon": "", "icon_on": "", "icon_off": "", "tooltip": ""})
+                    mappings.append(
+                        {
+                            "entity_id": text,
+                            "icon": "",
+                            "icon_on": "",
+                            "icon_off": "",
+                            "tooltip": "",
+                            "bg_state": "",
+                            "bg_color": "",
+                        }
+                    )
 
         for mapping in mappings:
             if not isinstance(mapping, dict):
@@ -255,6 +295,8 @@ class SettingsDialog(QDialog):
                 "icon_on": str(mapping.get("icon_on", "")).strip(),
                 "icon_off": str(mapping.get("icon_off", "")).strip(),
                 "tooltip": str(mapping.get("tooltip", "")).strip(),
+                "bg_state": str(mapping.get("bg_state", "")).strip().lower(),
+                "bg_color": str(mapping.get("bg_color", "")).strip(),
             }
             item = QListWidgetItem(entity_id)
             item.setData(self.SENSOR_MAPPING_ROLE, dict(self._sensor_mappings[entity_id]))
@@ -382,6 +424,8 @@ class SettingsDialog(QDialog):
                 "icon_on": "",
                 "icon_off": "",
                 "tooltip": "",
+                "bg_state": "",
+                "bg_color": "",
             }
             new_item = QListWidgetItem(entity_id)
             new_item.setData(self.SENSOR_MAPPING_ROLE, dict(self._sensor_mappings[entity_id]))
@@ -415,12 +459,17 @@ class SettingsDialog(QDialog):
         self.icon_off_input.setEnabled(enabled)
         self.icon_off_btn.setEnabled(enabled)
         self.tooltip_template_input.setEnabled(enabled)
+        self.bg_state_combo.setEnabled(enabled)
+        self.bg_color_input.setEnabled(enabled)
+        self.bg_color_btn.setEnabled(enabled)
         if not enabled:
             self.sensor_entity_display.setText("")
             self.icon_default_input.setText("")
             self.icon_on_input.setText("")
             self.icon_off_input.setText("")
             self.tooltip_template_input.setText("")
+            self.bg_state_combo.setCurrentText("on")
+            self.bg_color_input.setText("")
 
     def _on_selected_sensor_changed(self, current: Optional[QListWidgetItem], previous: Optional[QListWidgetItem]) -> None:
         self._save_icon_editor_to_mapping(previous)
@@ -443,7 +492,15 @@ class SettingsDialog(QDialog):
         mapping_obj = item.data(self.SENSOR_MAPPING_ROLE)
         mapping = dict(mapping_obj) if isinstance(mapping_obj, dict) else self._sensor_mappings.get(entity_id)
         if mapping is None:
-            mapping = {"entity_id": entity_id, "icon": "", "icon_on": "", "icon_off": "", "tooltip": ""}
+            mapping = {
+                "entity_id": entity_id,
+                "icon": "",
+                "icon_on": "",
+                "icon_off": "",
+                "tooltip": "",
+                "bg_state": "",
+                "bg_color": "",
+            }
             self._sensor_mappings[entity_id] = mapping
         else:
             mapping["entity_id"] = entity_id
@@ -456,9 +513,12 @@ class SettingsDialog(QDialog):
         self.icon_on_input.setText(str(mapping.get("icon_on", "")))
         self.icon_off_input.setText(str(mapping.get("icon_off", "")))
         self.tooltip_template_input.setText(str(mapping.get("tooltip", "")))
+        saved_state = str(mapping.get("bg_state", "")).strip().lower()
+        self.bg_state_combo.setCurrentText(saved_state if saved_state in {"on", "off"} else "on")
+        self.bg_color_input.setText(str(mapping.get("bg_color", "")))
         self._sensor_editor_syncing = False
 
-    def _on_icon_field_edited(self, _text: str) -> None:
+    def _on_icon_field_edited(self, _text: str = "") -> None:
         if self._sensor_editor_syncing:
             return
         self._save_icon_editor_to_mapping()
@@ -474,13 +534,30 @@ class SettingsDialog(QDialog):
             return
         mapping = self._sensor_mappings.get(entity_id)
         if mapping is None:
-            mapping = {"entity_id": entity_id, "icon": "", "icon_on": "", "icon_off": "", "tooltip": ""}
+            mapping = {
+                "entity_id": entity_id,
+                "icon": "",
+                "icon_on": "",
+                "icon_off": "",
+                "tooltip": "",
+                "bg_state": "",
+                "bg_color": "",
+            }
             self._sensor_mappings[entity_id] = mapping
         mapping["icon"] = self.icon_default_input.text().strip()
         mapping["icon_on"] = self.icon_on_input.text().strip()
         mapping["icon_off"] = self.icon_off_input.text().strip()
         mapping["tooltip"] = self.tooltip_template_input.text().strip()
+        mapping["bg_state"] = self.bg_state_combo.currentText().strip().lower()
+        mapping["bg_color"] = self.bg_color_input.text().strip()
         item.setData(self.SENSOR_MAPPING_ROLE, dict(mapping))
+
+    def _pick_bg_color(self) -> None:
+        chosen = QColorDialog.getColor(parent=self)
+        if not chosen.isValid():
+            return
+        self.bg_color_input.setText(chosen.name())
+        self._save_icon_editor_to_mapping()
 
     def _pick_icon_for_field(self, target_input: QLineEdit) -> None:
         current = self.sensor_selected_list.currentItem()
@@ -530,6 +607,8 @@ class SettingsDialog(QDialog):
                         "icon_on": str(mapping.get("icon_on", "")).strip(),
                         "icon_off": str(mapping.get("icon_off", "")).strip(),
                         "tooltip": str(mapping.get("tooltip", "")).strip(),
+                        "bg_state": str(mapping.get("bg_state", "")).strip().lower(),
+                        "bg_color": str(mapping.get("bg_color", "")).strip(),
                     }
                 )
 
