@@ -144,7 +144,7 @@ def resolve_ks_target(ks_value: str) -> Tuple[Optional[Path], str]:
     """
     cleaned = ks_value.strip()
     if not cleaned:
-        return None, "No KS folder configured."
+        return None, "No Active Folder configured."
 
     target = Path(cleaned)
     if target.is_file():
@@ -155,8 +155,8 @@ def resolve_ks_target(ks_value: str) -> Tuple[Optional[Path], str]:
             if child.is_file():
                 files.append(child)
         if not files:
-            return None, f"No files found in KS folder: {target}"
+            return None, f"No files found in Active Folder: {target}"
         latest = max(files, key=lambda p: p.stat().st_mtime)
         return latest, ""
 
-    return None, f"KS path not found: {target}"
+    return None, f"Active Folder path not found: {target}"

@@ -82,7 +82,8 @@ class SettingsDialog(QDialog):
         self._add_text(form, "label_font_color", "Label Font Color", settings.label_font_color)
         self._add_spin(form, "label_border_size", "Label Border Size", settings.label_border_size, 0, 40)
         self._add_text(form, "label_border_color", "Label Border Color", settings.label_border_color)
-        self._add_folder_picker(form, "ks", "KS Folder", settings.ks)
+        self._add_folder_picker(form, "ks", "Active Folder", settings.ks)
+        self._add_text(form, "ks_button_text", "Active Button Text", settings.ks_button_text)
 
         sensors_label = QLabel("HA Sensors")
         sensors_label.setStyleSheet("font-weight:700;")
@@ -242,7 +243,7 @@ class SettingsDialog(QDialog):
                 current = Path(start_dir)
                 if current.is_file():
                     start_dir = str(current.parent)
-            path = QFileDialog.getExistingDirectory(self, "Select KS Folder", start_dir or "")
+            path = QFileDialog.getExistingDirectory(self, "Select Active Folder", start_dir or "")
             if path:
                 field.setText(path)
 
@@ -629,6 +630,7 @@ class SettingsDialog(QDialog):
                 label_border_color=self._fields["label_border_color"].text().strip() or "black",
                 station_name="",
                 ks=self._fields["ks"].text().strip(),
+                ks_button_text=self._fields["ks_button_text"].text().strip(),
                 ha_sensors=list(dict.fromkeys(sensor_ids)),
                 ha_sensor_icons=sensor_mappings,
             )

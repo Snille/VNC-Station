@@ -49,6 +49,7 @@ class SessionSettings:
     position_name: str = ""
     linked_session: str = ""
     ks: str = ""
+    ks_button_text: str = ""
     ha_sensors: List[str] = field(default_factory=list)
     ha_sensor_icons: List[Dict[str, str]] = field(default_factory=list)
 
@@ -133,6 +134,7 @@ class SessionSettings:
             position_name=str(data.get("position_name", defaults.position_name)),
             linked_session=str(data.get("linked_session", defaults.linked_session)),
             ks=str(data.get("ks", defaults.ks)),
+            ks_button_text=str(data.get("ks_button_text", defaults.ks_button_text)),
             ha_sensors=deduped_sensors,
             ha_sensor_icons=parsed_mappings,
         )
@@ -157,6 +159,7 @@ class SessionSettings:
             "position_name": self.position_name,
             "linked_session": self.linked_session,
             "ks": self.ks,
+            "ks_button_text": self.ks_button_text,
             "ha_sensors": list(self.ha_sensors),
             "ha_sensor_icons": list(self.ha_sensor_icons),
         }

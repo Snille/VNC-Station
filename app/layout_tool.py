@@ -685,6 +685,7 @@ class LayoutToolWindow(QMainWindow):
         merged.position_name = existing.position_name
         merged.linked_session = existing.linked_session
         merged.ks = existing.ks
+        merged.ks_button_text = existing.ks_button_text
         return merged.to_json()
 
     def closeEvent(self, event) -> None:

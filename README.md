@@ -2,7 +2,31 @@
 
 Windows desktop app (PyQt5) for managing multiple TightVNC sessions in `view` and `control` mode, with station-to-station coordination over UDP and built-in chat.
 
-Current version: `1.3.2`
+Current version: `1.3.3`
+
+## Table Of Contents
+
+- [Screenshots](#screenshots)
+- [Home Assistant Integration](#home-assistant-integration)
+- [User Manual](#user-manual)
+- [What You Need Before Starting](#what-you-need-before-starting)
+- [Example Files (Templates)](#example-files-templates)
+- [Clone And Set Up Virtual Environment](#clone-and-set-up-virtual-environment)
+- [Install Dependencies](#install-dependencies)
+- [Start The App](#start-the-app)
+- [Local Secrets (Recommended)](#local-secrets-recommended)
+- [UDP Port Test Between Two Computers](#udp-port-test-between-two-computers)
+- [How To Use The App (Typical Flow)](#how-to-use-the-app-typical-flow)
+- [Main Window Layout (Current)](#main-window-layout-current)
+- [Chat Commands](#chat-commands)
+- [Features (And Why They Exist)](#features-and-why-they-exist)
+- [Custom Sensor Icon Guidelines](#custom-sensor-icon-guidelines)
+- [Maintenance Tools](#maintenance-tools)
+- [Testing](#testing)
+- [Packaging (Optional)](#packaging-optional)
+- [How It Works (Short Technical Summary)](#how-it-works-short-technical-summary)
+- [TODO](#todo)
+- [License](#license)
 
 ## Screenshots
 
@@ -40,6 +64,10 @@ Current version: `1.3.2`
     <img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/alarm-notifications-from-home-assistant.png" alt="Alarm notifications from Home Assistant" width="840">
   </a>
 </p>
+
+## User Manual
+
+Operator/Admin manual is available at `docs/user-manual.md`.
 
 ## What You Need Before Starting
 
@@ -182,7 +210,7 @@ Also make sure `python.exe` is allowed in Windows Defender Firewall.
 8. Use `Positions & Sizes` for visual layout editing and position preset management.
 9. Use setup presets: selector + `Save` / `Clear Setup` / `Delete`.
 10. Use `Change Settings` and run `Validate config`, `Export config`, or `Import config` from the Settings window.
-11. Configure `KS` in Edit dialogs; `KS/KSV/KSC` opens the configured file (or latest file in folder).
+11. Configure `Active Folder` and optional `Active Button Text` in Edit dialogs; the active button(s) open the configured file (or latest file in folder).
 12. Use `Change Settings` to open app settings (theme, font size, defaults, HA URL/key, HA connection test, maintenance tools).
 13. In `Edit View` / `Edit Control`, add HA sensors and map icons (single icon or binary true/false icons), reorder `Selected Sensors` by drag-and-drop, and optionally set binary state color rules.
 
@@ -223,7 +251,7 @@ Startup note:
 - Unique position assignment guard on View mode: prevents duplicate View position assignment.
 - Per-mode session linking (`Link V` / `Link C`): opens linked sessions together with view/control actions.
 - Linked close behavior: closing a session also closes linked sessions recursively (loop-safe).
-- Per-session `KS` folder/file buttons (`KS`, `KSV`, `KSC`) with direct open from the main list.
+- Per-session `Active Folder` file buttons with optional custom button text per mode.
 - App-level `Change Settings` window for theme, font size, defaults, HA connectivity, and maintenance tools.
 - HA connection testing (`/api/`) with toast feedback and success/fail button color feedback.
 - `Edit View`/`Edit Control` HA sensor search from Home Assistant (`/api/states`).

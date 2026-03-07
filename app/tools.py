@@ -35,6 +35,9 @@ _SETTINGS_KEYS = {
     "position_name",
     "linked_session",
     "ks",
+    "ks_button_text",
+    "ha_sensors",
+    "ha_sensor_icons",
 }
 
 _BUNDLE_RULES = (

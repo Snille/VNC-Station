@@ -331,7 +331,7 @@ class ConnectionRow:
         self._apply_mode_button_style(self.edit_control_btn, control_available, "#1971c2")
         self._apply_mode_button_style(self.ksv_btn, view_available, "#6741d9")
         self._apply_mode_button_style(self.ksc_btn, control_available, "#6741d9")
-        self._refresh_ks_buttons("", "")
+        self._refresh_ks_buttons("", "", "", "")
 
     def set_mode_open_state(self, mode: str, is_open: bool, available: bool) -> None:
         """Toggle row action text between open/close while keeping icon."""
@@ -432,8 +432,17 @@ class ConnectionRow:
         self._set_combo_data(combo, token.strip())
         self._syncing = False
 
-    def _refresh_ks_buttons(self, view_ks: str, control_ks: str) -> None:
-        same = bool(view_ks and control_ks and view_ks == control_ks)
+    def _refresh_ks_buttons(
+        self, view_ks: str, control_ks: str, view_label: str, control_label: str
+    ) -> None:
+        view_label = view_label.strip()
+        control_label = control_label.strip()
+        same = bool(
+            view_ks
+            and control_ks
+            and view_ks == control_ks
+            and view_label == control_label
+        )
         view_only = bool(view_ks) and not bool(control_ks)
         control_only = bool(control_ks) and not bool(view_ks)
         both_different = bool(view_ks) and bool(control_ks) and not same
@@ -442,13 +451,26 @@ class ConnectionRow:
         self.ksv_btn.setVisible(view_only or both_different)
         self.ksc_btn.setVisible(control_only or both_different)
         self.ks_btn.setEnabled(same)
-        self.ksv_btn.setText(f"{ICON_TEXT_GAP_PREFIX}KS" if view_only else f"{ICON_TEXT_GAP_PREFIX}KSV")
-        self.ksc_btn.setText(f"{ICON_TEXT_GAP_PREFIX}KS" if control_only else f"{ICON_TEXT_GAP_PREFIX}KSC")
+        self.ksv_btn.setText(
+            f"{ICON_TEXT_GAP_PREFIX}{view_label or ('KS' if view_only else 'KSV')}"
+        )
+        self.ksc_btn.setText(
+            f"{ICON_TEXT_GAP_PREFIX}{control_label or ('KS' if control_only else 'KSC')}"
+        )
         if same:
+            self.ks_btn.setText(f"{ICON_TEXT_GAP_PREFIX}{view_label or control_label or 'KS'}")
             self.ks_btn.setStyleSheet("background:#6741d9; color:white; font-weight:700; border-radius:4px;")
+        _match_button_widths(self.ks_btn, self.ksv_btn, self.ksc_btn)
 
-    def set_ks_paths(self, view_ks: str, control_ks: str) -> None:
-        self._refresh_ks_buttons(view_ks.strip(), control_ks.strip())
+    def set_ks_paths(
+        self, view_ks: str, control_ks: str, view_label: str = "", control_label: str = ""
+    ) -> None:
+        self._refresh_ks_buttons(
+            view_ks.strip(),
+            control_ks.strip(),
+            view_label.strip(),
+            control_label.strip(),
+        )
 
     @staticmethod
     def _apply_mode_button_style(button: QPushButton, available: bool, active_bg: str, highlight_bg: str = "") -> None:
@@ -1716,7 +1738,7 @@ class MainWindow(QMainWindow):
 
         configured = configured.strip()
         if not configured:
-            self._show_info(f"No KS folder configured for {connection_name}.")
+            self._show_info(f"No Active Folder configured for {connection_name}.")
             return
 
         target, error = resolve_ks_target(configured)
@@ -1726,9 +1748,9 @@ class MainWindow(QMainWindow):
 
         try:
             os.startfile(str(target))
-            self._show_info(f"Opened KS file: {target.name}")
+            self._show_info(f"Opened active file: {target.name}")
         except OSError as exc:
-            self._show_info(f"Failed to open KS file: {exc}")
+            self._show_info(f"Failed to open active file: {exc}")
 
     def _untag_all(self) -> None:
         """Clear all row selection checkboxes."""
@@ -2001,8 +2023,14 @@ class MainWindow(QMainWindow):
             self._show_info(f"Validation passed with no findings. Checked {checked_files} file(s).")
             LOGGER.info("Validation passed. Checked %d file(s).", checked_files)
             return
+        preview_count = min(3, len(findings))
+        preview = "\n".join(f"- {item}" for item in findings[:preview_count])
+        suffix = ""
+        if len(findings) > preview_count:
+            suffix = f"\n...and {len(findings) - preview_count} more (see logs/app.log)."
         self._show_info(
-            f"Validation checked {checked_files} file(s), found {len(findings)} item(s). See logs/app.log."
+            f"Validation found {len(findings)} issue(s) across {checked_files} checked file(s):\n"
+            f"{preview}{suffix}"
         )
         for item in findings:
             LOGGER.warning("Validation: %s", item)
@@ -2077,7 +2105,12 @@ class MainWindow(QMainWindow):
         row.set_selected_position(MODE_CONTROL, control_settings.position_name)
         row.set_selected_link(MODE_VIEW, view_settings.linked_session)
         row.set_selected_link(MODE_CONTROL, control_settings.linked_session)
-        row.set_ks_paths(view_settings.ks, control_settings.ks)
+        row.set_ks_paths(
+            view_settings.ks,
+            control_settings.ks,
+            view_settings.ks_button_text,
+            control_settings.ks_button_text,
+        )
 
     def _refresh_row_ks_buttons(self, connection_name: str) -> None:
         row = self.rows.get(connection_name)
@@ -2085,7 +2118,12 @@ class MainWindow(QMainWindow):
             return
         view_settings = load_session_settings(config_path_for(connection_name, MODE_VIEW))
         control_settings = load_session_settings(config_path_for(connection_name, MODE_CONTROL))
-        row.set_ks_paths(view_settings.ks, control_settings.ks)
+        row.set_ks_paths(
+            view_settings.ks,
+            control_settings.ks,
+            view_settings.ks_button_text,
+            control_settings.ks_button_text,
+        )
 
     def _clear_duplicate_positions_after_load(self) -> None:
         """Keep first assignment per position and clear later duplicates."""

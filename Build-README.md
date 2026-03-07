@@ -28,7 +28,15 @@ Create this structure at repository root:
 ├─ app/
 │  ├─ images/
 │  │  ├─ icon.png
+│  │  ├─ alarm.png
+│  │  ├─ alarm-blue.gif
+│  │  ├─ alarm-red.gif
+│  │  ├─ battery.png
+│  │  ├─ temp.png
 │  │  ├─ chat.png
+│  │  ├─ clear.png
+│  │  ├─ cancel.png
+│  │  ├─ delete.png
 │  │  ├─ gear.png
 │  │  ├─ ha.png
 │  │  ├─ view.png
@@ -38,14 +46,16 @@ Create this structure at repository root:
 │  │  ├─ export.png
 │  │  ├─ validate.png
 │  │  ├─ save.png
+│  │  ├─ open.png
+│  │  ├─ reset.png
 │  │  ├─ untag.png
 │  │  ├─ unlock.png
 │  │  ├─ applysetup.png
 │  │  ├─ spreadsheet.png
 │  │  ├─ link.png
 │  │  ├─ monitor.png
-│  │  ├─ indicator-dooropen.png
-│  │  └─ indicator-doorclosed.png
+│  │  ├─ dooropen.png
+│  │  └─ doorclosed.png
 │  ├─ sounds/
 │  │  └─ notice.wav
 │  ├─ __init__.py
@@ -67,10 +77,17 @@ Create this structure at repository root:
 │  └─ main_window.py
 ├─ tests/
 │  ├─ test_logic.py
-│  └─ test_config_merge.py
+│  ├─ test_config_merge.py
+│  └─ scripts/
+│     └─ udp-port-test.ps1
 ├─ packaging/
 │  ├─ build.ps1
 │  └─ cleanup.ps1
+├─ Example files/
+│  ├─ dummy.vnc
+│  ├─ dummy.json
+│  ├─ TightVNC-Viewer-Help.txt
+│  └─ Screenshots/
 ├─ vnc-view/
 ├─ vnc-control/
 ├─ vnc-positions/
@@ -79,6 +96,9 @@ Create this structure at repository root:
 ├─ default.json
 ├─ default.local.json (optional, untracked local overrides)
 ├─ default.local.json.example (template committed to repo)
+├─ README.md
+├─ Build-README.md
+├─ LICENSE.txt
 ├─ requirements.txt
 └─ tvnviewer.exe
 ```
@@ -214,7 +234,7 @@ For each connection, render compact two-column card rows including:
   - position selectors (`V`/`C`)
   - link selectors (`V`/`C`)
 - right column:
-  - `[KS|KSV|KSC (dynamic)]`
+  - `[Active button(s) dynamic text]`
   - `[View|Close] [Control|Close]` (text toggles with local session state)
   - `[Edit View] [Edit Control]`
 
@@ -488,7 +508,7 @@ Required icons:
 - settings dialog icon: `app/images/gear.png`
 - app settings window icon: `app/images/gear.png`
 - HA icon: `app/images/ha.png`
-- default status icons: `app/images/indicator-dooropen.png`, `app/images/indicator-doorclosed.png`
+- default status icons: `app/images/dooropen.png`, `app/images/doorclosed.png`
 - button icons:
   - `view.png`, `control.png`, `edit.png`, `import.png`, `export.png`,
     `validate.png`, `save.png`, `open.png`, `cancel.png`, `delete.png`,
@@ -610,9 +630,9 @@ Packaging requirement:
 - Linked sessions open together with View/Control actions.
 - Linked sessions close together with row mode toggle close actions.
 - Setup selector loads/saves from `vnc-setups` and applies tags/positions/links.
-- KS button naming logic:
-  - one visible button => `KS`
-  - two visible buttons => `KSV` and `KSC`
+- Active button text logic:
+  - one visible button => custom `ks_button_text` (or fallback `KS`)
+  - two visible buttons => per-mode custom `ks_button_text` (or fallback `KSV`/`KSC`)
 - Takeover logs in local and remote chat.
 - `/help`, `/nick`, `/topic`, `/me`, `/away`, `/notify` work as specified.
 - Notify sound plays only for `/notify`.

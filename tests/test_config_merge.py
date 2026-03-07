@@ -45,6 +45,7 @@ class ConfigMergeTests(unittest.TestCase):
                         "position_name": "Position 01",
                         "linked_session": "Target B|control",
                         "ks": r"G:\Path\to\file.xlsx",
+                        "ks_button_text": "Manual",
                         "ha_sensors": ["sensor.temp_a", "sensor.temp_b"],
                     }
                 ),
@@ -61,6 +62,7 @@ class ConfigMergeTests(unittest.TestCase):
             self.assertEqual(merged.position_name, "Position 01")
             self.assertEqual(merged.linked_session, "Target B|control")
             self.assertEqual(merged.ks, r"G:\Path\to\file.xlsx")
+            self.assertEqual(merged.ks_button_text, "Manual")
             self.assertEqual(merged.ha_sensors, ["sensor.temp_a", "sensor.temp_b"])
 
     def test_resolve_ks_target_uses_latest_file_in_folder(self):
@@ -93,7 +95,7 @@ class ConfigMergeTests(unittest.TestCase):
             target, error = resolve_ks_target(temp_dir)
 
             self.assertIsNone(target)
-            self.assertIn("No files found in KS folder", error)
+            self.assertIn("No files found in Active Folder", error)
 
 
 if __name__ == "__main__":
