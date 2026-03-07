@@ -14,10 +14,10 @@ Current version: `1.3.2`
     <td align="center"><strong>Chat</strong></td>
   </tr>
   <tr>
-    <td><a href="Example%20files/Screenshots/main-empty.png"><img src="Example%20files/Screenshots/main-empty.png" alt="Main (empty)" width="200"></a></td>
-    <td><a href="Example%20files/Screenshots/main-setup+link+tooltip.png"><img src="Example%20files/Screenshots/main-setup+link+tooltip.png" alt="Main with sessions" width="200"></a></td>
-    <td><a href="Example%20files/Screenshots/main-settings.png"><img src="Example%20files/Screenshots/main-settings.png" alt="Main Settings" width="200"></a></td>
-    <td><a href="Example%20files/Screenshots/station-chat.png"><img src="Example%20files/Screenshots/station-chat.png" alt="Chat" width="200"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/main-empty.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/main-empty.png" alt="Main (empty)" width="200"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/main-setup%2Blink%2Btooltip.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/main-setup%2Blink%2Btooltip.png" alt="Main with sessions" width="200"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/main-settings.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/main-settings.png" alt="Main Settings" width="200"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/station-chat.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/station-chat.png" alt="Chat" width="200"></a></td>
   </tr>
   <tr>
     <td align="center"><strong>Session Layout</strong></td>
@@ -26,18 +26,18 @@ Current version: `1.3.2`
     <td align="center"><strong>Edit Control</strong></td>
   </tr>
   <tr>
-    <td><a href="Example%20files/Screenshots/sessnon-layout+vncpreview+label.png"><img src="Example%20files/Screenshots/sessnon-layout+vncpreview+label.png" alt="Session Layout" width="200"></a></td>
-    <td><a href="Example%20files/Screenshots/position-layout+vnc-preview.png"><img src="Example%20files/Screenshots/position-layout+vnc-preview.png" alt="Position Layout" width="200"></a></td>
-    <td><a href="Example%20files/Screenshots/edit-session-view.png"><img src="Example%20files/Screenshots/edit-session-view.png" alt="Edit View" width="200"></a></td>
-    <td><a href="Example%20files/Screenshots/edit-session-control.png"><img src="Example%20files/Screenshots/edit-session-control.png" alt="Edit Control" width="200"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/sessnon-layout%2Bvncpreview%2Blabel.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/sessnon-layout%2Bvncpreview%2Blabel.png" alt="Session Layout" width="200"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/position-layout%2Bvnc-preview.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/position-layout%2Bvnc-preview.png" alt="Position Layout" width="200"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/edit-session-view.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/edit-session-view.png" alt="Edit View" width="200"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/edit-session-control.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/edit-session-control.png" alt="Edit Control" width="200"></a></td>
   </tr>
 </table>
 
 ## Home Assistant Integration
 
 <p>
-  <a href="Example%20files/Screenshots/alarm-notifications-from-home-assistant.png">
-    <img src="Example%20files/Screenshots/alarm-notifications-from-home-assistant.png" alt="Alarm notifications from Home Assistant" width="840">
+  <a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/alarm-notifications-from-home-assistant.png">
+    <img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/alarm-notifications-from-home-assistant.png" alt="Alarm notifications from Home Assistant" width="840">
   </a>
 </p>
 
