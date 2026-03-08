@@ -3,7 +3,7 @@
 import json
 import zipfile
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import List, Tuple
 
 from .constants import (
@@ -161,18 +161,31 @@ def import_config_bundle(zip_path: Path) -> List[str]:
     """Import config JSON/.vnc files from a bundle zip and return applied file list."""
     applied: List[str] = []
     allowed_paths = {prefix: set(suffixes) for prefix, _folder, suffixes in _BUNDLE_RULES}
+    root_resolved = ROOT_DIR.resolve()
+
+    def resolve_member_target(member_name: str) -> Path:
+        pure_path = PurePosixPath(member_name.replace("\\", "/"))
+        if pure_path.is_absolute() or ".." in pure_path.parts:
+            raise ValueError(f"Blocked unsafe path in bundle: {member_name}")
+        target = (ROOT_DIR / Path(*pure_path.parts)).resolve()
+        try:
+            target.relative_to(root_resolved)
+        except ValueError as exc:
+            raise ValueError(f"Blocked path escaping repo root: {member_name}") from exc
+        return target
+
     with zipfile.ZipFile(zip_path, "r") as zf:
         for member in zf.namelist():
             norm = member.replace("\\", "/")
             if norm == "default.json":
-                target = ROOT_DIR / Path(norm)
+                target = resolve_member_target(norm)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with zf.open(member, "r") as src, target.open("wb") as dst:
                     dst.write(src.read())
                 applied.append(str(target))
                 continue
             if norm == "default.local.json":
-                target = ROOT_DIR / Path(norm)
+                target = resolve_member_target(norm)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with zf.open(member, "r") as src, target.open("wb") as dst:
                     dst.write(src.read())
@@ -182,10 +195,10 @@ def import_config_bundle(zip_path: Path) -> List[str]:
                 prefix_path = f"{prefix}/"
                 if not norm.startswith(prefix_path):
                     continue
-                path_obj = Path(norm)
+                path_obj = PurePosixPath(norm)
                 if path_obj.suffix.lower() not in suffixes:
                     break
-                target = ROOT_DIR / path_obj
+                target = resolve_member_target(norm)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with zf.open(member, "r") as src, target.open("wb") as dst:
                     dst.write(src.read())

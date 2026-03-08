@@ -230,7 +230,7 @@ Connection list is scrollable and is the only section that expands on manual res
 For each connection, render compact two-column card rows including:
 - left column:
   - `[tag-checkbox] [Name button]`
-  - `Owner: ...` status line
+  - `Owner: ...` status line with elapsed age formatted as `s`, `m:ss`, `h:mm:ss`, or `d:hh:mm:ss`
   - position selectors (`V`/`C`)
   - link selectors (`V`/`C`)
 - right column:
@@ -395,7 +395,7 @@ Open behavior additions:
 
 Closing:
 - close overlay
-- terminate process (terminate -> short wait -> kill if needed)
+- terminate process (terminate -> deferred kill if still alive after short grace period)
 - broadcast session close on network
 - if `linked_session` is set, closing follows link chain recursively (loop-safe)
 

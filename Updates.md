@@ -1,10 +1,16 @@
 # Updates
 
 Project: `VNC Station Controller`  
-Latest version in repository: `1.3.4`
+Latest version in repository: `1.4.0`
 
 ## Version Milestones
 
+- `1.4.0` (`release`, 2026-03-08)
+  - Hardened cross-station session/network handling and import safety.
+  - Added safer malformed-JSON fallback warnings with logging and non-blocking toasts.
+  - Reduced repeated config/position disk reads while keeping HA indicator refresh cadence unchanged.
+  - Improved setup-open failure feedback when sessions are already held on another station.
+  - Formatted owner age display as elapsed `s`, `m:ss`, `h:mm:ss`, or `d:hh:mm:ss`.
 - `1.3.4` (`c7476d4`, 2026-03-08)
   - Configurable UDP port in settings and runtime network binding.
   - Added `Close all open View and Control Sessions` action in main window.

@@ -1,7 +1,7 @@
 # VNC Station Admin Guide
 
 Audience: administrators deploying and maintaining stations.  
-App version: `1.3.4`
+App version: `1.4.0`
 
 ## Quick Start [Admin]
 
@@ -115,7 +115,7 @@ In `Change Settings`:
 
 - `Validate config` checks core files and JSON validity.
 - `Export config` creates backup bundle for migration.
-- `Import config` restores a bundle to a station.
+- `Import config` restores a bundle to a station and rejects unsafe zip paths that try to escape the repo folders.
 
 ![Validation Success](manual-assets/images/settings-maint-01-valid-config.png)
 ![Validation Failure](manual-assets/images/settings-maint-02-invalid-config.png)
@@ -159,6 +159,7 @@ Do not:
 | Sessions fail to launch | Missing `tvnviewer.exe` or `.vnc` files | Verify file layout and run `Validate config` |
 | VNC auth fails when opening session | Password missing/wrong in `.vnc` or wrong server password mapping | Re-save `.vnc` with `tvnviewer.exe` and verify separate View/Control passwords on server |
 | Indicators/chat inconsistent | HA/network/config mismatch | Verify HA settings, version alignment, and logs |
+| Operators report “No sessions were opened” with station names in toast | Target sessions are already held on another station | Use the toast details to identify the holder, coordinate handoff, or use takeover intentionally |
 
 ## 11. Suggested Acceptance Test After Deployment [Admin]
 

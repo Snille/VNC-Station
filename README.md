@@ -2,7 +2,7 @@
 
 Windows desktop app (PyQt5) for managing multiple TightVNC sessions in `view` and `control` mode, with station-to-station coordination over UDP and built-in chat.
 
-Current version: `1.3.4`
+Current version: `1.4.0`
 
 ## Table Of Contents
 
@@ -222,6 +222,7 @@ Also make sure `python.exe` is allowed in Windows Defender Firewall.
 Startup note:
 - On launch, open actions are briefly locked while the app requests current session ownership from other stations.
 - This prevents opening a session before ownership data is synchronized.
+- If setup actions are blocked because sessions are already open on another station, the toast now includes the blocked session names/reasons.
 
 ## Main Window Layout (Current)
 
@@ -277,6 +278,8 @@ Startup note:
 - Session lock awareness across stations: avoid accidental duplicate control/view.
 - Optional takeover mode: allow controlled override when needed.
 - Reconnect on drop option: automatically restore sessions after unexpected viewer exits.
+- Owner line age display scales from seconds to `m:ss`, `h:mm:ss`, and `d:hh:mm:ss`.
+- Invalid per-session/default JSON is reported once in a toast and logged, while the app falls back safely to defaults.
 - Built-in station chat: coordinate operators without external tools.
 - Direct messages + broadcast chat: target one station or all.
 - Notify messages with sound: raise attention only when explicitly requested.
@@ -373,6 +376,7 @@ Cleanup generated build artifacts:
   - away status updates
   - takeover notices
 - Session lock logic prevents opening a connection already active on another station, unless `Take over session` is enabled.
+- Setup View/Control reports why sessions could not open when blocked by another station or missing files.
 - The app stores UI preferences (theme, window sizes, reconnect toggle) via Windows `QSettings`.
 - At startup, the app performs a short session-sync handshake (`session_sync_request`) before enabling open actions.
 

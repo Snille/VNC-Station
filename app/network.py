@@ -43,6 +43,7 @@ class NetworkBus(QObject):
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._sock.bind(("", self.udp_port))
         self._running = True
+        self._state_lock = threading.RLock()
         # station_id -> (station_name, ip, last_seen_timestamp)
         self._stations_by_id: Dict[str, Tuple[str, str, float]] = {}
         # (connection, mode) -> (holder_station_id, opened_timestamp)
@@ -55,7 +56,9 @@ class NetworkBus(QObject):
         """Return only recently seen stations (age-filtered)."""
         now = time.time()
         result: Dict[str, Tuple[str, float]] = {}
-        for station_name, ip, ts in self._stations_by_id.values():
+        with self._state_lock:
+            stations = list(self._stations_by_id.values())
+        for station_name, ip, ts in stations:
             if now - ts <= STATION_TIMEOUT_SECONDS:
                 result[station_name] = (ip, ts)
         return result
@@ -65,8 +68,11 @@ class NetworkBus(QObject):
         """Snapshot mapping of (connection, mode) -> station currently holding it."""
         now = time.time()
         resolved: Dict[Tuple[str, str], str] = {}
-        for key, (holder_id, _opened_ts) in self._remote_sessions.items():
-            station = self._stations_by_id.get(holder_id)
+        with self._state_lock:
+            remote_sessions = list(self._remote_sessions.items())
+            stations_by_id = dict(self._stations_by_id)
+        for key, (holder_id, _opened_ts) in remote_sessions:
+            station = stations_by_id.get(holder_id)
             if station is None:
                 continue
             station_name, _ip, ts = station
@@ -79,8 +85,11 @@ class NetworkBus(QObject):
         """Return mapping of (connection, mode) -> holder station_id."""
         now = time.time()
         holders: Dict[Tuple[str, str], str] = {}
-        for key, (holder_id, _opened_ts) in self._remote_sessions.items():
-            station = self._stations_by_id.get(holder_id)
+        with self._state_lock:
+            remote_sessions = list(self._remote_sessions.items())
+            stations_by_id = dict(self._stations_by_id)
+        for key, (holder_id, _opened_ts) in remote_sessions:
+            station = stations_by_id.get(holder_id)
             if station is None:
                 continue
             _name, _ip, seen_ts = station
@@ -90,7 +99,8 @@ class NetworkBus(QObject):
 
     def station_name_for_id(self, station_id: str) -> str:
         """Resolve latest display name for station id."""
-        station = self._stations_by_id.get(station_id)
+        with self._state_lock:
+            station = self._stations_by_id.get(station_id)
         if station is None:
             return "Unknown station"
         return station[0]
@@ -100,8 +110,11 @@ class NetworkBus(QObject):
         """Return mapping of (connection, mode) -> (station_name, age_seconds)."""
         now = time.time()
         info: Dict[Tuple[str, str], Tuple[str, float]] = {}
-        for key, (holder_id, opened_ts) in self._remote_sessions.items():
-            station = self._stations_by_id.get(holder_id)
+        with self._state_lock:
+            remote_sessions = list(self._remote_sessions.items())
+            stations_by_id = dict(self._stations_by_id)
+        for key, (holder_id, opened_ts) in remote_sessions:
+            station = stations_by_id.get(holder_id)
             if station is None:
                 continue
             station_name, _ip, seen_ts = station
@@ -204,7 +217,11 @@ class NetworkBus(QObject):
         payload["id"] = self.station_id
         payload["ts"] = time.time()
         blob = json.dumps(payload).encode("utf-8", errors="replace")
-        self._sock.sendto(blob, ("255.255.255.255", self.udp_port))
+        try:
+            self._sock.sendto(blob, ("255.255.255.255", self.udp_port))
+        except OSError:
+            # Socket may be closing/replaced while timers are still draining.
+            return
 
     def _listen_loop(self) -> None:
         """Receive packets forever, update local state, and emit Qt signals."""
@@ -226,12 +243,14 @@ class NetworkBus(QObject):
             ptype = packet.get("type")
             station = str(packet.get("station", "")).strip() or "Unknown"
             ip = str(addr[0])
-            previous = self._stations_by_id.get(packet_station_id)
+            with self._state_lock:
+                previous = self._stations_by_id.get(packet_station_id)
             if previous is not None:
                 previous_name = previous[0]
                 if previous_name != station:
                     self.nick_changed.emit(previous_name, station)
-            self._stations_by_id[packet_station_id] = (station, ip, time.time())
+            with self._state_lock:
+                self._stations_by_id[packet_station_id] = (station, ip, time.time())
             self.station_seen.emit(station, ip)
 
             if ptype == "session":
@@ -241,16 +260,17 @@ class NetworkBus(QObject):
                 opened = bool(packet.get("opened", False))
                 if connection and mode:
                     key = (connection, mode)
-                    if opened:
-                        existing = self._remote_sessions.get(key)
-                        if existing and existing[0] == packet_station_id:
-                            # Heartbeat from same holder: keep original opened timestamp.
-                            self._remote_sessions[key] = (packet_station_id, existing[1])
+                    with self._state_lock:
+                        if opened:
+                            existing = self._remote_sessions.get(key)
+                            if existing and existing[0] == packet_station_id:
+                                # Heartbeat from same holder: keep original opened timestamp.
+                                self._remote_sessions[key] = (packet_station_id, existing[1])
+                            else:
+                                # New holder or reopen: start a fresh age counter.
+                                self._remote_sessions[key] = (packet_station_id, time.time())
                         else:
-                            # New holder or reopen: start a fresh age counter.
-                            self._remote_sessions[key] = (packet_station_id, time.time())
-                    else:
-                        self._remote_sessions.pop(key, None)
+                            self._remote_sessions.pop(key, None)
                     self.session_state.emit(connection, mode, station, opened, packet_station_id)
             elif ptype == "chat":
                 # Deliver all broadcast messages and direct messages for this station.

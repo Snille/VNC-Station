@@ -1,7 +1,6 @@
 """Launch and manage TightVNC viewer processes plus overlay label windows."""
 
 import subprocess
-import time
 from pathlib import Path
 from typing import Callable, Dict, Optional, Tuple
 
@@ -129,9 +128,7 @@ class SessionManager:
         try:
             if record.process and record.process.poll() is None:
                 record.process.terminate()
-                time.sleep(0.1)
-                if record.process.poll() is None:
-                    record.process.kill()
+                QTimer.singleShot(120, lambda proc=record.process: self._kill_if_running(proc))
         except Exception:
             pass
         self._on_closed(key)
@@ -249,3 +246,12 @@ class SessionManager:
 
         win32gui.EnumWindows(callback, 0)
         return result[0] if result else None
+
+    @staticmethod
+    def _kill_if_running(process: object) -> None:
+        """Force-kill a process if it ignored terminate() after a short grace period."""
+        try:
+            if process and process.poll() is None:
+                process.kill()
+        except Exception:
+            pass

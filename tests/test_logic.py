@@ -1,6 +1,6 @@
 import unittest
 
-from app.logic import find_remote_holder, parse_chat_command
+from app.logic import find_remote_holder, format_elapsed_duration, parse_chat_command
 
 
 class LogicTests(unittest.TestCase):
@@ -18,7 +18,12 @@ class LogicTests(unittest.TestCase):
         self.assertIsNone(find_remote_holder("B", remote, "Station 03"))
         self.assertIsNone(find_remote_holder("X", remote, "Station 01"))
 
+    def test_format_elapsed_duration(self):
+        self.assertEqual(format_elapsed_duration(7), "7s")
+        self.assertEqual(format_elapsed_duration(65), "1:05")
+        self.assertEqual(format_elapsed_duration(3723), "1:02:03")
+        self.assertEqual(format_elapsed_duration(93784), "1d:02:03:04")
+
 
 if __name__ == "__main__":
     unittest.main()
-

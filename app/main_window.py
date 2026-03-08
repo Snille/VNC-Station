@@ -6,6 +6,7 @@ import re
 import threading
 import urllib.error
 import urllib.request
+import zipfile
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -40,6 +41,7 @@ from .config import (
     save_json,
     scan_connections,
     scan_positions,
+    set_json_warning_reporter,
     update_session_overrides,
 )
 from .constants import (
@@ -69,7 +71,7 @@ from .constants import (
     UNTAG_ICON_PATH,
     VIEW_ICON_PATH,
 )
-from .logic import parse_chat_command
+from .logic import format_elapsed_duration, parse_chat_command
 from .models import ConnectionEntry, SessionSettings
 from .network import NetworkBus
 from .settings_dialog import SettingsDialog
@@ -569,10 +571,14 @@ class ConnectionRow:
 class MainWindow(QMainWindow):
     """Primary controller window that coordinates all app subsystems."""
     binary_sensor_states_received = pyqtSignal(object)
+    json_warning_received = pyqtSignal(str)
 
     def __init__(self) -> None:
         """Initialize state, services, and build the full UI."""
         super().__init__()
+        self._pending_json_warnings: List[str] = []
+        self.json_warning_received.connect(self._display_json_warning)
+        set_json_warning_reporter(self._queue_json_warning)
         self.settings_store = QSettings("VNCStation", "Controller")
         self.default_settings = load_default_settings()
         self.station_name = self.default_settings.station_name
@@ -599,6 +605,7 @@ class MainWindow(QMainWindow):
         self._settings_window: Optional[SettingsWindow] = None
         self._binary_sensor_by_connection: Dict[str, List[Dict[str, str]]] = {}
         self._binary_sensor_by_connection_mode: Dict[str, Dict[str, List[Dict[str, str]]]] = {}
+        self._binary_sensor_targets_dirty = True
         self._live_mode_label_bg: Dict[Tuple[str, str], str] = {}
         self._ha_binary_sensor_refresh_inflight = False
         self._last_ha_binary_sensor_error = ""
@@ -633,6 +640,7 @@ class MainWindow(QMainWindow):
         self.chat_window.set_topic(self.topic)
 
         self._build_ui()
+        self._flush_pending_json_warnings()
         saved_main_geometry = self.settings_store.value("main_geometry")
         if saved_main_geometry:
             self.restoreGeometry(saved_main_geometry)
@@ -644,7 +652,7 @@ class MainWindow(QMainWindow):
         self.network.send_session_sync_request()
 
         self.hello_timer = QTimer(self)
-        self.hello_timer.timeout.connect(self.network.send_hello)
+        self.hello_timer.timeout.connect(self._send_hello)
         self.hello_timer.start(HELLO_INTERVAL_MS)
 
         self.rebroadcast_timer = QTimer(self)
@@ -940,6 +948,32 @@ class MainWindow(QMainWindow):
         self.network.nick_changed.connect(self._on_nick_changed)
         self.network.session_sync_requested.connect(self._on_session_sync_requested)
 
+    def _queue_json_warning(self, message: str) -> None:
+        """Receive config warnings from any thread and route them to the UI."""
+        self.json_warning_received.emit(str(message).strip())
+
+    def _display_json_warning(self, message: str) -> None:
+        """Show one queued config warning once the toast UI is available."""
+        if not message:
+            return
+        if not hasattr(self, "toast"):
+            self._pending_json_warnings.append(message)
+            return
+        self._show_info(message)
+
+    def _flush_pending_json_warnings(self) -> None:
+        """Drain any warnings emitted before the main UI was fully built."""
+        if not hasattr(self, "toast"):
+            return
+        pending = list(self._pending_json_warnings)
+        self._pending_json_warnings.clear()
+        for message in pending:
+            self._show_info(message)
+
+    def _send_hello(self) -> None:
+        """Send station discovery using the currently active network bus."""
+        self.network.send_hello()
+
     def _recreate_network_bus(self, udp_port: int) -> None:
         self.network.close()
         self.network = NetworkBus(self.station_name, udp_port=udp_port)
@@ -992,6 +1026,8 @@ class MainWindow(QMainWindow):
 
     def _refresh_binary_sensor_targets(self) -> None:
         """Map each connection row to saved HA sensor/icon configurations."""
+        if not self._binary_sensor_targets_dirty:
+            return
         mappings_by_connection: Dict[str, List[Dict[str, str]]] = {}
         mode_mappings_by_connection: Dict[str, Dict[str, List[Dict[str, str]]]] = {}
         for connection_name in self.rows.keys():
@@ -1058,6 +1094,7 @@ class MainWindow(QMainWindow):
                 mode_mappings_by_connection[connection_name] = per_mode
         self._binary_sensor_by_connection = mappings_by_connection
         self._binary_sensor_by_connection_mode = mode_mappings_by_connection
+        self._binary_sensor_targets_dirty = False
         for connection_name, row in self.rows.items():
             if connection_name not in self._binary_sensor_by_connection:
                 row.set_status_indicators([])
@@ -1543,12 +1580,11 @@ class MainWindow(QMainWindow):
         linked_connection, linked_mode = parsed
         self._open_session_with_link(linked_connection, linked_mode, visited)
 
-    def _open_single_session(self, connection_name: str, mode: str) -> bool:
+    def _try_open_single_session(self, connection_name: str, mode: str) -> Tuple[bool, str]:
         """Open one session after missing-file and remote-lock checks."""
         vnc_path = self._vnc_path(connection_name, mode)
         if not vnc_path or not vnc_path.exists():
-            self._show_info(f"Missing .vnc file for {connection_name} [{mode}]")
-            return False
+            return False, f"Missing .vnc file for {connection_name} [{mode}]"
         # Station lock is per connection (not per mode), based on station ID.
         remote_holder_id = None
         for (remote_connection, _remote_mode), holder_id in self.network.remote_session_holders.items():
@@ -1558,11 +1594,11 @@ class MainWindow(QMainWindow):
         remote_holder = self.network.station_name_for_id(remote_holder_id) if remote_holder_id else None
         if remote_holder_id and not self.takeover_checkbox.isChecked():
             # Soft-lock behavior: prevent duplicates unless user explicitly overrides.
-            self._show_info(
-                f"Session {connection_name} is currently open on station '{remote_holder}'. "
-                "Enable 'Take over session' to force open."
+            return (
+                False,
+                f"{connection_name} is currently open on station '{remote_holder}'. "
+                "Enable 'Take over session' to force open.",
             )
-            return False
 
         takeover_used = bool(remote_holder_id and self.takeover_checkbox.isChecked())
         config_path = config_path_for(connection_name, mode)
@@ -1588,8 +1624,15 @@ class MainWindow(QMainWindow):
             self._refresh_owner_labels()
             self._refresh_setup_mode_buttons()
             self._refresh_tagged_mode_buttons()
-            return True
-        return False
+            return True, ""
+        return False, f"Failed to start session {connection_name} [{mode}]"
+
+    def _open_single_session(self, connection_name: str, mode: str) -> bool:
+        """Open one session and show any failure reason as a toast."""
+        opened, reason = self._try_open_single_session(connection_name, mode)
+        if not opened and reason:
+            self._show_info(reason)
+        return opened
 
     def _close_session(self, connection_name: str, mode: str) -> None:
         """Close one specific session and any configured linked session chain."""
@@ -1696,6 +1739,7 @@ class MainWindow(QMainWindow):
             return
         opened_any = False
         selected_any = False
+        blocked_reasons: List[str] = []
         for row in self.rows.values():
             if not row.selected_position(mode):
                 continue
@@ -1704,12 +1748,22 @@ class MainWindow(QMainWindow):
             if not has_vnc:
                 continue
             self._persist_ui_selections(row.entry.name, mode)
-            opened_any = self._open_single_session(row.entry.name, mode) or opened_any
+            opened, reason = self._try_open_single_session(row.entry.name, mode)
+            opened_any = opened or opened_any
+            if not opened and reason:
+                blocked_reasons.append(reason)
         if not selected_any:
             self._show_info(f"No {mode} positions selected.")
             return
         if not opened_any:
-            self._show_info(f"No {mode} sessions were opened.")
+            if blocked_reasons:
+                preview = " | ".join(blocked_reasons[:3])
+                suffix = ""
+                if len(blocked_reasons) > 3:
+                    suffix = f" | ...and {len(blocked_reasons) - 3} more."
+                self._show_info(f"No {mode} sessions were opened. {preview}{suffix}")
+            else:
+                self._show_info(f"No {mode} sessions were opened.")
         self._refresh_setup_mode_buttons()
 
     def _close_setup_mode_sessions(self, mode: str) -> None:
@@ -1835,6 +1889,7 @@ class MainWindow(QMainWindow):
             )
             save_json(config_path, data)
             self._refresh_row_ks_buttons(connection_name)
+            self._binary_sensor_targets_dirty = True
             self._refresh_binary_sensor_indicators()
 
     def _on_session_closed(self, key: Tuple[str, str]) -> None:
@@ -1881,6 +1936,7 @@ class MainWindow(QMainWindow):
                     f"{station} took over session {connection} from {previous}"
                 )
             self._remote_mode_holders[key] = station_id
+            self._refresh_owner_labels()
             return
 
         self._remote_mode_holders.pop(key, None)
@@ -2051,7 +2107,9 @@ class MainWindow(QMainWindow):
                         matches.append((holder, mode, int(age_seconds)))
                 if matches:
                     holder, mode, age_seconds = sorted(matches, key=lambda x: x[2])[0]
-                    row.owner_label.setText(f"Owner: {holder} [{mode}] {age_seconds}s")
+                    row.owner_label.setText(
+                        f"Owner: {holder} [{mode}] {format_elapsed_duration(age_seconds)}"
+                    )
                 else:
                     row.owner_label.setText("Owner: available")
             row.set_mode_open_state(
@@ -2107,8 +2165,14 @@ class MainWindow(QMainWindow):
         in_path, _ = QFileDialog.getOpenFileName(self, "Import config bundle", "", "Zip Files (*.zip)")
         if not in_path:
             return
-        applied = import_config_bundle(Path(in_path))
+        try:
+            applied = import_config_bundle(Path(in_path))
+        except (OSError, ValueError, zipfile.BadZipFile) as exc:
+            self._show_info(f"Import failed: {exc}")
+            LOGGER.warning("Config bundle import failed: %s", exc)
+            return
         self.connections = scan_connections()
+        self._binary_sensor_targets_dirty = True
         self._rebuild_connection_rows()
         self._show_info(f"Imported {len(applied)} config file(s).")
         LOGGER.info("Config bundle imported: %s (%d files)", in_path, len(applied))
@@ -2117,6 +2181,7 @@ class MainWindow(QMainWindow):
         """Recreate the scroll-area row widgets from current connection list."""
         self.position_names = [p.name for p in scan_positions()]
         self.session_link_options = self._build_session_link_options()
+        self._binary_sensor_targets_dirty = True
         self.rows.clear()
         while self.rows_layout.count():
             item = self.rows_layout.takeAt(0)
@@ -2262,6 +2327,7 @@ class MainWindow(QMainWindow):
         self.settings_store.setValue("chat_height", self.chat_window.height())
         if hasattr(self, "ha_binary_sensor_timer") and self.ha_binary_sensor_timer.isActive():
             self.ha_binary_sensor_timer.stop()
+        set_json_warning_reporter(None)
         self.session_manager.close_all()
         self.network.close()
         if self._settings_window is not None:

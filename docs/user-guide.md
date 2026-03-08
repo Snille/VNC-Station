@@ -1,7 +1,7 @@
 # VNC Station User Guide
 
 Audience: production personnel using the app during normal operation.  
-App version: `1.3.4`
+App version: `1.4.0`
 
 ## Quick Start [Operator]
 
@@ -117,6 +117,7 @@ Prerequisites: Coordination with other station is confirmed in chat.
   2. Enable `Take over session`.
   3. Open the required control sessions.
   4. Disable takeover when done.
+- If `Setup View` or `Setup Control` cannot open sessions because another station already holds them, the toast includes the blocked session names and reasons.
 
 Do:
 - Enable takeover only for active collaboration.
@@ -166,6 +167,7 @@ Figure 8: Chat window with command help.
 | Symptom | Likely cause | Quick fix |
 |---|---|---|
 | Session does not open | Missing `.vnc` file or locked by another station | Check row availability; coordinate and use takeover only when needed |
+| `Setup View` / `Setup Control` opens nothing | One or more setup sessions are already open elsewhere | Read the toast for blocked session names, then coordinate or enable takeover if appropriate |
 | Session opens in wrong place | `Pos V` / `Pos C` mismatch | Recheck position selection; escalate to advanced user |
 | No stations visible in chat | UDP/network/firewall issue | Escalate to admin to verify UDP port and firewall |
 

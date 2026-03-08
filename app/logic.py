@@ -25,3 +25,17 @@ def parse_chat_command(text: str) -> Tuple[str, str]:
     payload = parts[1].strip() if len(parts) > 1 else ""
     return command, payload
 
+
+def format_elapsed_duration(total_seconds: int) -> str:
+    """Format elapsed seconds as s, m:s, h:m:s, or d:h:m:s."""
+    remaining = max(0, int(total_seconds))
+    days, remaining = divmod(remaining, 86400)
+    hours, remaining = divmod(remaining, 3600)
+    minutes, seconds = divmod(remaining, 60)
+    if days > 0:
+        return f"{days}d:{hours:02d}:{minutes:02d}:{seconds:02d}"
+    if hours > 0:
+        return f"{hours}:{minutes:02d}:{seconds:02d}"
+    if minutes > 0:
+        return f"{minutes}:{seconds:02d}"
+    return f"{seconds}s"

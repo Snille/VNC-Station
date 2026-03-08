@@ -1,8 +1,9 @@
 """Helpers for reading/writing JSON settings and discovering VNC files."""
 
 import json
+import logging
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional, Tuple
+from typing import Callable, Dict, List, Mapping, Optional, Tuple
 
 from .constants import (
     DEFAULT_CONFIG_PATH,
@@ -13,18 +14,82 @@ from .constants import (
 )
 from .models import ConnectionEntry, PositionPreset, SessionSettings
 
+LOGGER = logging.getLogger(__name__)
+JsonWarningReporter = Callable[[str], None]
+
+_JSON_CACHE: Dict[Path, Tuple[object, Dict[str, object]]] = {}
+_JSON_WARNING_SIGNATURES: Dict[Path, object] = {}
+_POSITION_CACHE_SIGNATURE: Optional[Tuple[Tuple[str, int, int], ...]] = None
+_POSITION_CACHE_PRESETS: List[PositionPreset] = []
+_JSON_WARNING_REPORTER: Optional[JsonWarningReporter] = None
+
+
+def set_json_warning_reporter(reporter: Optional[JsonWarningReporter]) -> None:
+    """Register an optional callback for malformed JSON warnings."""
+    global _JSON_WARNING_REPORTER
+    _JSON_WARNING_REPORTER = reporter
+
+
+def clear_runtime_caches() -> None:
+    """Reset cached JSON/position state. Intended for tests and full refreshes."""
+    global _POSITION_CACHE_SIGNATURE
+    _JSON_CACHE.clear()
+    _JSON_WARNING_SIGNATURES.clear()
+    _POSITION_CACHE_PRESETS.clear()
+    _POSITION_CACHE_SIGNATURE = None
+
+
+def _report_json_warning(path: Path, detail: str, signature: object) -> None:
+    """Log malformed JSON once per file version and notify the UI if configured."""
+    previous = _JSON_WARNING_SIGNATURES.get(path)
+    if previous == signature:
+        return
+    _JSON_WARNING_SIGNATURES[path] = signature
+    message = f"Invalid JSON in {path.name}; using defaults."
+    LOGGER.warning("%s Detail: %s", message, detail)
+    reporter = _JSON_WARNING_REPORTER
+    if reporter is not None:
+        reporter(message)
+
+
+def _path_signature(path: Path) -> object:
+    """Build a lightweight cache signature from the file stat result."""
+    try:
+        stat = path.stat()
+    except OSError:
+        return ("missing",)
+    return ("file", stat.st_mtime_ns, stat.st_size)
+
+
+def _dir_entry_signature(path: Path) -> Tuple[str, int, int]:
+    """Build a stable directory-entry signature for cache invalidation."""
+    try:
+        stat = path.stat()
+        return (path.name.lower(), int(stat.st_mtime_ns), int(stat.st_size))
+    except OSError:
+        return (path.name.lower(), -1, -1)
+
 
 def _load_json(path: Path) -> Dict[str, object]:
     """Load a JSON object from disk, returning {} on missing/invalid files."""
-    if not path.exists():
+    signature = _path_signature(path)
+    cached = _JSON_CACHE.get(path)
+    if cached is not None and cached[0] == signature:
+        return dict(cached[1])
+    if signature == ("missing",):
+        _JSON_CACHE[path] = (signature, {})
         return {}
     try:
         with path.open("r", encoding="utf-8") as handle:
             data = json.load(handle)
             if isinstance(data, dict):
-                return data
-    except (OSError, json.JSONDecodeError):
-        return {}
+                _JSON_CACHE[path] = (signature, dict(data))
+                _JSON_WARNING_SIGNATURES.pop(path, None)
+                return dict(data)
+            _report_json_warning(path, "JSON root must be an object.", signature)
+    except (OSError, json.JSONDecodeError) as exc:
+        _report_json_warning(path, str(exc), signature)
+    _JSON_CACHE[path] = (signature, {})
     return {}
 
 
@@ -34,6 +99,11 @@ def save_json(path: Path, data: Dict[str, object]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         json.dump(data, handle, indent=2)
         handle.write("\n")
+    _JSON_CACHE.pop(path, None)
+    _JSON_WARNING_SIGNATURES.pop(path, None)
+    global _POSITION_CACHE_SIGNATURE
+    if path.parent == VNC_POSITIONS_DIR:
+        _POSITION_CACHE_SIGNATURE = None
 
 
 def _to_int(value: object, fallback: int) -> int:
@@ -98,8 +168,13 @@ def scan_connections() -> List[ConnectionEntry]:
 def scan_positions() -> List[PositionPreset]:
     """Read all position definitions from vnc-positions/*.json."""
     VNC_POSITIONS_DIR.mkdir(parents=True, exist_ok=True)
+    files = sorted(VNC_POSITIONS_DIR.glob("*.json"), key=lambda p: p.name.lower())
+    signature = tuple(_dir_entry_signature(path) for path in files)
+    global _POSITION_CACHE_SIGNATURE
+    if _POSITION_CACHE_SIGNATURE == signature:
+        return list(_POSITION_CACHE_PRESETS)
     presets: List[PositionPreset] = []
-    for path in sorted(VNC_POSITIONS_DIR.glob("*.json"), key=lambda p: p.name.lower()):
+    for path in files:
         data = _load_json(path)
         if not data:
             continue
@@ -115,7 +190,9 @@ def scan_positions() -> List[PositionPreset]:
                 path=path,
             )
         )
-    return presets
+    _POSITION_CACHE_PRESETS[:] = presets
+    _POSITION_CACHE_SIGNATURE = signature
+    return list(_POSITION_CACHE_PRESETS)
 
 
 def position_by_name(name: str) -> Optional[PositionPreset]:

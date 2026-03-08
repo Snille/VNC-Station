@@ -1,7 +1,7 @@
 # VNC Station Advanced User Guide
 
 Audience: power users who configure layouts, session behavior, and sensor-driven UI behavior.  
-App version: `1.3.4`
+App version: `1.4.0`
 
 ## Quick Start [Advanced]
 
@@ -144,6 +144,7 @@ Behavior notes:
 - icon can change by true/false state
 - icon area background can change by sensor state
 - overlay label background on open VNC session can change by sensor state
+- malformed session/default JSON falls back to defaults, shows a toast once per file version, and is logged for troubleshooting
 
 Do:
 - test both alarm and normal states after saving mappings
@@ -182,6 +183,7 @@ Figure 9: Basic smoke-test operations after configuration changes.
 | Label appears wrong when using positions | Label edited in wrong place | Edit labels in `Session` mode, not `Position` mode |
 | Active button opens wrong file | Folder contains newer unexpected file | Check folder contents and modification times |
 | Sensor icons not updating | HA credentials or entity mapping issue | Re-test HA connection and verify entity IDs |
+| Session settings seem ignored | Session JSON is malformed and defaults were used | Read the toast/log warning, then fix the malformed JSON and reload |
 
 ## 10. Handover Notes For Operators [Advanced]
 
