@@ -37,7 +37,28 @@ Each station should include:
 - optional `vnc-positions/` presets
 - optional `vnc-setups/` presets
 
-## 3. Verify Runtime Folder Structure [Admin]
+## 3. Critical VNC Password Setup [Admin]
+
+This is mandatory for correct operation.
+
+- Every `.vnc` file must have its password saved in the file.
+- Save/update `.vnc` passwords using `tvnviewer.exe` before deployment.
+- On each VNC Server target, configure separate access credentials:
+  - one password for `View`
+  - one password for `Control`
+
+Do:
+
+- validate that `vnc-view/*.vnc` files connect with View credentials
+- validate that `vnc-control/*.vnc` files connect with Control credentials
+- re-save `.vnc` files after any server-side password change
+
+Do not:
+
+- deploy `.vnc` files without saved passwords
+- use one shared password for both View and Control modes
+
+## 4. Verify Runtime Folder Structure [Admin]
 
 Expected operational directories:
 
@@ -49,7 +70,7 @@ Expected operational directories:
 
 Use `Validate config` in app to detect missing/malformed artifacts after deployment.
 
-## 4. Initial Station Configuration [Admin]
+## 5. Initial Station Configuration [Admin]
 
 Prerequisites: App launches and settings window opens.
 
@@ -65,7 +86,7 @@ Prerequisites: App launches and settings window opens.
 
 Figure 1: Settings window for station identity, UDP, HA, and maintenance tools.
 
-## 5. UDP Network Compatibility [Admin]
+## 6. UDP Network Compatibility [Admin]
 
 All stations must:
 
@@ -88,7 +109,7 @@ New-NetFirewallRule -DisplayName "VNC Station UDP 50000" -Direction Inbound -Pro
 
 If you use another port, change `50000` accordingly.
 
-## 6. Validation And Configuration Maintenance [Admin]
+## 7. Validation And Configuration Maintenance [Admin]
 
 In `Change Settings`:
 
@@ -101,7 +122,7 @@ In `Change Settings`:
 
 Figure 2: Validation feedback examples.
 
-## 7. Config Replication Between Stations [Admin]
+## 8. Config Replication Between Stations [Admin]
 
 Prerequisites: One reference station is fully verified.
 
@@ -114,12 +135,13 @@ Prerequisites: One reference station is fully verified.
    - HA credentials (if different)
 5. Run `Validate config` after import.
 
-## 8. Operational Guardrails [Admin]
+## 9. Operational Guardrails [Admin]
 
 Do:
 
 - keep all stations on same app version during a shift
 - keep UDP port consistent across stations
+- keep View and Control passwords separated on VNC Server side
 - require validation after manual file edits
 - keep regular config exports as backups
 
@@ -128,16 +150,17 @@ Do not:
 - enable `Allow multiple instances on the same station` without explicit need
 - keep `Take over session` enabled as default operating state
 
-## 9. Troubleshooting [Admin]
+## 10. Troubleshooting [Admin]
 
 | Symptom | Likely cause | Quick fix |
 |---|---|---|
 | Stations do not discover each other | UDP port mismatch or firewall block | Verify same port, open firewall, run UDP test both directions |
 | App says another instance is running | Single-instance protection active | Close existing instance or enable multi-instance setting intentionally |
 | Sessions fail to launch | Missing `tvnviewer.exe` or `.vnc` files | Verify file layout and run `Validate config` |
+| VNC auth fails when opening session | Password missing/wrong in `.vnc` or wrong server password mapping | Re-save `.vnc` with `tvnviewer.exe` and verify separate View/Control passwords on server |
 | Indicators/chat inconsistent | HA/network/config mismatch | Verify HA settings, version alignment, and logs |
 
-## 10. Suggested Acceptance Test After Deployment [Admin]
+## 11. Suggested Acceptance Test After Deployment [Admin]
 
 1. Launch app and confirm connection rows load.
 2. Open one View session.
@@ -151,4 +174,3 @@ Do not:
 ![Open One View](manual-assets/images/operational-flows-01-open-one-view.png)
 ![Open One Control](manual-assets/images/operational-flows-02-open-one-control.png)
 ![Takeover Notice](manual-assets/images/operational-flows-06-takeover-chat-notice.png)
-
