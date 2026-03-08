@@ -1308,6 +1308,24 @@ class MainWindow(QMainWindow):
             return f"Settings saved. UDP port changed to {new_udp_port}."
         return "Settings saved."
 
+    def _reload_runtime_defaults_from_disk(self) -> None:
+        """Refresh runtime state from imported default/default.local config files."""
+        self.default_settings = load_default_settings()
+        new_udp_port = self._load_udp_port_setting()
+        if new_udp_port != self.udp_port:
+            self._recreate_network_bus(new_udp_port)
+
+        new_station_name = self.default_settings.station_name.strip() or self.station_name
+        if new_station_name != self.station_name:
+            self.station_name = new_station_name
+            self.setWindowTitle(self.station_name)
+            self.network.set_station_name(self.station_name)
+            self.chat_window.set_station_title(self.station_name)
+            self.chat_window.add_notice(f"Station name updated to {self.station_name}")
+
+        if self._settings_window is not None and self._settings_window.isVisible():
+            self._settings_window.reload_defaults(self._load_default_json_mapping())
+
     def _open_settings_window(self) -> None:
         """Open or focus the global settings window."""
         if self._settings_window is None or not self._settings_window.isVisible():
@@ -2171,6 +2189,7 @@ class MainWindow(QMainWindow):
             self._show_info(f"Import failed: {exc}")
             LOGGER.warning("Config bundle import failed: %s", exc)
             return
+        self._reload_runtime_defaults_from_disk()
         self.connections = scan_connections()
         self._binary_sensor_targets_dirty = True
         self._rebuild_connection_rows()

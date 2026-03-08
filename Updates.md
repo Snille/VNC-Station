@@ -1,10 +1,12 @@
 # Updates
 
 Project: `VNC Station Controller`  
-Latest version in repository: `1.4.0`
+Latest version in repository: `1.4.1`
 
 ## Version Milestones
 
+- `1.4.1` (`release`, 2026-03-08)
+  - Refreshed the open Settings window immediately after importing a config bundle.
 - `1.4.0` (`release`, 2026-03-08)
   - Hardened cross-station session/network handling and import safety.
   - Added safer malformed-JSON fallback warnings with logging and non-blocking toasts.

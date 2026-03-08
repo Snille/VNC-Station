@@ -1,7 +1,7 @@
 # VNC Station User Guide
 
 Audience: production personnel using the app during normal operation.  
-App version: `1.4.0`
+App version: `1.4.1`
 
 ## Quick Start [Operator]
 

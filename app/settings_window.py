@@ -224,6 +224,43 @@ class SettingsWindow(QDialog):
 
         self.ha_test_finished.connect(self._on_ha_test_finished)
 
+    def reload_defaults(self, defaults: Dict[str, object]) -> None:
+        """Refresh visible fields from updated default/local config values."""
+        self._default_values = dict(defaults)
+        self.udp_port_spin.setValue(_int_from_mapping(defaults, "udp_port", 50000))
+        self.allow_multi_checkbox.setChecked(
+            _bool_from_mapping(defaults, "allow_multiple_instances", False)
+        )
+        spin_defaults = {
+            "x": 1,
+            "y": 1,
+            "width": 1300,
+            "height": 880,
+            "label_x": 10,
+            "label_y": 10,
+            "label_width": 200,
+            "label_height": 100,
+            "label_font": 18,
+            "label_border_size": 5,
+        }
+        text_defaults = {
+            "label_text": "Default",
+            "label_bg": "white",
+            "label_font_color": "black",
+            "label_border_color": "yellow",
+            "station_name": "Station 01",
+        }
+        for key, fallback in spin_defaults.items():
+            field = self._fields.get(key)
+            if field is not None:
+                field.setValue(_int_from_mapping(defaults, key, fallback))
+        for key, fallback in text_defaults.items():
+            field = self._fields.get(key)
+            if field is not None:
+                field.setText(str(defaults.get(key, fallback)))
+        self.ha_url_input.setText(str(defaults.get("ha_url", "")))
+        self.ha_api_key_input.setText(str(defaults.get("ha_api_key", "")))
+
     def _add_spin(self, form: QFormLayout, key: str, label: str, value: int, low: int, high: int) -> None:
         field = QSpinBox()
         field.setRange(low, high)

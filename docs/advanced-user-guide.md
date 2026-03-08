@@ -1,7 +1,7 @@
 # VNC Station Advanced User Guide
 
 Audience: power users who configure layouts, session behavior, and sensor-driven UI behavior.  
-App version: `1.4.0`
+App version: `1.4.1`
 
 ## Quick Start [Advanced]
 

@@ -2,7 +2,7 @@
 
 Windows desktop app (PyQt5) for managing multiple TightVNC sessions in `view` and `control` mode, with station-to-station coordination over UDP and built-in chat.
 
-Current version: `1.4.0`
+Current version: `1.4.1`
 
 ## Table Of Contents
 
@@ -290,6 +290,7 @@ Startup note:
 - Session cleanup on app exit: avoid orphaned VNC processes.
 - Config validation tool: catch missing/malformed files before operation.
 - Config import/export bundles: replicate JSON and VNC files (including setup presets) between stations quickly.
+- Open Settings window refreshes immediately after importing a config bundle.
 - Non-blocking toast notifications: reduce modal interruptions during operation.
 - Structured rotating logs in `logs/app.log`: easier troubleshooting and post-incident review.
 

@@ -1,7 +1,7 @@
 # VNC Station Admin Guide
 
 Audience: administrators deploying and maintaining stations.  
-App version: `1.4.0`
+App version: `1.4.1`
 
 ## Quick Start [Admin]
 
@@ -116,6 +116,7 @@ In `Change Settings`:
 - `Validate config` checks core files and JSON validity.
 - `Export config` creates backup bundle for migration.
 - `Import config` restores a bundle to a station and rejects unsafe zip paths that try to escape the repo folders.
+- If the Settings window is already open during import, its visible fields now refresh immediately from the imported defaults.
 
 ![Validation Success](manual-assets/images/settings-maint-01-valid-config.png)
 ![Validation Failure](manual-assets/images/settings-maint-02-invalid-config.png)
