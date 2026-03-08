@@ -1,15 +1,16 @@
-# Suggested Screenshot Shot List
+# Screenshot Shot List (Completed)
 
-Use this as a baseline list for the manual.
+All items in this list have been captured and are available in `docs/manual-assets/images/`.
 
 ## Core Screens
 
 - Main window (empty state)
 - Main window (configured with several sessions)
+- Main window showing `Close all open View and Control Sessions` under tagged controls
 - Chat window with `/help` output
 - Edit View dialog with HA sensor mapping visible
 - Edit Control dialog with Active Folder path configured
-- Settings window with `Validate config`/`Import`/`Export`
+- Settings window with `UDP Port`, `Allow multiple instances on the same station`, and `Validate config`/`Import`/`Export`
 - Position/Layout tool in `Position` mode
 - Position/Layout tool in `Session` mode
 

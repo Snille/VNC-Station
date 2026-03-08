@@ -2,7 +2,7 @@
 
 Windows desktop app (PyQt5) for managing multiple TightVNC sessions in `view` and `control` mode, with station-to-station coordination over UDP and built-in chat.
 
-Current version: `1.3.3`
+Current version: `1.3.4`
 
 ## Table Of Contents
 
@@ -67,14 +67,18 @@ Current version: `1.3.3`
 
 ## User Manual
 
-Operator/Admin manual is available at `docs/user-manual.md`.
+Manuals are split by role:
+
+- Production users: `docs/user-guide.md`
+- Advanced users: `docs/advanced-user-guide.md`
+- Admin/deployment: `docs/admin-guide.md`
 
 ## What You Need Before Starting
 
 - Windows 10/11
 - Python 3.x
 - TightVNC Viewer executable `tvnviewer.exe` in repo root
-- Network where all control stations can exchange UDP traffic on port `50000`
+- Network where all control stations can exchange UDP traffic on one shared UDP port (default `50000`, configurable in `Change Settings`)
 - The following folders in the project root:
   - `vnc-view/` (contains per-target `.vnc` and optional `.json`)
   - `vnc-control/` (contains per-target `.vnc` and optional `.json`)
@@ -174,23 +178,23 @@ git config core.hooksPath .githooks
 
 ## UDP Port Test Between Two Computers
 
-Use `tests/scripts/udp-port-test.ps1` to verify UDP `50000` works in both directions.
+Use `tests/scripts/udp-port-test.ps1` to verify the configured UDP port (default `50000`) works in both directions.
 
 ### Computer B (listener)
 
 ```powershell
-.\tests\scripts\udp-port-test.ps1 -Mode listen -Port 50000
+.\tests\scripts\udp-port-test.ps1 -Mode listen -Port <UDP_PORT>
 ```
 
 ### Computer A (sender)
 
 ```powershell
-.\tests\scripts\udp-port-test.ps1 -Mode send -Port 50000 -TargetIP <IP_OF_COMPUTER_B> -Message "Test from A"
+.\tests\scripts\udp-port-test.ps1 -Mode send -Port <UDP_PORT> -TargetIP <IP_OF_COMPUTER_B> -Message "Test from A"
 ```
 
 Then swap roles and test back from B to A.
 
-If it fails, allow UDP port `50000` in firewall (Admin PowerShell):
+If it fails, allow the configured UDP port in firewall (Admin PowerShell example for `50000`):
 
 ```powershell
 New-NetFirewallRule -DisplayName "VNC Station UDP 50000" -Direction Inbound -Protocol UDP -LocalPort 50000 -Action Allow
@@ -205,14 +209,15 @@ Also make sure `python.exe` is allowed in Windows Defender Firewall.
 3. (Optional) assign position presets with `Pos V` / `Pos C`.
 4. Use row `View` / `Control` buttons to toggle one session at a time.
 5. Use `View tagged` / `Control tagged` to open or close tagged sessions per mode.
-6. Use `Setup View` / `Setup Control` to open (or close) all sessions for that mode that have a position selected.
-7. Use `Edit View` / `Edit Control` for per-session window + overlay settings.
-8. Use `Positions & Sizes` for visual layout editing and position preset management.
-9. Use setup presets: selector + `Save` / `Clear Setup` / `Delete`.
-10. Use `Change Settings` and run `Validate config`, `Export config`, or `Import config` from the Settings window.
-11. Configure `Active Folder` and optional `Active Button Text` in Edit dialogs; the active button(s) open the configured file (or latest file in folder).
-12. Use `Change Settings` to open app settings (theme, font size, defaults, HA URL/key, HA connection test, maintenance tools).
-13. In `Edit View` / `Edit Control`, add HA sensors and map icons (single icon or binary true/false icons), reorder `Selected Sensors` by drag-and-drop, and optionally set binary state color rules.
+6. Use `Close all open View and Control Sessions` to immediately close every open local session.
+7. Use `Setup View` / `Setup Control` to open (or close) all sessions for that mode that have a position selected.
+8. Use `Edit View` / `Edit Control` for per-session window + overlay settings.
+9. Use `Positions & Sizes` for visual layout editing and position preset management.
+10. Use setup presets: selector + `Save` / `Clear Setup` / `Delete`.
+11. Use `Change Settings` and run `Validate config`, `Export config`, or `Import config` from the Settings window.
+12. Configure `Active Folder` and optional `Active Button Text` in Edit dialogs; the active button(s) open the configured file (or latest file in folder).
+13. Use `Change Settings` to open app settings (theme, font size, UDP port, allow-multiple-instances option, defaults, HA URL/key, HA connection test, maintenance tools).
+14. In `Edit View` / `Edit Control`, add HA sensors and map icons (single icon or binary true/false icons), reorder `Selected Sensors` by drag-and-drop, and optionally set binary state color rules.
 
 Startup note:
 - On launch, open actions are briefly locked while the app requests current session ownership from other stations.
@@ -226,9 +231,10 @@ Startup note:
   1. setup selector + `Save` + `Clear Setup` + `Delete`
   2. `Setup View` / `Close View` + `Setup Control` / `Close Control`
   3. `View tagged` / `Close tagged` + `Control tagged` / `Close tagged`
-  4. `Untag all` + `Chat` + `Positions & Sizes`
-  5. `Take over session` + `Reconnect on drop`
-  6. `Change Settings`
+  4. `Close all open View and Control Sessions`
+  5. `Untag all` + `Chat` + `Positions & Sizes`
+  6. `Take over session` + `Reconnect on drop`
+  7. `Change Settings`
 
 ## Chat Commands
 
@@ -244,6 +250,7 @@ Startup note:
 - Connection discovery from `vnc-view/` and `vnc-control/`: quick setup by file drop.
 - Per-connection View/Control toggle buttons: open/close one mode from one button.
 - Tagging + mode-specific tagged toggles: batch open/close tagged sessions by mode.
+- Global close-all action: close every currently open local View/Control session with one click.
 - Per-connection settings editor: tune VNC window and label appearance/position.
 - Position presets (`vnc-positions`): reusable window x/y/width/height layouts.
 - Per-mode position assignment (`Pos V` / `Pos C`): assign a preset to each view/control session.
@@ -252,7 +259,8 @@ Startup note:
 - Per-mode session linking (`Link V` / `Link C`): opens linked sessions together with view/control actions.
 - Linked close behavior: closing a session also closes linked sessions recursively (loop-safe).
 - Per-session `Active Folder` file buttons with optional custom button text per mode.
-- App-level `Change Settings` window for theme, font size, defaults, HA connectivity, and maintenance tools.
+- App-level `Change Settings` window for theme, font size, UDP port, allow-multiple-instances option, defaults, HA connectivity, and maintenance tools.
+- Single-instance protection by default: blocks launching a second app instance on the same station unless explicitly enabled in settings.
 - HA connection testing (`/api/`) with toast feedback and success/fail button color feedback.
 - `Edit View`/`Edit Control` HA sensor search from Home Assistant (`/api/states`).
 - Per-sensor icon mapping: one icon for generic sensors, separate true/false icons for binary sensors.
@@ -357,7 +365,7 @@ Cleanup generated build artifacts:
 - Closing a session also follows `linked_session` and closes linked sessions recursively.
 - A small always-on-top overlay label is created and periodically repositioned to follow the VNC window.
 - Setup presets are loaded from `vnc-setups/*.json`; applying a setup resets rows first, then applies saved tags/positions/links.
-- Stations communicate over UDP broadcast on port `50000`:
+- Stations communicate over UDP broadcast on the configured `udp_port` (default `50000`):
   - presence discovery (`hello`)
   - session open/close state
   - chat/direct/notify messages

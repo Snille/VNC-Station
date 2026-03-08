@@ -1,17 +1,22 @@
 # Manual Assets Starter Pack
 
-This folder contains reusable graphical elements and templates for the upcoming user manual.
+This folder contains reusable graphical elements and screenshot assets used by the current manuals:
+
+- `docs/user-guide.md`
+- `docs/advanced-user-guide.md`
+- `docs/admin-guide.md`
 
 ## Contents
 
 - `images/`
-  - screenshot sources used by the manual
+  - captured screenshots used by the manuals
 - `elements/number-badges-png/`
   - `badge-01-40x40.png` to `badge-20-40x40.png`
   - `badge-01-84x84.png` to `badge-20-84x84.png`
 - `checklists/`
-  - `screenshot-shot-list.md` (planning list)
-  - `manual-missing-screenshots.md` (current coverage map with captured filenames)
+  - `screenshot-shot-list.md` (master shot list, now completed)
+  - `manual-missing-screenshots.md` (coverage map and captured filenames)
+  - `source-screenshots.md` (legacy source screenshot references)
 
 ## How To Use
 
@@ -23,3 +28,4 @@ This folder contains reusable graphical elements and templates for the upcoming 
 
 - The workflow is PNG-only for compatibility with GIMP.
 - Use `40x40` badges for dense UI screenshots and `84x84` for larger images.
+- Keep checklist files updated whenever new UI/features require additional screenshots.

@@ -44,6 +44,7 @@ from .config import (
 )
 from .constants import (
     APPLYSETUP_ICON_PATH,
+    CANCEL_ICON_PATH,
     CHAT_ICON_PATH,
     CLEAR_ICON_PATH,
     CONTROL_ICON_PATH,
@@ -62,6 +63,7 @@ from .constants import (
     SPREADSHEET_ICON_PATH,
     SESSION_BROADCAST_INTERVAL_MS,
     STATION_PRESENCE_CHECK_MS,
+    UDP_PORT,
     VNC_SETUPS_DIR,
     UNLOCK_ICON_PATH,
     UNTAG_ICON_PATH,
@@ -216,6 +218,7 @@ class ConnectionRow:
         header_row.addWidget(self.name_btn, 1)
         header_row.addStretch(1)
         self.indicators_widget = QWidget()
+        self.indicators_widget.setObjectName("sensorIndicators")
         self.indicators_layout = QHBoxLayout(self.indicators_widget)
         self.indicators_layout.setContentsMargins(0, 0, 0, 0)
         self.indicators_layout.setSpacing(2)
@@ -503,7 +506,11 @@ class ConnectionRow:
         self._indicators_bg_color = color_text.strip()
         if self._indicators_bg_color:
             self.indicators_widget.setStyleSheet(
-                f"background:{self._indicators_bg_color}; border-radius:4px; padding:1px 3px;"
+                "QWidget#sensorIndicators {"
+                f"background:{self._indicators_bg_color};"
+                " border-radius:4px; padding:1px 3px;}"
+                "QWidget#sensorIndicators QLabel {"
+                " background:transparent;}"
             )
         else:
             self.indicators_widget.setStyleSheet("")
@@ -576,6 +583,7 @@ class MainWindow(QMainWindow):
         self._apply_global_font_size(self.font_size, persist=False)
         self.effective_theme = "Dark" if windows_prefers_dark() else "Light"
         self.reconnect_on_drop = str(self.settings_store.value("reconnect_on_drop", "false")).lower() == "true"
+        self.udp_port = self._load_udp_port_setting()
         self.connections = scan_connections()
         self.position_names: List[str] = [p.name for p in scan_positions()]
         self.session_link_options: List[Tuple[str, str]] = self._build_session_link_options()
@@ -600,15 +608,8 @@ class MainWindow(QMainWindow):
             self._show_info,
             on_unexpected_exit=self._on_session_unexpected_exit,
         )
-        self.network = NetworkBus(self.station_name)
-        self.network.station_seen.connect(self._on_station_seen)
-        self.network.session_state.connect(self._on_remote_session_state)
-        self.network.chat_received.connect(self._on_chat_received)
-        self.network.takeover_notice.connect(self._on_takeover_notice)
-        self.network.topic_changed.connect(self._on_topic_changed)
-        self.network.away_changed.connect(self._on_away_changed)
-        self.network.nick_changed.connect(self._on_nick_changed)
-        self.network.session_sync_requested.connect(self._on_session_sync_requested)
+        self.network = NetworkBus(self.station_name, udp_port=self.udp_port)
+        self._bind_network_signals()
 
         self.sound = QSoundEffect()
         if NOTICE_SOUND_PATH.exists():
@@ -759,6 +760,19 @@ class MainWindow(QMainWindow):
         actions_row1.addStretch(1)
         self._refresh_tagged_mode_buttons()
 
+        actions_row_close_all = QHBoxLayout()
+        root.addLayout(actions_row_close_all)
+        actions_row_close_all.addStretch(1)
+        close_all_open_btn = QPushButton("Close all open View and Control Sessions")
+        _set_button_icon(close_all_open_btn, CANCEL_ICON_PATH)
+        _set_compact_button(close_all_open_btn)
+        close_all_open_btn.setStyleSheet(
+            "background:#6741d9; color:white; font-weight:700; border-radius:4px;"
+        )
+        close_all_open_btn.clicked.connect(self._close_all_sessions)
+        actions_row_close_all.addWidget(close_all_open_btn)
+        actions_row_close_all.addStretch(1)
+
         actions_row2 = QHBoxLayout()
         root.addLayout(actions_row2)
         actions_row2.addStretch(1)
@@ -904,6 +918,41 @@ class MainWindow(QMainWindow):
         self.reconnect_on_drop = bool(enabled)
         self.settings_store.setValue("reconnect_on_drop", "true" if enabled else "false")
 
+    @staticmethod
+    def _parse_udp_port(value: object, fallback: int = UDP_PORT) -> int:
+        try:
+            parsed = int(str(value).strip())
+        except (TypeError, ValueError, AttributeError):
+            return fallback
+        return max(1, min(65535, parsed))
+
+    def _load_udp_port_setting(self) -> int:
+        data = load_default_mapping()
+        return self._parse_udp_port(data.get("udp_port"), UDP_PORT)
+
+    def _bind_network_signals(self) -> None:
+        self.network.station_seen.connect(self._on_station_seen)
+        self.network.session_state.connect(self._on_remote_session_state)
+        self.network.chat_received.connect(self._on_chat_received)
+        self.network.takeover_notice.connect(self._on_takeover_notice)
+        self.network.topic_changed.connect(self._on_topic_changed)
+        self.network.away_changed.connect(self._on_away_changed)
+        self.network.nick_changed.connect(self._on_nick_changed)
+        self.network.session_sync_requested.connect(self._on_session_sync_requested)
+
+    def _recreate_network_bus(self, udp_port: int) -> None:
+        self.network.close()
+        self.network = NetworkBus(self.station_name, udp_port=udp_port)
+        self._bind_network_signals()
+        self.udp_port = udp_port
+        self._remote_mode_holders.clear()
+        self._station_names_by_id.clear()
+        self._online_snapshot.clear()
+        self._refresh_station_targets()
+        self.network.send_hello()
+        self.network.send_session_sync_request()
+        self._rebroadcast_sessions()
+
     def _load_default_json_mapping(self) -> Dict[str, object]:
         """Read default settings merged with optional local overrides."""
         data: Dict[str, object] = dict(load_default_mapping())
@@ -914,6 +963,8 @@ class MainWindow(QMainWindow):
             data.setdefault(key, value)
         data.setdefault("ha_url", "")
         data.setdefault("ha_api_key", "")
+        data.setdefault("udp_port", str(self.udp_port))
+        data.setdefault("allow_multiple_instances", "false")
         return data
 
     @staticmethod
@@ -1204,6 +1255,10 @@ class MainWindow(QMainWindow):
         existing.update({k: str(v) for k, v in updates.items()})
         save_json(DEFAULT_LOCAL_CONFIG_PATH, existing)
         self.default_settings = load_default_settings()
+        new_udp_port = self._parse_udp_port(existing.get("udp_port"), self.udp_port)
+        udp_port_changed = new_udp_port != self.udp_port
+        if udp_port_changed:
+            self._recreate_network_bus(new_udp_port)
 
         new_station_name = self.default_settings.station_name.strip() or self.station_name
         if new_station_name != self.station_name:
@@ -1212,6 +1267,8 @@ class MainWindow(QMainWindow):
             self.network.set_station_name(self.station_name)
             self.chat_window.set_station_title(self.station_name)
             self.chat_window.add_notice(f"Station name updated to {self.station_name}")
+        if udp_port_changed:
+            return f"Settings saved. UDP port changed to {new_udp_port}."
         return "Settings saved."
 
     def _open_settings_window(self) -> None:

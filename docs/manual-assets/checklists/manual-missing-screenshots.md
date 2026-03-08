@@ -9,7 +9,7 @@ All previously missing screenshots have now been captured and saved in `docs/man
 - `Setup View` workflow
   - `setup-view-workflow-01-empty.png`
   - `setup-view-workflow-02-loaded.png`
-  - `setup-view-workflow-03-view-open.png`
+  - `setup-view-workflow-03-open.png`
 - `Setup Control` workflow
   - `setup-control-workflow-01-empty.png`
   - `setup-control-workflow-02-loaded.png`
@@ -51,4 +51,3 @@ All previously missing screenshots have now been captured and saved in `docs/man
   - `view-tagged-numbered.png`
   - `control-tagged-takeover-numbered.png`
 - Source `.xcf` files are present for editable artwork where applicable.
-

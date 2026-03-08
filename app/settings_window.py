@@ -9,6 +9,7 @@ from typing import Callable, Dict
 from PyQt5.QtCore import QSettings, QSize, QTimer, pyqtSignal
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QFormLayout,
@@ -42,6 +43,18 @@ def _int_from_mapping(data: Dict[str, object], key: str, fallback: int) -> int:
         return int(str(data.get(key, fallback)))
     except (TypeError, ValueError):
         return fallback
+
+
+def _bool_from_mapping(data: Dict[str, object], key: str, fallback: bool = False) -> bool:
+    value = data.get(key, fallback)
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off"}:
+        return False
+    return bool(fallback)
 
 
 class SettingsWindow(QDialog):
@@ -113,6 +126,23 @@ class SettingsWindow(QDialog):
         appearance_row.addWidget(self.font_size_spin)
         appearance_row.addWidget(self.apply_btn)
         root.addLayout(appearance_row)
+
+        network_label = QLabel("Network")
+        network_label.setStyleSheet("font-weight:700;")
+        root.addWidget(network_label)
+        network_row = QHBoxLayout()
+        network_row.addWidget(QLabel("UDP Port:"))
+        self.udp_port_spin = QSpinBox()
+        self.udp_port_spin.setRange(1, 65535)
+        self.udp_port_spin.setValue(_int_from_mapping(defaults, "udp_port", 50000))
+        network_row.addWidget(self.udp_port_spin)
+        self.allow_multi_checkbox = QCheckBox("Allow multiple instances on the same station")
+        self.allow_multi_checkbox.setChecked(
+            _bool_from_mapping(defaults, "allow_multiple_instances", False)
+        )
+        network_row.addWidget(self.allow_multi_checkbox)
+        network_row.addStretch(1)
+        root.addLayout(network_row)
 
         defaults_label = QLabel("Default Session Values")
         defaults_label.setStyleSheet("font-weight:700;")
@@ -230,6 +260,8 @@ class SettingsWindow(QDialog):
             "station_name": self._fields["station_name"].text().strip() or "Station 01",
             "ha_url": self.ha_url_input.text().strip(),
             "ha_api_key": self.ha_api_key_input.text().strip(),
+            "udp_port": str(self.udp_port_spin.value()),
+            "allow_multiple_instances": "true" if self.allow_multi_checkbox.isChecked() else "false",
         }
 
     def _save(self) -> None:

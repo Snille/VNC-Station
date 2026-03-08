@@ -32,15 +32,16 @@ class NetworkBus(QObject):
     # session_sync_requested: requesting_station_name
     session_sync_requested = pyqtSignal(str)
 
-    def __init__(self, station_name: str) -> None:
+    def __init__(self, station_name: str, udp_port: int = UDP_PORT) -> None:
         """Open the UDP socket and start listener thread immediately."""
         super().__init__()
         self.station_id = str(uuid.uuid4())
         self.station_name = station_name
+        self.udp_port = max(1, min(65535, int(udp_port)))
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._sock.bind(("", UDP_PORT))
+        self._sock.bind(("", self.udp_port))
         self._running = True
         # station_id -> (station_name, ip, last_seen_timestamp)
         self._stations_by_id: Dict[str, Tuple[str, str, float]] = {}
@@ -203,7 +204,7 @@ class NetworkBus(QObject):
         payload["id"] = self.station_id
         payload["ts"] = time.time()
         blob = json.dumps(payload).encode("utf-8", errors="replace")
-        self._sock.sendto(blob, ("255.255.255.255", UDP_PORT))
+        self._sock.sendto(blob, ("255.255.255.255", self.udp_port))
 
     def _listen_loop(self) -> None:
         """Receive packets forever, update local state, and emit Qt signals."""
