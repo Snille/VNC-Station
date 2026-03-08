@@ -228,13 +228,13 @@ Startup note:
 - Default startup size: `250x830` (if no saved size exists in app settings)
 - Connection list is the resizable/scrollable section
 - Bottom control rows:
-  1. setup selector + `Save` + `Clear Setup` + `Delete`
-  2. `Setup View` / `Close View` + `Setup Control` / `Close Control`
-  3. `View tagged` / `Close tagged` + `Control tagged` / `Close tagged`
-  4. `Close all open View and Control Sessions`
-  5. `Untag all` + `Chat` + `Positions & Sizes`
-  6. `Take over session` + `Reconnect on drop`
-  7. `Change Settings`
+  - setup selector + `Save` + `Clear Setup` + `Delete`
+  - `Setup View` / `Close View` + `Setup Control` / `Close Control`
+  - `View tagged` / `Close tagged` + `Control tagged` / `Close tagged`
+  - `Close all open View and Control Sessions`
+  - `Untag all` + `Chat` + `Positions & Sizes`
+  - `Take over session` + `Reconnect on drop`
+  - `Change Settings`
 
 ## Chat Commands
 
@@ -382,7 +382,7 @@ Cleanup generated build artifacts:
   - 3-4x 4K screens
   - 1-2x Full HD screens
   - mixed-DPI setup checks for VNC window placement and label overlay alignment
-- Write a complete user manual for the whole application.
+- Local language support
 
 ## License
 
