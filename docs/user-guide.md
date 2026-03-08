@@ -38,6 +38,7 @@ The main window contains:
   - `Change Settings`
 
 ![Main Window With Sessions](manual-assets/images/core-02-main-window-sessions.png)
+
 Figure 1: Main operator window with row actions and bottom control rows.
 
 ## 3. Standard Shift Workflow [Operator]
@@ -62,6 +63,7 @@ Prerequisites: Target setup exists and has valid `Pos V` assignments.
 3. Click `Setup View`.
 
 ![Setup View Workflow](manual-assets/images/setup-view-workflow-03-open.png)
+
 Figure 2: Saved view setup opened across assigned monitors.
 
 ### 4.2 Open Temporary Tagged View Group
@@ -73,6 +75,7 @@ Prerequisites: Target rows are visible and have `Pos V` set.
 3. Click `View tagged`.
 
 ![View Tagged](manual-assets/images/view-tagged-numbered.png)
+
 Figure 3: Tagged rows opened in View mode.
 
 ## 5. Control Workflows [Operator]
@@ -85,6 +88,7 @@ Prerequisites: `Pos C` and (if used) `Link C` are already configured.
 2. Click `Setup Control` for the full prepared set.
 
 ![Setup Control Workflow](manual-assets/images/setup-control-workflow-02-open.png)
+
 Figure 4: Setup Control opening the prepared control set.
 
 ### 5.2 Open Tagged Control Set
@@ -95,6 +99,7 @@ Prerequisites: Relevant rows tagged.
 2. Click `Control tagged`.
 
 ![Control Tagged With Takeover Context](manual-assets/images/tagging-workflow-03-control-open.png)
+
 Figure 5: Tagged control workflow.
 
 ## 6. Close Sessions Quickly [Operator]
@@ -121,6 +126,7 @@ Do not:
 - Leave `Take over session` enabled for routine operation.
 
 ![Takeover Flow](manual-assets/images/takeover-flow-02-take-over-enabled.png)
+
 Figure 6: Assisted workflow with takeover enabled.
 
 ## 8. Alarm And Indicator Handling [Operator]
@@ -131,6 +137,7 @@ Figure 6: Assisted workflow with takeover enabled.
 
 ![Indicator Examples](manual-assets/images/ha-examples-01-indicators.png)
 ![Alarm Example](manual-assets/images/ha-examples-03-indicators-alarm.png)
+
 Figure 7: Example normal/alarm indicator states.
 
 ## 9. Chat During Production [Operator]
@@ -151,6 +158,7 @@ Useful commands:
 - `/notify [Message]`
 
 ![Chat Help](manual-assets/images/core-03-chat-window-help.png)
+
 Figure 8: Chat window with command help.
 
 ## 10. Troubleshooting [Operator]

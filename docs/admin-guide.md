@@ -62,6 +62,7 @@ Prerequisites: App launches and settings window opens.
 7. Save.
 
 ![Main Settings Window](manual-assets/images/core-06-main-settings-window-init.png)
+
 Figure 1: Settings window for station identity, UDP, HA, and maintenance tools.
 
 ## 5. UDP Network Compatibility [Admin]
@@ -97,6 +98,7 @@ In `Change Settings`:
 
 ![Validation Success](manual-assets/images/settings-maint-01-valid-config.png)
 ![Validation Failure](manual-assets/images/settings-maint-02-invalid-config.png)
+
 Figure 2: Validation feedback examples.
 
 ## 7. Config Replication Between Stations [Admin]

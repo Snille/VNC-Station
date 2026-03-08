@@ -36,6 +36,7 @@ Use `Positions & Sizes` in `Position` mode to create reusable monitor layouts.
 
 ![Position Tool](manual-assets/images/core-07-layout-position-tool.png)
 ![Position Save/Load Example](manual-assets/images/optional-useful-03-position-editor-load-save.png)
+
 Figure 1: Position mode for reusable geometry presets.
 
 Important note:
@@ -58,6 +59,7 @@ Key settings:
 - optional `position_name` override: if a valid position preset name is set, that preset geometry is used; otherwise the session's own `x/y/width/height` values are used
 
 ![Session Tool](manual-assets/images/core-08-layout-session-tool.png)
+
 Figure 2: Session mode for per-connection geometry and label configuration.
 
 `Edit View` / `Edit Control` dialog:
@@ -67,6 +69,7 @@ Figure 2: Session mode for per-connection geometry and label configuration.
 - useful when you want to edit one session without using the layout tool windows
 
 ![Edit View With HA Sensors](manual-assets/images/core-04-edit-view-ha-sensors.png)
+
 Figure 3: Per-session edit dialog with HA mapping controls.
 
 ## 4. Configure Setup Presets For Operators [Advanced]
@@ -87,6 +90,7 @@ Recommended process:
 4. Validate by loading and running `Setup View` and `Setup Control`.
 
 ![Setup Save/Apply Flow](manual-assets/images/operational-flows-04-setup-save-apply.png)
+
 Figure 4: Save/apply cycle for setup presets.
 
 ## 5. Link Sessions [Advanced]
@@ -101,6 +105,7 @@ Use when:
 - paired diagnostics should open together
 
 ![Linked Session Flow](manual-assets/images/operational-flows-05-linked-session.png)
+
 Figure 5: Linked session open behavior.
 
 ## 6. Configure Active Folder And Button Labels [Advanced]
@@ -115,6 +120,7 @@ Per session mode (`Edit View` / `Edit Control`):
 
 ![Active Folder Example](manual-assets/images/core-05-control-view-active-folder.png)
 ![KS/KSV/KSC Example](manual-assets/images/optional-useful-02-ks-ksv-ksc.png)
+
 Figure 6: Active file/folder integration from row buttons.
 
 ## 7. Home Assistant Sensor Mapping [Advanced]
@@ -129,6 +135,7 @@ For each sensor mapping you can configure:
 - optional binary state background rules (`bg_state`, `bg_color`)
 
 ![Sensor mapping](manual-assets/images/core-04-edit-view-ha-sensors.png)
+
 Figure 7: Sensor mapping controls in the session edit dialog.
 
 Behavior notes:
@@ -149,6 +156,7 @@ Do not:
 ![Sensor States](manual-assets/images/ha-examples-02-indicators-true-false.png)
 ![Sensor Alarm](manual-assets/images/ha-examples-03-indicators-alarm.png)
 ![Label Background Example](manual-assets/images/alarm-and-escalation-02-label-bg-color.png)
+
 Figure 8: Indicator and alarm visual states, including label background behavior.
 
 ## 8. Validation Routine After Changes [Advanced]
@@ -163,6 +171,7 @@ Figure 8: Indicator and alarm visual states, including label background behavior
 ![Open One View](manual-assets/images/operational-flows-01-open-one-view.png)
 ![Open One Control](manual-assets/images/operational-flows-02-open-one-control.png)
 ![Tagged Open](manual-assets/images/operational-flows-03-open-one-tagged.png)
+
 Figure 9: Basic smoke-test operations after configuration changes.
 
 ## 9. Troubleshooting [Advanced]
