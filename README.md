@@ -2,7 +2,7 @@
 
 Windows desktop app (PyQt5) for managing multiple TightVNC sessions in `view` and `control` mode, with station-to-station coordination over UDP and built-in chat.
 
-Current version: `1.4.1`
+Current version: `1.5.1`
 
 ## Table Of Contents
 
@@ -30,48 +30,49 @@ Current version: `1.4.1`
 
 ## Screenshots
 
+Current interface examples:
+
 <table>
   <tr>
-    <td align="center"><strong>Main (empty)</strong></td>
-    <td align="center"><strong>Main with sessions</strong></td>
-    <td align="center"><strong>Main Settings</strong></td>
+    <td align="center"><strong>Main Operator Window</strong></td>
     <td align="center"><strong>Chat</strong></td>
+    <td align="center"><strong>Station Settings</strong></td>
   </tr>
   <tr>
-    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/main-empty.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/main-empty.png" alt="Main (empty)" width="200"></a></td>
-    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/main-setup%2Blink%2Btooltip.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/main-setup%2Blink%2Btooltip.png" alt="Main with sessions" width="200"></a></td>
-    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/main-settings.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/main-settings.png" alt="Main Settings" width="200"></a></td>
-    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/station-chat.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/station-chat.png" alt="Chat" width="200"></a></td>
+    <td><a href="manual/manual-assets/images/1.5.0/01-main-window-setup-area.png"><img src="manual/manual-assets/images/1.5.0/01-main-window-setup-area.png" alt="Main window" width="260"></a></td>
+    <td><a href="manual/manual-assets/images/1.5.0/02-chat-window.png"><img src="manual/manual-assets/images/1.5.0/02-chat-window.png" alt="Chat window" width="260"></a></td>
+    <td><a href="manual/manual-assets/images/1.5.0/03-settings-window-network-and-maintenance.png"><img src="manual/manual-assets/images/1.5.0/03-settings-window-network-and-maintenance.png" alt="Settings window" width="260"></a></td>
   </tr>
   <tr>
-    <td align="center"><strong>Session Layout</strong></td>
-    <td align="center"><strong>Position Layout</strong></td>
-    <td align="center"><strong>Edit View</strong></td>
-    <td align="center"><strong>Edit Control</strong></td>
+    <td align="center"><strong>Session Editor</strong></td>
+    <td align="center"><strong>Position Editor</strong></td>
+    <td align="center"><strong>Documentation</strong></td>
   </tr>
   <tr>
-    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/sessnon-layout%2Bvncpreview%2Blabel.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/sessnon-layout%2Bvncpreview%2Blabel.png" alt="Session Layout" width="200"></a></td>
-    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/position-layout%2Bvnc-preview.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/position-layout%2Bvnc-preview.png" alt="Position Layout" width="200"></a></td>
-    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/edit-session-view.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/edit-session-view.png" alt="Edit View" width="200"></a></td>
-    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/edit-session-control.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/edit-session-control.png" alt="Edit Control" width="200"></a></td>
+    <td><a href="manual/manual-assets/images/1.5.0/04-layout-tool-session-active-folder.png"><img src="manual/manual-assets/images/1.5.0/04-layout-tool-session-active-folder.png" alt="Session layout tool" width="260"></a></td>
+    <td><a href="manual/manual-assets/images/1.5.0/05-layout-tool-position-mode.png"><img src="manual/manual-assets/images/1.5.0/05-layout-tool-position-mode.png" alt="Position layout tool" width="260"></a></td>
+    <td align="center">See <code>manual/</code> for the current role-based guides, workflows, and reference material.</td>
   </tr>
 </table>
 
 ## Home Assistant Integration
 
-<p>
-  <a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/alarm-notifications-from-home-assistant.png">
-    <img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/Example%20files/Screenshots/alarm-notifications-from-home-assistant.png" alt="Alarm notifications from Home Assistant" width="840">
-  </a>
-</p>
+Home Assistant integration is configured per session and can drive:
+
+- row indicator icons
+- binary true/false icon changes
+- tooltip text
+- alarm color rules for row indicators and session labels
+
+See `manual/advanced-user-guide.md` for the current configuration workflow.
 
 ## User Manual
 
 Manuals are split by role:
 
-- Production users: `docs/user-guide.md`
-- Advanced users: `docs/advanced-user-guide.md`
-- Admin/deployment: `docs/admin-guide.md`
+- Production users: `manual/user-guide.md`
+- Advanced users: `manual/advanced-user-guide.md`
+- Admin/deployment: `manual/admin-guide.md`
 
 ## What You Need Before Starting
 
@@ -83,7 +84,7 @@ Manuals are split by role:
   - `vnc-view/` (contains per-target `.vnc` and optional `.json`)
   - `vnc-control/` (contains per-target `.vnc` and optional `.json`)
   - `vnc-positions/` (contains reusable position `.json` presets)
-  - `vnc-setups/` (contains saved setup `.json` presets for tags/positions/links)
+  - `vnc-setups/` (contains saved setup `.json` presets for positions/links)
 
 ### Expected File Layout
 
@@ -209,14 +210,14 @@ Also make sure `python.exe` is allowed in Windows Defender Firewall.
 3. (Optional) assign position presets with `Pos V` / `Pos C`.
 4. Use row `View` / `Control` buttons to toggle one session at a time.
 5. Use `View tagged` / `Control tagged` to open or close tagged sessions per mode.
-6. Use `Close all open View and Control Sessions` to immediately close every open local session.
+6. Use `Close all sessions` to immediately close every open local session.
 7. Use `Setup View` / `Setup Control` to open (or close) all sessions for that mode that have a position selected.
 8. Use `Edit View` / `Edit Control` for per-session window + overlay settings.
-9. Use `Positions & Sizes` for visual layout editing and position preset management.
-10. Use setup presets: selector + `Save` / `Clear Setup` / `Delete`.
+9. Use `Positions & Sessions` for visual layout editing and position preset management.
+10. Use setup presets from the setup list on the lower left; click one to apply it immediately, drag to reorder it, and use `Setup name` + `Save` / `Clear` / `Delete` on the right.
 11. Use `Change Settings` and run `Validate config`, `Export config`, or `Import config` from the Settings window.
 12. Configure `Active Folder` and optional `Active Button Text` in Edit dialogs; the active button(s) open the configured file (or latest file in folder).
-13. Use `Change Settings` to open app settings (theme, font size, UDP port, allow-multiple-instances option, defaults, HA URL/key, HA connection test, maintenance tools).
+13. Use `Change Settings` to open app settings (theme, font size, UDP port, reconnect-on-drop, allow-multiple-instances option, defaults, HA URL/key, HA connection test, maintenance tools).
 14. In `Edit View` / `Edit Control`, add HA sensors and map icons (single icon or binary true/false icons), reorder `Selected Sensors` by drag-and-drop, and optionally set binary state color rules.
 
 Startup note:
@@ -228,14 +229,16 @@ Startup note:
 
 - Default startup size: `250x830` (if no saved size exists in app settings)
 - Connection list is the resizable/scrollable section
-- Bottom control rows:
-  - setup selector + `Save` + `Clear Setup` + `Delete`
-  - `Setup View` / `Close View` + `Setup Control` / `Close Control`
+- Lower setup/session area:
+  - left side: `Select setup` title + draggable setup list
+  - right side top rows: `Setup View` / `Close View` + `Setup Control` / `Close Control`
   - `View tagged` / `Close tagged` + `Control tagged` / `Close tagged`
-  - `Close all open View and Control Sessions`
-  - `Untag all` + `Chat` + `Positions & Sizes`
-  - `Take over session` + `Reconnect on drop`
-  - `Change Settings`
+  - `Close all sessions` + `Untag all`
+  - `Setup name`
+  - `Save` + `Clear` + `Delete`
+  - `Allow shared sessions`
+- Bottom row:
+  - `Chat` + `Positions & Sessions` + `Change Settings`
 
 ## Chat Commands
 
@@ -260,7 +263,7 @@ Startup note:
 - Per-mode session linking (`Link V` / `Link C`): opens linked sessions together with view/control actions.
 - Linked close behavior: closing a session also closes linked sessions recursively (loop-safe).
 - Per-session `Active Folder` file buttons with optional custom button text per mode.
-- App-level `Change Settings` window for theme, font size, UDP port, allow-multiple-instances option, defaults, HA connectivity, and maintenance tools.
+- App-level `Change Settings` window for theme, font size, UDP port, reconnect-on-drop, allow-multiple-instances option, defaults, HA connectivity, and maintenance tools.
 - Single-instance protection by default: blocks launching a second app instance on the same station unless explicitly enabled in settings.
 - HA connection testing (`/api/`) with toast feedback and success/fail button color feedback.
 - `Edit View`/`Edit Control` HA sensor search from Home Assistant (`/api/states`).
@@ -272,12 +275,13 @@ Startup note:
 - Multi-icon row indicators: multiple mapped sensors can display side-by-side in each connection row.
 - Animated GIF indicators supported in the main window.
 - `input_boolean.*` is treated as binary for true/false icon mapping.
-- Setup presets (`vnc-setups/*.json`) store and restore all row tags, selected positions, and selected links.
+- Setup presets (`vnc-setups/*.json`) store and restore selected positions and selected links.
+- Setup presets are shown in a draggable list, and custom list order is persisted across restarts.
 - Last selected setup is persisted across restarts.
 - Overlay labels that follow VNC windows: keep session identity visible on screen.
 - Session lock awareness across stations: avoid accidental duplicate control/view.
-- Optional takeover mode: allow controlled override when needed.
-- Reconnect on drop option: automatically restore sessions after unexpected viewer exits.
+- Optional shared-session override mode: allow opening a session already held by another station when needed.
+- Reconnect on drop option in `Change Settings`: automatically restore sessions after unexpected viewer exits.
 - Owner line age display scales from seconds to `m:ss`, `h:mm:ss`, and `d:hh:mm:ss`.
 - Invalid per-session/default JSON is reported once in a toast and logged, while the app falls back safely to defaults.
 - Built-in station chat: coordinate operators without external tools.
@@ -322,7 +326,7 @@ For binary-style entities (`binary_sensor.*`, `input_boolean.*`):
   - `vnc-positions/*.json`
   - `vnc-setups/*.json`
 - `Import config` restores the same set from bundle zip and refreshes the UI.
-- `Positions & Sizes` opens the visual layout tool:
+- `Positions & Sessions` opens the visual layout tool:
   - movable frameless `VNC Preview` window (cross-screen(s))
   - movable/resizable frameless `Label Preview` window (always-on-top)
   - two edit modes:
@@ -368,7 +372,7 @@ Cleanup generated build artifacts:
 - If a session has `linked_session` set, linked sessions are auto-opened for View/Control actions.
 - Closing a session also follows `linked_session` and closes linked sessions recursively.
 - A small always-on-top overlay label is created and periodically repositioned to follow the VNC window.
-- Setup presets are loaded from `vnc-setups/*.json`; applying a setup resets rows first, then applies saved tags/positions/links.
+- Setup presets are loaded from `vnc-setups/*.json`; applying a setup resets rows first, then applies saved positions/links.
 - Stations communicate over UDP broadcast on the configured `udp_port` (default `50000`):
   - presence discovery (`hello`)
   - session open/close state
@@ -376,7 +380,7 @@ Cleanup generated build artifacts:
   - global topic updates
   - away status updates
   - takeover notices
-- Session lock logic prevents opening a connection already active on another station, unless `Take over session` is enabled.
+- Session lock logic prevents opening a connection already active on another station, unless `Allow shared sessions` is enabled.
 - Setup View/Control reports why sessions could not open when blocked by another station or missing files.
 - The app stores UI preferences (theme, window sizes, reconnect toggle) via Windows `QSettings`.
 - At startup, the app performs a short session-sync handshake (`session_sync_request`) before enabling open actions.

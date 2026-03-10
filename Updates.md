@@ -1,10 +1,15 @@
 # Updates
 
 Project: `VNC Station Controller`  
-Latest version in repository: `1.4.1`
+Latest version in repository: `1.5.1`
 
 ## Version Milestones
 
+- `1.5.1` (`release`, 2026-03-10)
+  - Refined window naming, VNC sizing alignment, README screenshots, and HA sensor search behavior.
+- `1.5.0` (`release`, 2026-03-09)
+  - Reworked the lower main-window setup/session controls around a left-side setup list and right-side action panel.
+  - Added draggable setup ordering, setup-name entry, and updated session-sharing/reconnect settings placement.
 - `1.4.1` (`release`, 2026-03-08)
   - Refreshed the open Settings window immediately after importing a config bundle.
 - `1.4.0` (`release`, 2026-03-08)

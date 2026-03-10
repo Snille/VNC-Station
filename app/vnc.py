@@ -1,6 +1,7 @@
 """Launch and manage TightVNC viewer processes plus overlay label windows."""
 
 import subprocess
+from ctypes import Structure, WinDLL, byref, c_int, sizeof
 from pathlib import Path
 from typing import Callable, Dict, Optional, Tuple
 
@@ -18,6 +19,24 @@ except ImportError:  # pragma: no cover
     win32con = None
     win32gui = None
     win32process = None
+
+try:  # pragma: no cover - Windows-only API
+    _dwmapi = WinDLL("dwmapi")
+except Exception:  # pragma: no cover
+    _dwmapi = None
+
+DWMWA_EXTENDED_FRAME_BOUNDS = 9
+
+
+class RECT(Structure):
+    """ctypes RECT for DWM extended frame bounds lookups."""
+
+    _fields_ = [
+        ("left", c_int),
+        ("top", c_int),
+        ("right", c_int),
+        ("bottom", c_int),
+    ]
 
 
 class OverlayLabel(QWidget):
@@ -200,6 +219,9 @@ class SessionManager:
 
     def _window_rect(self, hwnd: int) -> Optional[Tuple[int, int, int, int]]:
         """Read native window bounds as (left, top, right, bottom)."""
+        visible_rect = self._extended_frame_rect(hwnd)
+        if visible_rect is not None:
+            return visible_rect
         if not win32gui:
             return None
         try:
@@ -208,24 +230,64 @@ class SessionManager:
             return None
 
     def _move_window(self, hwnd: int, x: int, y: int, width: int, height: int) -> None:
-        """Resize/reposition target window, with fallback API call."""
+        """Resize/reposition target window so visible bounds match saved geometry."""
         if not win32gui:
             return
+        left_margin, top_margin, right_margin, bottom_margin = self._window_frame_margins(hwnd)
+        target_x = int(x) - left_margin
+        target_y = int(y) - top_margin
+        target_width = max(200, int(width) + left_margin + right_margin)
+        target_height = max(100, int(height) + top_margin + bottom_margin)
         try:
             win32gui.SetWindowPos(
                 hwnd,
                 win32con.HWND_TOP,
-                int(x),
-                int(y),
-                max(200, int(width)),
-                max(100, int(height)),
+                target_x,
+                target_y,
+                target_width,
+                target_height,
                 0,
             )
         except Exception:
             try:
-                win32gui.MoveWindow(hwnd, int(x), int(y), max(200, int(width)), max(100, int(height)), True)
+                win32gui.MoveWindow(hwnd, target_x, target_y, target_width, target_height, True)
             except Exception:
                 pass
+
+    def _extended_frame_rect(self, hwnd: int) -> Optional[Tuple[int, int, int, int]]:
+        """Return visible DWM frame bounds when available."""
+        if _dwmapi is None:
+            return None
+        rect = RECT()
+        try:
+            result = _dwmapi.DwmGetWindowAttribute(
+                int(hwnd),
+                DWMWA_EXTENDED_FRAME_BOUNDS,
+                byref(rect),
+                sizeof(rect),
+            )
+        except Exception:
+            return None
+        if result != 0:
+            return None
+        return rect.left, rect.top, rect.right, rect.bottom
+
+    def _window_frame_margins(self, hwnd: int) -> Tuple[int, int, int, int]:
+        """Measure invisible/non-client margins around the visible window frame."""
+        if not win32gui:
+            return 0, 0, 0, 0
+        try:
+            win_rect = win32gui.GetWindowRect(hwnd)
+        except Exception:
+            return 0, 0, 0, 0
+        visible_rect = self._extended_frame_rect(hwnd)
+        if visible_rect is None:
+            return 0, 0, 0, 0
+        left = max(0, visible_rect[0] - win_rect[0])
+        top = max(0, visible_rect[1] - win_rect[1])
+        right = max(0, win_rect[2] - visible_rect[2])
+        bottom = max(0, win_rect[3] - visible_rect[3])
+        return left, top, right, bottom
 
     def _find_main_window(self, pid: int) -> Optional[int]:
         """Locate first visible top-level window for the given process id."""

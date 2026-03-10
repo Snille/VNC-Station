@@ -61,7 +61,7 @@ class ChatWindow(QMainWindow):
     ) -> None:
         """Construct chat controls and wire provided callback hooks."""
         super().__init__(parent)
-        self.setWindowTitle(f"VNC Chat - {station_name}")
+        self.setWindowTitle(f"Chat - {station_name}")
         if CHAT_ICON_PATH.exists():
             self.setWindowIcon(QIcon(str(CHAT_ICON_PATH)))
         self.resize(680, 500)
@@ -99,7 +99,7 @@ class ChatWindow(QMainWindow):
 
     def set_station_title(self, station_name: str) -> None:
         """Update window title when local station name changes."""
-        self.setWindowTitle(f"VNC Chat - {station_name}")
+        self.setWindowTitle(f"Chat - {station_name}")
 
     def set_topic(self, topic: str) -> None:
         """Update visible topic label."""

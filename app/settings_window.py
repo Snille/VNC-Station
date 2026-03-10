@@ -143,6 +143,9 @@ class SettingsWindow(QDialog):
         network_row.addWidget(self.allow_multi_checkbox)
         network_row.addStretch(1)
         root.addLayout(network_row)
+        self.reconnect_checkbox = QCheckBox("Reconnect on drop")
+        self.reconnect_checkbox.setChecked(_bool_from_mapping(defaults, "reconnect_on_drop", False))
+        root.addWidget(self.reconnect_checkbox)
 
         defaults_label = QLabel("Default Session Values")
         defaults_label.setStyleSheet("font-weight:700;")
@@ -231,6 +234,7 @@ class SettingsWindow(QDialog):
         self.allow_multi_checkbox.setChecked(
             _bool_from_mapping(defaults, "allow_multiple_instances", False)
         )
+        self.reconnect_checkbox.setChecked(_bool_from_mapping(defaults, "reconnect_on_drop", False))
         spin_defaults = {
             "x": 1,
             "y": 1,
@@ -299,6 +303,7 @@ class SettingsWindow(QDialog):
             "ha_api_key": self.ha_api_key_input.text().strip(),
             "udp_port": str(self.udp_port_spin.value()),
             "allow_multiple_instances": "true" if self.allow_multi_checkbox.isChecked() else "false",
+            "reconnect_on_drop": "true" if self.reconnect_checkbox.isChecked() else "false",
         }
 
     def _save(self) -> None:

@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (
     QApplication,
     QComboBox,
     QDialog,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -43,6 +44,7 @@ from .constants import (
 from .constants import MONITOR_ICON_PATH
 from .constants import SAVE_ICON_PATH
 from .models import SessionSettings
+from .settings_dialog import SensorMappingsEditor
 from .theme import windows_prefers_dark
 
 ICON_TEXT_GAP_PREFIX = "\u2009"  # thin space: slightly tighter icon-to-text gap
@@ -259,10 +261,10 @@ class LayoutToolWindow(QMainWindow):
         self._syncing_form = False
         self._load_targets: List[Tuple[str, str]] = []
         self._position_paths_by_name: dict[str, Path] = {}
-        self.setWindowTitle("VNC Layout Tool")
+        self.setWindowTitle("Positions & Sessions")
         if GEARS_ICON_PATH.exists():
             self.setWindowIcon(QIcon(str(GEARS_ICON_PATH)))
-        self.resize(460, 520)
+        self.resize(620, 860)
 
         self.vnc_preview = FramelessPreviewWindow("VNC Preview", always_on_top=False)
         self.label_preview = FramelessPreviewWindow("Label Preview", always_on_top=True)
@@ -301,6 +303,7 @@ class LayoutToolWindow(QMainWindow):
         root_widget = QWidget(self)
         self.setCentralWidget(root_widget)
         root = QVBoxLayout(root_widget)
+        self._root_layout = root
 
         top = QVBoxLayout()
         root.addLayout(top)
@@ -387,6 +390,22 @@ class LayoutToolWindow(QMainWindow):
         label_form.addRow("Label Font Color", self.fg_text)
         label_form.addRow("Label Border Color", self.border_text)
 
+        self.extra_form_widget = QWidget()
+        extra_form = QFormLayout(self.extra_form_widget)
+        root.addWidget(self.extra_form_widget)
+        self.ks_text = QLineEdit(self.settings.ks)
+        self.ks_browse_btn = QPushButton("Browse...")
+        self.ks_browse_btn.clicked.connect(self._browse_active_folder)
+        ks_row = QHBoxLayout()
+        ks_row.addWidget(self.ks_text, 1)
+        ks_row.addWidget(self.ks_browse_btn)
+        extra_form.addRow("Active Folder", ks_row)
+        self.ks_button_text = QLineEdit(self.settings.ks_button_text)
+        extra_form.addRow("Active Button Text", self.ks_button_text)
+
+        self.sensor_editor = SensorMappingsEditor(self.settings, self)
+        root.addWidget(self.sensor_editor, 1)
+
         for spin in [
             self.x_spin,
             self.y_spin,
@@ -461,6 +480,8 @@ class LayoutToolWindow(QMainWindow):
         self.session_load_widget.setVisible(not is_position_mode)
         self.position_tools_widget.setVisible(is_position_mode)
         self.label_form_widget.setVisible(not is_position_mode)
+        self.extra_form_widget.setVisible(not is_position_mode)
+        self.sensor_editor.setVisible(not is_position_mode)
         self.session_buttons_widget.setVisible(not is_position_mode)
         if is_position_mode:
             self.label_preview.hide()
@@ -495,6 +516,7 @@ class LayoutToolWindow(QMainWindow):
         self.label_content.setGeometry(0, 26, self.label_preview.width(), max(20, self.label_preview.height() - 26))
 
     def _collect_settings(self) -> SessionSettings:
+        sensor_ids, sensor_mappings = self.sensor_editor.sensor_values()
         return SessionSettings(
             x=self.x_spin.value(),
             y=self.y_spin.value(),
@@ -511,6 +533,12 @@ class LayoutToolWindow(QMainWindow):
             label_border_size=self.border_spin.value(),
             label_border_color=self.border_text.text().strip() or "black",
             station_name=self.settings.station_name,
+            position_name=self.settings.position_name,
+            linked_session=self.settings.linked_session,
+            ks=self.ks_text.text().strip(),
+            ks_button_text=self.ks_button_text.text().strip(),
+            ha_sensors=sensor_ids,
+            ha_sensor_icons=sensor_mappings,
         )
 
     def _apply_settings_to_previews(self) -> None:
@@ -562,6 +590,9 @@ class LayoutToolWindow(QMainWindow):
         self.bg_text.setText(self.settings.label_bg)
         self.fg_text.setText(self.settings.label_font_color)
         self.border_text.setText(self.settings.label_border_color)
+        self.ks_text.setText(self.settings.ks)
+        self.ks_button_text.setText(self.settings.ks_button_text)
+        self._replace_sensor_editor(self.settings)
         self._syncing_form = False
         self._apply_settings_to_previews()
 
@@ -647,6 +678,9 @@ class LayoutToolWindow(QMainWindow):
         self.bg_text.setText(self.settings.label_bg)
         self.fg_text.setText(self.settings.label_font_color)
         self.border_text.setText(self.settings.label_border_color)
+        self.ks_text.setText(self.settings.ks)
+        self.ks_button_text.setText(self.settings.ks_button_text)
+        self._replace_sensor_editor(self.settings)
         self._syncing_form = False
         self._apply_settings_to_previews()
         if self.settings.position_name:
@@ -684,9 +718,29 @@ class LayoutToolWindow(QMainWindow):
         existing = load_session_settings(path)
         merged.position_name = existing.position_name
         merged.linked_session = existing.linked_session
-        merged.ks = existing.ks
-        merged.ks_button_text = existing.ks_button_text
         return merged.to_json()
+
+    def _browse_active_folder(self) -> None:
+        start_dir = self.ks_text.text().strip()
+        if start_dir:
+            current = Path(start_dir)
+            if current.is_file():
+                start_dir = str(current.parent)
+        path = QFileDialog.getExistingDirectory(self, "Select Active Folder", start_dir or "")
+        if path:
+            self.ks_text.setText(path)
+
+    def _replace_sensor_editor(self, settings: SessionSettings) -> None:
+        old_editor = self.sensor_editor
+        index = self._root_layout.indexOf(old_editor)
+        self.sensor_editor = SensorMappingsEditor(settings, self)
+        self.sensor_editor.setVisible(self.mode_box.currentText().strip().lower() != "position")
+        if index >= 0:
+            self._root_layout.replaceWidget(old_editor, self.sensor_editor)
+        else:
+            self._root_layout.insertWidget(self._root_layout.indexOf(self.session_buttons_widget), self.sensor_editor, 1)
+        old_editor.setParent(None)
+        old_editor.deleteLater()
 
     def closeEvent(self, event) -> None:
         self._geometry_store.setValue("layout_tool_window_geometry", self.saveGeometry())

@@ -1,5 +1,6 @@
 """Dialog used to edit per-connection window and overlay settings."""
 
+import fnmatch
 import json
 import threading
 import urllib.error
@@ -25,6 +26,7 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QSpinBox,
     QVBoxLayout,
+    QWidget,
 )
 
 from .config import load_default_mapping
@@ -39,59 +41,29 @@ def _set_button_icon(button: QPushButton, icon_path: Path, size_px: int = 14) ->
     button.setIconSize(QSize(size_px, size_px))
 
 
-class SettingsDialog(QDialog):
-    """Simple form-based editor for SessionSettings values."""
+class SensorMappingsEditor(QWidget):
+    """Reusable Home Assistant sensor mapping editor."""
 
     sensor_search_finished = pyqtSignal(bool, object, str)
     SENSOR_MAPPING_ROLE = Qt.UserRole + 1
     ICONS_DIR = APP_DIR / "images"
 
-    def __init__(self, title: str, settings: SessionSettings, parent=None) -> None:
-        """Build the settings form and prefill it from an existing settings object."""
+    def __init__(self, settings: SessionSettings, parent=None) -> None:
         super().__init__(parent)
-        self.setWindowTitle(title)
-        if GEARS_ICON_PATH.exists():
-            self.setWindowIcon(QIcon(str(GEARS_ICON_PATH)))
-        self.setModal(True)
-        self._geometry_store = QSettings("VNCStation", "Controller")
-        saved_geometry = self._geometry_store.value("edit_session_dialog_geometry")
-        if not saved_geometry or not self.restoreGeometry(saved_geometry):
-            self.resize(620, 820)
-        self.setStyleSheet("QPushButton{padding:2px 6px;}")
-        self._fields: Dict[str, object] = {}
         self._search_pending = False
         self._ha_url, self._ha_api_key = self._load_ha_credentials()
         self._sensor_editor_syncing = False
         self._sensor_mappings: Dict[str, Dict[str, str]] = {}
 
         layout = QVBoxLayout(self)
-        form = QFormLayout()
-        layout.addLayout(form)
-
-        self._add_spin(form, "x", "Window X", settings.x, -10000, 10000)
-        self._add_spin(form, "y", "Window Y", settings.y, -10000, 10000)
-        self._add_spin(form, "width", "Window Width", settings.width, 100, 6000)
-        self._add_spin(form, "height", "Window Height", settings.height, 100, 6000)
-        self._add_text(form, "label_text", "Label Text", settings.label_text)
-        self._add_spin(form, "label_x", "Label Offset X", settings.label_x, -10000, 10000)
-        self._add_spin(form, "label_y", "Label Offset Y", settings.label_y, -10000, 10000)
-        self._add_spin(form, "label_width", "Label Width", settings.label_width, 30, 4000)
-        self._add_spin(form, "label_height", "Label Height", settings.label_height, 20, 2000)
-        self._add_text(form, "label_bg", "Label Background", settings.label_bg)
-        self._add_spin(form, "label_font", "Label Font Size", settings.label_font, 8, 180)
-        self._add_text(form, "label_font_color", "Label Font Color", settings.label_font_color)
-        self._add_spin(form, "label_border_size", "Label Border Size", settings.label_border_size, 0, 40)
-        self._add_text(form, "label_border_color", "Label Border Color", settings.label_border_color)
-        self._add_folder_picker(form, "ks", "Active Folder", settings.ks)
-        self._add_text(form, "ks_button_text", "Active Button Text", settings.ks_button_text)
-
         sensors_label = QLabel("HA Sensors")
         sensors_label.setStyleSheet("font-weight:700;")
         layout.addWidget(sensors_label)
 
         search_row = QHBoxLayout()
         self.sensor_search_input = QLineEdit()
-        self.sensor_search_input.setPlaceholderText("Search sensors (e.g. temperature, door)")
+        self.sensor_search_input.setPlaceholderText("Search sensors (e.g. temperature, *m18*, *door*m18*)")
+        self.sensor_search_input.returnPressed.connect(self._start_sensor_search)
         self.sensor_search_btn = QPushButton("Search")
         _set_button_icon(self.sensor_search_btn, HA_ICON_PATH)
         self.sensor_search_btn.setStyleSheet("background:#1971c2; color:white; font-weight:700; border-radius:4px;")
@@ -199,61 +171,8 @@ class SettingsDialog(QDialog):
 
         self._load_saved_sensors(settings)
 
-        buttons = QHBoxLayout()
-        layout.addLayout(buttons)
-        buttons.addStretch(1)
-        cancel = QPushButton("Cancel")
-        save = QPushButton("Save")
-        _set_button_icon(cancel, CANCEL_ICON_PATH)
-        cancel.setStyleSheet("background:#1971c2; color:white; font-weight:700; border-radius:4px;")
-        _set_button_icon(save, SAVE_ICON_PATH)
-        save.setStyleSheet("background:#6741d9; color:white; font-weight:700; border-radius:4px;")
-        save.clicked.connect(self.accept)
-        cancel.clicked.connect(self.reject)
-        buttons.addWidget(cancel)
-        buttons.addWidget(save)
-
         self.sensor_search_finished.connect(self._on_sensor_search_finished)
         self._set_icon_editor_enabled(False)
-
-    def closeEvent(self, event) -> None:
-        self._geometry_store.setValue("edit_session_dialog_geometry", self.saveGeometry())
-        super().closeEvent(event)
-
-    def _add_spin(self, form: QFormLayout, key: str, label: str, value: int, low: int, high: int) -> None:
-        field = QSpinBox()
-        field.setRange(low, high)
-        field.setValue(value)
-        self._fields[key] = field
-        form.addRow(label, field)
-
-    def _add_text(self, form: QFormLayout, key: str, label: str, value: str) -> None:
-        field = QLineEdit(value)
-        self._fields[key] = field
-        form.addRow(label, field)
-
-    def _add_folder_picker(self, form: QFormLayout, key: str, label: str, value: str) -> None:
-        row = QHBoxLayout()
-        field = QLineEdit(value)
-        browse_btn = QPushButton("Browse...")
-
-        def browse() -> None:
-            start_dir = field.text().strip()
-            if start_dir:
-                current = Path(start_dir)
-                if current.is_file():
-                    start_dir = str(current.parent)
-            path = QFileDialog.getExistingDirectory(self, "Select Active Folder", start_dir or "")
-            if path:
-                field.setText(path)
-
-        browse_btn.clicked.connect(browse)
-        row.addWidget(field, 1)
-        row.addWidget(browse_btn)
-        wrapper = QVBoxLayout()
-        wrapper.addLayout(row)
-        self._fields[key] = field
-        form.addRow(label, wrapper)
 
     @staticmethod
     def _load_ha_credentials() -> Tuple[str, str]:
@@ -322,6 +241,16 @@ class SettingsDialog(QDialog):
         thread = threading.Thread(target=self._run_sensor_search, args=(query,), daemon=True)
         thread.start()
 
+    @staticmethod
+    def _matches_sensor_query(query: str, searchable: str) -> bool:
+        """Match plain-text or wildcard queries against HA search text."""
+        lowered = query.strip().lower()
+        if not lowered:
+            return True
+        if "*" in lowered:
+            return fnmatch.fnmatch(searchable, lowered)
+        return lowered in searchable
+
     def _run_sensor_search(self, query: str) -> None:
         url = self._ha_url.rstrip("/") + "/api/states"
         request = urllib.request.Request(
@@ -339,7 +268,6 @@ class SettingsDialog(QDialog):
             if not isinstance(payload, list):
                 self.sensor_search_finished.emit(False, [], "Unexpected HA API response.")
                 return
-            lowered = query.strip().lower()
             preferred: List[Tuple[str, str]] = []
             fallback: List[Tuple[str, str]] = []
             for item in payload:
@@ -354,7 +282,7 @@ class SettingsDialog(QDialog):
                 if isinstance(attributes, dict):
                     friendly_name = str(attributes.get("friendly_name", "")).strip()
                 searchable = " ".join([entity_id, friendly_name, state_text]).lower()
-                if lowered and lowered not in searchable:
+                if not self._matches_sensor_query(query, searchable):
                     continue
                 display = entity_id
                 if friendly_name:
@@ -362,12 +290,12 @@ class SettingsDialog(QDialog):
                 if state_text:
                     display = f"{display} [{state_text}]"
                 domain = entity_id.split(".", 1)[0].lower() if "." in entity_id else ""
-                if domain in {"sensor", "binary_sensor"}:
+                if domain in {"sensor", "binary_sensor", "input_boolean"}:
                     preferred.append((entity_id, display))
                 else:
                     fallback.append((entity_id, display))
 
-            merged = preferred if preferred else fallback
+            merged = preferred + fallback
             deduped: List[Tuple[str, str]] = []
             seen = set()
             for entity_id, display in sorted(merged, key=lambda t: t[0].lower()):
@@ -375,7 +303,7 @@ class SettingsDialog(QDialog):
                     continue
                 seen.add(entity_id.lower())
                 deduped.append((entity_id, display))
-            message = f"Found {len(deduped)} sensor(s)." if preferred else f"Found {len(deduped)} matching entities."
+            message = f"Found {len(deduped)} matching entities."
             self.sensor_search_finished.emit(True, deduped, message)
         except urllib.error.HTTPError as exc:
             self.sensor_search_finished.emit(False, [], f"HA HTTP error {exc.code}")
@@ -589,30 +517,128 @@ class SettingsDialog(QDialog):
         target_input.setText(file_path)
         self._save_icon_editor_to_mapping()
 
+    def sensor_values(self) -> Tuple[List[str], List[Dict[str, str]]]:
+        self._save_icon_editor_to_mapping()
+        sensor_ids: List[str] = []
+        sensor_mappings: List[Dict[str, str]] = []
+        for idx in range(self.sensor_selected_list.count()):
+            entity_id = self.sensor_selected_list.item(idx).text().strip()
+            if not entity_id:
+                continue
+            sensor_ids.append(entity_id)
+            mapping = self._sensor_mappings.get(entity_id, {})
+            sensor_mappings.append(
+                {
+                    "entity_id": entity_id,
+                    "icon": str(mapping.get("icon", "")).strip(),
+                    "icon_on": str(mapping.get("icon_on", "")).strip(),
+                    "icon_off": str(mapping.get("icon_off", "")).strip(),
+                    "tooltip": str(mapping.get("tooltip", "")).strip(),
+                    "bg_state": str(mapping.get("bg_state", "")).strip().lower(),
+                    "bg_color": str(mapping.get("bg_color", "")).strip(),
+                }
+            )
+        return list(dict.fromkeys(sensor_ids)), sensor_mappings
+
+
+class SettingsDialog(QDialog):
+    """Simple form-based editor for SessionSettings values."""
+
+    def __init__(self, title: str, settings: SessionSettings, parent=None) -> None:
+        """Build the settings form and prefill it from an existing settings object."""
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        if GEARS_ICON_PATH.exists():
+            self.setWindowIcon(QIcon(str(GEARS_ICON_PATH)))
+        self.setModal(True)
+        self._geometry_store = QSettings("VNCStation", "Controller")
+        saved_geometry = self._geometry_store.value("edit_session_dialog_geometry")
+        if not saved_geometry or not self.restoreGeometry(saved_geometry):
+            self.resize(620, 820)
+        self.setStyleSheet("QPushButton{padding:2px 6px;}")
+        self._fields: Dict[str, object] = {}
+
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+        layout.addLayout(form)
+
+        self._add_spin(form, "x", "Window X", settings.x, -10000, 10000)
+        self._add_spin(form, "y", "Window Y", settings.y, -10000, 10000)
+        self._add_spin(form, "width", "Window Width", settings.width, 100, 6000)
+        self._add_spin(form, "height", "Window Height", settings.height, 100, 6000)
+        self._add_text(form, "label_text", "Label Text", settings.label_text)
+        self._add_spin(form, "label_x", "Label Offset X", settings.label_x, -10000, 10000)
+        self._add_spin(form, "label_y", "Label Offset Y", settings.label_y, -10000, 10000)
+        self._add_spin(form, "label_width", "Label Width", settings.label_width, 30, 4000)
+        self._add_spin(form, "label_height", "Label Height", settings.label_height, 20, 2000)
+        self._add_text(form, "label_bg", "Label Background", settings.label_bg)
+        self._add_spin(form, "label_font", "Label Font Size", settings.label_font, 8, 180)
+        self._add_text(form, "label_font_color", "Label Font Color", settings.label_font_color)
+        self._add_spin(form, "label_border_size", "Label Border Size", settings.label_border_size, 0, 40)
+        self._add_text(form, "label_border_color", "Label Border Color", settings.label_border_color)
+        self._add_folder_picker(form, "ks", "Active Folder", settings.ks)
+        self._add_text(form, "ks_button_text", "Active Button Text", settings.ks_button_text)
+
+        self.sensor_editor = SensorMappingsEditor(settings, self)
+        layout.addWidget(self.sensor_editor)
+
+        buttons = QHBoxLayout()
+        layout.addLayout(buttons)
+        buttons.addStretch(1)
+        cancel = QPushButton("Cancel")
+        save = QPushButton("Save")
+        _set_button_icon(cancel, CANCEL_ICON_PATH)
+        cancel.setStyleSheet("background:#1971c2; color:white; font-weight:700; border-radius:4px;")
+        _set_button_icon(save, SAVE_ICON_PATH)
+        save.setStyleSheet("background:#6741d9; color:white; font-weight:700; border-radius:4px;")
+        save.clicked.connect(self.accept)
+        cancel.clicked.connect(self.reject)
+        buttons.addWidget(cancel)
+        buttons.addWidget(save)
+
+    def closeEvent(self, event) -> None:
+        self._geometry_store.setValue("edit_session_dialog_geometry", self.saveGeometry())
+        super().closeEvent(event)
+
+    def _add_spin(self, form: QFormLayout, key: str, label: str, value: int, low: int, high: int) -> None:
+        field = QSpinBox()
+        field.setRange(low, high)
+        field.setValue(value)
+        self._fields[key] = field
+        form.addRow(label, field)
+
+    def _add_text(self, form: QFormLayout, key: str, label: str, value: str) -> None:
+        field = QLineEdit(value)
+        self._fields[key] = field
+        form.addRow(label, field)
+
+    def _add_folder_picker(self, form: QFormLayout, key: str, label: str, value: str) -> None:
+        row = QHBoxLayout()
+        field = QLineEdit(value)
+        browse_btn = QPushButton("Browse...")
+
+        def browse() -> None:
+            start_dir = field.text().strip()
+            if start_dir:
+                current = Path(start_dir)
+                if current.is_file():
+                    start_dir = str(current.parent)
+            path = QFileDialog.getExistingDirectory(self, "Select Active Folder", start_dir or "")
+            if path:
+                field.setText(path)
+
+        browse_btn.clicked.connect(browse)
+        row.addWidget(field, 1)
+        row.addWidget(browse_btn)
+        wrapper = QVBoxLayout()
+        wrapper.addLayout(row)
+        self._fields[key] = field
+        form.addRow(label, wrapper)
+
     def values(self) -> SessionSettings:
         """Read all current UI fields back into a SessionSettings object."""
         try:
-            self._save_icon_editor_to_mapping()
-            sensor_ids: List[str] = []
-            sensor_mappings: List[Dict[str, str]] = []
-            for idx in range(self.sensor_selected_list.count()):
-                entity_id = self.sensor_selected_list.item(idx).text().strip()
-                if not entity_id:
-                    continue
-                sensor_ids.append(entity_id)
-                mapping = self._sensor_mappings.get(entity_id, {})
-                sensor_mappings.append(
-                    {
-                        "entity_id": entity_id,
-                        "icon": str(mapping.get("icon", "")).strip(),
-                        "icon_on": str(mapping.get("icon_on", "")).strip(),
-                        "icon_off": str(mapping.get("icon_off", "")).strip(),
-                        "tooltip": str(mapping.get("tooltip", "")).strip(),
-                        "bg_state": str(mapping.get("bg_state", "")).strip().lower(),
-                        "bg_color": str(mapping.get("bg_color", "")).strip(),
-                    }
-                )
-
+            sensor_ids, sensor_mappings = self.sensor_editor.sensor_values()
             return SessionSettings(
                 x=self._fields["x"].value(),
                 y=self._fields["y"].value(),
@@ -631,7 +657,7 @@ class SettingsDialog(QDialog):
                 station_name="",
                 ks=self._fields["ks"].text().strip(),
                 ks_button_text=self._fields["ks_button_text"].text().strip(),
-                ha_sensors=list(dict.fromkeys(sensor_ids)),
+                ha_sensors=sensor_ids,
                 ha_sensor_icons=sensor_mappings,
             )
         except Exception as exc:

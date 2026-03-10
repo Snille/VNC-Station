@@ -17,7 +17,7 @@ Build a Windows GUI tool that:
 - overlays per-session labels that follow VNC windows
 - coordinates multiple operator stations over UDP to prevent duplicate usage
 - provides built-in station chat with command support
-- supports forced takeover when required
+- supports intentional shared sessions when required
 
 ## 2. Required Runtime Files And Folder Layout
 
@@ -106,7 +106,7 @@ Create this structure at repository root:
 Notes:
 - `vnc-view/` and `vnc-control/` contain operator-specific `.vnc` and `.json`.
 - `vnc-positions/` contains reusable position presets (`*.json`).
-- `vnc-setups/` contains saved setup snapshots (`*.json`) for tags + selected positions + selected links.
+- `vnc-setups/` contains saved setup snapshots (`*.json`) for selected positions + selected links.
 - These folders must exist even when empty.
 - `tvnviewer.exe` must be in project root.
 
@@ -176,7 +176,6 @@ Location:
 Schema:
 - `name` (setup name)
 - `connections` object keyed by connection name:
-  - `tagged` (bool)
   - `position_view` (string)
   - `position_control` (string)
   - `link_view` (string session token or empty)
@@ -250,23 +249,30 @@ Name button click:
 - toggles tag checkbox
 
 Bottom fixed controls (in this exact order):
-1. `[setup selector editable] [Save] [Clear Setup] [Delete]`
-2. `[Setup View|Close View] [Setup Control|Close Control]`
-3. `[View tagged|Close tagged] [Control tagged|Close tagged]`
-4. `[Untag all] [Chat] [Positions & Sizes]`
-5. `[Take over session checkbox] [Reconnect on drop checkbox]`
-6. `[Change Settings]`
+1. lower setup/session area with:
+   - left side: `Select setup` label + draggable setup list
+   - right side rows:
+     - `[Setup View|Close View] [Setup Control|Close Control]`
+     - `[View tagged|Close tagged] [Control tagged|Close tagged]`
+     - `[Close all sessions] [Untag all]`
+     - `[Setup name]`
+     - `[Save] [Clear] [Delete]`
+     - `[Allow shared sessions checkbox]`
+2. bottom row:
+   - `[Chat] [Positions & Sessions] [Change Settings]`
 
-Setup selector behavior:
+Setup list behavior:
 - loads setup names from `vnc-setups/*.json`
 - selecting setup immediately applies saved state
 - setup apply resets all rows first, then applies saved values
-- save writes current tags + selected positions + selected links
-- clear resets tags + selected positions + selected links
+- save uses `Setup name` and writes the current setup state
+- clear resets the current setup-driven state in the UI
 - delete removes selected setup JSON
+- setup list supports drag-and-drop ordering
+- custom setup list order is persisted and restored on next app start
 - last selected setup is persisted and restored on next app start
 
-`Positions & Sizes` button behavior:
+`Positions & Sessions` button behavior:
 - opens `layout_tool.py` UI for visual pre-placement of VNC/label settings
 - tool provides `Load settings` selector for `connection [view/control]`
 - tool provides `Positions` selector for `vnc-positions/*.json`
@@ -391,7 +397,7 @@ Open behavior additions:
 - `Setup View` opens all view sessions that currently have `Pos V` selected; `Setup Control` does the same for `Pos C`.
 - setup buttons toggle to close-only-that-mode behavior for local sessions.
 - position uniqueness guard applies to View assignments (Control duplicates allowed).
-- selecting a setup applies saved tags + selected positions + selected links immediately.
+- selecting a setup applies its saved state immediately.
 
 Closing:
 - close overlay
@@ -412,12 +418,12 @@ Lock scope is per connection across both modes.
 Meaning:
 - if any other station has `Connection X` open in view or control,
   this station cannot open `Connection X` in either mode,
-  unless `Take over session` checkbox is enabled.
+  unless `Allow shared sessions` checkbox is enabled.
 - lock decisions must use station ID identity, not station display name text.
 
-When takeover is used and launch succeeds:
-- local chat logs takeover notice
-- takeover notice is broadcast to other stations
+When a shared-session override is used and launch succeeds:
+- local chat logs the shared-session notice
+- the notice is broadcast to other stations
 
 ## 8. UDP Network Protocol
 
@@ -624,16 +630,16 @@ Packaging requirement:
 - `.vnc` launch uses `-optionsfile=...`.
 - Overlay follows moved VNC window.
 - Overlay uses label offsets relative to VNC window.
-- Session lock blocks cross-station duplicate opens unless takeover checked.
+- Session lock blocks cross-station duplicate opens unless `Allow shared sessions` is checked.
 - Setup View/Control open and close only the intended mode for selected-position rows.
 - Position selectors prevent duplicate assignment for View mode.
 - Linked sessions open together with View/Control actions.
 - Linked sessions close together with row mode toggle close actions.
-- Setup selector loads/saves from `vnc-setups` and applies tags/positions/links.
+- Setup list loads/saves from `vnc-setups` and applies saved setup state.
 - Active button text logic:
   - one visible button => custom `ks_button_text` (or fallback `KS`)
   - two visible buttons => per-mode custom `ks_button_text` (or fallback `KSV`/`KSC`)
-- Takeover logs in local and remote chat.
+- Shared-session overrides log in local and remote chat.
 - `/help`, `/nick`, `/topic`, `/me`, `/away`, `/notify` work as specified.
 - Notify sound plays only for `/notify`.
 - Nick change updates station list and removes old name.

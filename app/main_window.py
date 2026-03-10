@@ -14,6 +14,7 @@ from PyQt5.QtCore import QSettings, QSize, QTimer, Qt, QUrl, pyqtSignal
 from PyQt5.QtGui import QCloseEvent, QFont, QIcon, QMovie, QPixmap
 from PyQt5.QtMultimedia import QSoundEffect
 from PyQt5.QtWidgets import (
+    QAbstractItemView,
     QApplication,
     QCheckBox,
     QComboBox,
@@ -21,6 +22,9 @@ from PyQt5.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QPushButton,
     QScrollArea,
@@ -198,34 +202,54 @@ class ConnectionRow:
         self._mode_highlight: Dict[str, str] = {MODE_VIEW: "", MODE_CONTROL: ""}
         self._indicators_bg_color = ""
         self._mode_open_state: Dict[str, bool] = {MODE_VIEW: False, MODE_CONTROL: False}
+        self._minimized = False
         self.widget = QFrame()
         self.widget.setObjectName("connectionRowCard")
-        outer = QHBoxLayout(self.widget)
+        outer = QVBoxLayout(self.widget)
         outer.setContentsMargins(8, 5, 8, 5)
-        outer.setSpacing(6)
+        outer.setSpacing(4)
 
-        left_col = QVBoxLayout()
-        left_col.setSpacing(3)
-        outer.addLayout(left_col, 1)
-        right_col = QVBoxLayout()
-        right_col.setSpacing(3)
-        outer.addLayout(right_col)
+        header_row = QHBoxLayout()
+        header_row.setContentsMargins(0, 0, 0, 0)
+        header_row.setSpacing(6)
+        outer.addLayout(header_row)
 
         self.tag = QCheckBox()
         self.name_btn = QPushButton(entry.name)
         self.name_btn.setStyleSheet("font-weight:600; text-align:left; padding:1px 3px; border-radius:4px;")
         self.name_btn.clicked.connect(lambda: self.tag.setChecked(not self.tag.isChecked()))
-        header_row = QHBoxLayout()
         header_row.addWidget(self.tag)
         header_row.addWidget(self.name_btn, 1)
-        header_row.addStretch(1)
         self.indicators_widget = QWidget()
         self.indicators_widget.setObjectName("sensorIndicators")
         self.indicators_layout = QHBoxLayout(self.indicators_widget)
         self.indicators_layout.setContentsMargins(0, 0, 0, 0)
         self.indicators_layout.setSpacing(2)
+        header_row.addStretch(1)
         header_row.addWidget(self.indicators_widget)
-        left_col.addLayout(header_row)
+        self.minimize_btn = QPushButton("-")
+        _set_compact_button(self.minimize_btn)
+        self.minimize_btn.setToolTip("Minimize this session card")
+        self.minimize_btn.clicked.connect(self.toggle_minimized)
+        header_row.addWidget(self.minimize_btn)
+
+        self.body_widget = QWidget()
+        body_row = QHBoxLayout(self.body_widget)
+        body_row.setContentsMargins(0, 0, 0, 0)
+        body_row.setSpacing(6)
+        outer.addWidget(self.body_widget)
+
+        self.details_widget = QWidget()
+        left_col = QVBoxLayout(self.details_widget)
+        left_col.setContentsMargins(0, 0, 0, 0)
+        left_col.setSpacing(3)
+        body_row.addWidget(self.details_widget, 1)
+
+        self.actions_widget = QWidget()
+        right_col = QVBoxLayout(self.actions_widget)
+        right_col.setContentsMargins(0, 0, 0, 0)
+        right_col.setSpacing(3)
+        body_row.addWidget(self.actions_widget)
 
         self.owner_label = QLabel("Owner: available")
         self.owner_label.setObjectName("ownerLabel")
@@ -302,40 +326,27 @@ class ConnectionRow:
         _set_button_icon(self.control_btn, CONTROL_ICON_PATH)
         _set_compact_button(self.control_btn)
         self.control_btn.clicked.connect(lambda: callbacks["toggle_open"](entry.name, MODE_CONTROL))
-        open_row = QHBoxLayout()
+        open_row = QVBoxLayout()
+        open_row.setContentsMargins(0, 0, 0, 0)
+        open_row.setSpacing(3)
         open_row.addWidget(self.view_btn)
         open_row.addWidget(self.control_btn)
         right_col.addLayout(open_row)
 
-        self.edit_view_btn = QPushButton("Edit View")
-        _set_button_icon(self.edit_view_btn, EDIT_ICON_PATH)
-        _set_compact_button(self.edit_view_btn)
-        self.edit_view_btn.clicked.connect(lambda: callbacks["edit"](entry.name, MODE_VIEW))
-        self.edit_control_btn = QPushButton("Edit Control")
-        _set_button_icon(self.edit_control_btn, EDIT_ICON_PATH)
-        _set_compact_button(self.edit_control_btn)
-        self.edit_control_btn.clicked.connect(lambda: callbacks["edit"](entry.name, MODE_CONTROL))
-        edit_row = QHBoxLayout()
-        edit_row.addWidget(self.edit_view_btn)
-        edit_row.addWidget(self.edit_control_btn)
-        right_col.addLayout(edit_row)
-
         _match_button_widths(
             self.view_btn,
             self.control_btn,
-            self.edit_view_btn,
-            self.edit_control_btn,
         )
+        self.update_action_button_font(_current_app_font_size())
 
         view_available = entry.view_vnc_path is not None
         control_available = entry.control_vnc_path is not None
 
         self._apply_mode_button_style(self.view_btn, view_available, "#2f9e44")
         self._apply_mode_button_style(self.control_btn, control_available, "#c92a2a")
-        self._apply_mode_button_style(self.edit_view_btn, view_available, "#1971c2")
-        self._apply_mode_button_style(self.edit_control_btn, control_available, "#1971c2")
         self._apply_mode_button_style(self.ksv_btn, view_available, "#6741d9")
         self._apply_mode_button_style(self.ksc_btn, control_available, "#6741d9")
+        self._apply_minimize_button_style()
         self._refresh_ks_buttons("", "", "", "")
 
     def set_mode_open_state(self, mode: str, is_open: bool, available: bool) -> None:
@@ -399,6 +410,20 @@ class ConnectionRow:
         self._set_combo_data(self.link_view, current_link_view)
         self._set_combo_data(self.link_control, current_link_control)
         self._syncing = False
+
+    def is_minimized(self) -> bool:
+        return self._minimized
+
+    def set_minimized(self, minimized: bool) -> None:
+        self._minimized = bool(minimized)
+        self.body_widget.setVisible(not self._minimized)
+        self.minimize_btn.setText("+" if self._minimized else "-")
+        self.minimize_btn.setToolTip(
+            "Restore this session card" if self._minimized else "Minimize this session card"
+        )
+
+    def toggle_minimized(self) -> None:
+        self.set_minimized(not self._minimized)
 
     @staticmethod
     def _make_session_token(connection_name: str, mode: str) -> str:
@@ -493,6 +518,11 @@ class ConnectionRow:
         )
         button.setToolTip("No .vnc file available for this mode")
 
+    def _apply_minimize_button_style(self) -> None:
+        self.minimize_btn.setStyleSheet(
+            "background:#5f6b7a; color:white; font-weight:700; padding:1px 7px; border:none; border-radius:4px;"
+        )
+
     def set_mode_background_color(self, mode: str, color_text: str) -> None:
         self._mode_highlight[mode] = color_text.strip()
         if mode == MODE_VIEW:
@@ -532,6 +562,18 @@ class ConnectionRow:
         """Scale status indicator icon based on current app font size."""
         self._status_indicator_icon_px = _status_indicator_size_for_font_size(point_size)
         self._render_status_indicator()
+
+    def update_action_button_font(self, point_size: int) -> None:
+        bigger = QFont(QApplication.instance().font() if QApplication.instance() is not None else QFont())
+        base_size = point_size if point_size > 0 else bigger.pointSize()
+        if base_size <= 0:
+            base_size = 10
+        bigger.setPointSize(base_size + 2)
+        self.ks_btn.setFont(bigger)
+        self.ksv_btn.setFont(bigger)
+        self.ksc_btn.setFont(bigger)
+        self.view_btn.setFont(bigger)
+        self.control_btn.setFont(bigger)
 
     def _render_status_indicator(self) -> None:
         for movie in self._status_indicator_movies:
@@ -695,37 +737,36 @@ class MainWindow(QMainWindow):
         scroll.setWidget(content)
         self._rebuild_connection_rows()
 
-        setup_manage_row = QHBoxLayout()
-        root.addLayout(setup_manage_row)
-        self.setup_select = QComboBox()
-        self.setup_select.setEditable(True)
-        self.setup_select.setMinimumWidth(20)
+        setup_divider = QFrame()
+        setup_divider.setFrameShape(QFrame.HLine)
+        setup_divider.setFrameShadow(QFrame.Sunken)
+        root.addWidget(setup_divider)
+
+        lower_panel = QHBoxLayout()
+        root.addLayout(lower_panel)
+        setup_list_panel = QVBoxLayout()
+        lower_panel.addLayout(setup_list_panel, 1)
+        setup_list_label = QLabel("Select setup")
+        setup_list_label.setStyleSheet("font-weight:600; padding:1px 3px;")
+        setup_list_panel.addWidget(setup_list_label)
+        self.setup_select = QListWidget()
+        self.setup_select.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.setup_select.setDragDropMode(QAbstractItemView.InternalMove)
+        self.setup_select.setDefaultDropAction(Qt.MoveAction)
+        self.setup_select.setDragEnabled(True)
+        self.setup_select.setAcceptDrops(True)
+        self.setup_select.setDropIndicatorShown(True)
         self.setup_select.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setup_select.currentIndexChanged.connect(self._on_setup_selection_changed)
-        setup_manage_row.addWidget(self.setup_select, 1)
-        self.setup_save_btn = QPushButton("Save")
-        _set_button_icon(self.setup_save_btn, SAVE_ICON_PATH)
-        _set_compact_button(self.setup_save_btn)
-        self.setup_save_btn.setStyleSheet("background:#6741d9; color:white; font-weight:700; border-radius:4px;")
-        self.setup_save_btn.clicked.connect(self._save_current_setup)
-        setup_manage_row.addWidget(self.setup_save_btn)
-        self.setup_clear_btn = QPushButton("Clear")
-        _set_button_icon(self.setup_clear_btn, CLEAR_ICON_PATH)
-        _set_compact_button(self.setup_clear_btn)
-        self.setup_clear_btn.setStyleSheet("background:#1971c2; color:white; font-weight:700; border-radius:4px;")
-        self.setup_clear_btn.clicked.connect(self._clear_setup_state)
-        setup_manage_row.addWidget(self.setup_clear_btn)
-        self.setup_delete_btn = QPushButton("Delete")
-        _set_button_icon(self.setup_delete_btn, DELETE_ICON_PATH)
-        _set_compact_button(self.setup_delete_btn)
-        self.setup_delete_btn.setStyleSheet("background:#bd001b; color:white; font-weight:700; border-radius:4px;")
-        self.setup_delete_btn.clicked.connect(self._delete_current_setup)
-        setup_manage_row.addWidget(self.setup_delete_btn)
-        self._apply_setup_manage_row_font()
+        self.setup_select.currentItemChanged.connect(self._on_setup_selection_changed)
+        self.setup_select.model().rowsMoved.connect(self._on_setup_order_changed)
+        self._apply_setup_list_minimum_height()
+        setup_list_panel.addWidget(self.setup_select, 1)
+
+        controls_panel = QVBoxLayout()
+        lower_panel.addLayout(controls_panel)
 
         setup_actions_row = QHBoxLayout()
-        root.addLayout(setup_actions_row)
-        setup_actions_row.addStretch(1)
+        controls_panel.addLayout(setup_actions_row)
         self.setup_view_btn = QPushButton("Setup View")
         _set_button_icon(self.setup_view_btn, APPLYSETUP_ICON_PATH)
         _set_compact_button(self.setup_view_btn)
@@ -740,13 +781,11 @@ class MainWindow(QMainWindow):
         )
         self.setup_control_btn.clicked.connect(lambda: self._toggle_setup_mode(MODE_CONTROL))
         setup_actions_row.addWidget(self.setup_control_btn)
-        setup_actions_row.addStretch(1)
         self._refresh_setup_mode_buttons()
         self._refresh_setup_targets()
 
         actions_row1 = QHBoxLayout()
-        root.addLayout(actions_row1)
-        actions_row1.addStretch(1)
+        controls_panel.addLayout(actions_row1)
         untag_all = QPushButton("Untag all")
         _set_button_icon(untag_all, UNTAG_ICON_PATH)
         _set_compact_button(untag_all)
@@ -765,13 +804,11 @@ class MainWindow(QMainWindow):
         _match_button_widths(self.view_all_btn, self.control_all_btn)
         actions_row1.addWidget(self.view_all_btn)
         actions_row1.addWidget(self.control_all_btn)
-        actions_row1.addStretch(1)
         self._refresh_tagged_mode_buttons()
 
         actions_row_close_all = QHBoxLayout()
-        root.addLayout(actions_row_close_all)
-        actions_row_close_all.addStretch(1)
-        close_all_open_btn = QPushButton("Close all open View and Control Sessions")
+        controls_panel.addLayout(actions_row_close_all)
+        close_all_open_btn = QPushButton("Close all sessions")
         _set_button_icon(close_all_open_btn, CANCEL_ICON_PATH)
         _set_compact_button(close_all_open_btn)
         close_all_open_btn.setStyleSheet(
@@ -779,46 +816,64 @@ class MainWindow(QMainWindow):
         )
         close_all_open_btn.clicked.connect(self._close_all_sessions)
         actions_row_close_all.addWidget(close_all_open_btn)
-        actions_row_close_all.addStretch(1)
+        actions_row_close_all.addWidget(untag_all)
 
-        actions_row2 = QHBoxLayout()
-        root.addLayout(actions_row2)
-        actions_row2.addStretch(1)
-        actions_row2.addWidget(untag_all)
+        self.setup_name_input = QLineEdit()
+        self.setup_name_input.setPlaceholderText("Setup name")
+        self.setup_name_input.setFocusPolicy(Qt.ClickFocus)
+        controls_panel.addWidget(self.setup_name_input)
+
+        setup_manage_row = QHBoxLayout()
+        controls_panel.addLayout(setup_manage_row)
+        self.setup_save_btn = QPushButton("Save")
+        _set_button_icon(self.setup_save_btn, SAVE_ICON_PATH)
+        _set_compact_button(self.setup_save_btn)
+        self.setup_save_btn.setStyleSheet("background:#6741d9; color:white; font-weight:700; border-radius:4px;")
+        self.setup_save_btn.clicked.connect(self._save_current_setup)
+        setup_manage_row.addWidget(self.setup_save_btn)
+        self.setup_clear_btn = QPushButton("Clear")
+        _set_button_icon(self.setup_clear_btn, CLEAR_ICON_PATH)
+        _set_compact_button(self.setup_clear_btn)
+        self.setup_clear_btn.setStyleSheet("background:#1971c2; color:white; font-weight:700; border-radius:4px;")
+        self.setup_clear_btn.clicked.connect(self._clear_setup_state)
+        setup_manage_row.addWidget(self.setup_clear_btn)
+        self.setup_delete_btn = QPushButton("Delete")
+        _set_button_icon(self.setup_delete_btn, DELETE_ICON_PATH)
+        _set_compact_button(self.setup_delete_btn)
+        self.setup_delete_btn.setStyleSheet("background:#bd001b; color:white; font-weight:700; border-radius:4px;")
+        self.setup_delete_btn.clicked.connect(self._delete_current_setup)
+        setup_manage_row.addWidget(self.setup_delete_btn)
+
+        shared_sessions_row = QHBoxLayout()
+        controls_panel.addLayout(shared_sessions_row)
+        self.takeover_checkbox = QCheckBox("Allow shared sessions")
+        shared_sessions_row.addWidget(self.takeover_checkbox)
+        shared_sessions_row.addStretch(1)
+        self._apply_setup_manage_row_font()
+
         self.chat_btn = QPushButton("Chat")
         _set_button_icon(self.chat_btn, CHAT_ICON_PATH)
         _set_compact_button(self.chat_btn)
         self.chat_btn.setStyleSheet("background:#660063; color:white; font-weight:700; border-radius:4px;")
         self.chat_btn.clicked.connect(self._open_chat)
-        sizes_btn = QPushButton("Positions && Sizes")
-        _set_button_icon(sizes_btn, EDIT_ICON_PATH)
-        _set_compact_button(sizes_btn)
-        sizes_btn.setStyleSheet("background:#1971c2; color:white; font-weight:700; border-radius:4px;")
-        sizes_btn.clicked.connect(self._open_layout_tool)
-        _match_button_widths(untag_all, self.chat_btn, sizes_btn)
-        actions_row2.addWidget(self.chat_btn)
-        actions_row2.addWidget(sizes_btn)
-        actions_row2.addStretch(1)
-
-        actions_row4 = QHBoxLayout()
-        root.addLayout(actions_row4)
-        actions_row4.addStretch(1)
-        self.takeover_checkbox = QCheckBox("Take over session")
-        self.reconnect_checkbox = QCheckBox("Reconnect on drop")
-        self.reconnect_checkbox.setChecked(self.reconnect_on_drop)
-        self.reconnect_checkbox.toggled.connect(self._set_reconnect_on_drop)
-        actions_row4.addWidget(self.takeover_checkbox)
-        actions_row4.addWidget(self.reconnect_checkbox)
-        actions_row4.addStretch(1)
+        controls_panel.addStretch(1)
 
         actions_row5 = QHBoxLayout()
         root.addLayout(actions_row5)
         actions_row5.addStretch(1)
+        session_tool_btn = QPushButton("Positions && Sessions")
+        _set_button_icon(session_tool_btn, EDIT_ICON_PATH)
+        _set_compact_button(session_tool_btn)
+        session_tool_btn.setStyleSheet("background:#1971c2; color:white; font-weight:700; border-radius:4px;")
+        session_tool_btn.clicked.connect(self._open_layout_tool)
         settings_btn = QPushButton("Change Settings")
         _set_button_icon(settings_btn, GEARS_ICON_PATH)
         _set_compact_button(settings_btn)
         settings_btn.setStyleSheet("background:#1971c2; color:white; font-weight:700; border-radius:4px;")
         settings_btn.clicked.connect(self._open_settings_window)
+        _match_button_widths(session_tool_btn, settings_btn)
+        actions_row5.addWidget(self.chat_btn)
+        actions_row5.addWidget(session_tool_btn)
         actions_row5.addWidget(settings_btn)
         actions_row5.addStretch(1)
 
@@ -862,6 +917,9 @@ class MainWindow(QMainWindow):
         self.font_size = clamped
         self._apply_setup_manage_row_font()
         self._refresh_status_indicator_sizes()
+        if hasattr(self, "rows"):
+            for row in self.rows.values():
+                row.update_action_button_font(self.font_size)
         if persist:
             self.settings_store.setValue("font_size", clamped)
 
@@ -878,9 +936,106 @@ class MainWindow(QMainWindow):
         bigger = QFont(app.font())
         bigger.setPointSize(base_size + 2)
         self.setup_select.setFont(bigger)
-        self.setup_save_btn.setFont(bigger)
-        self.setup_clear_btn.setFont(bigger)
-        self.setup_delete_btn.setFont(bigger)
+        self._apply_setup_list_minimum_height()
+        if hasattr(self, "setup_name_input"):
+            self.setup_name_input.setFont(bigger)
+        if hasattr(self, "setup_save_btn"):
+            self.setup_save_btn.setFont(bigger)
+        if hasattr(self, "setup_clear_btn"):
+            self.setup_clear_btn.setFont(bigger)
+        if hasattr(self, "setup_delete_btn"):
+            self.setup_delete_btn.setFont(bigger)
+        if hasattr(self, "setup_view_btn"):
+            self.setup_view_btn.setFont(bigger)
+        if hasattr(self, "setup_control_btn"):
+            self.setup_control_btn.setFont(bigger)
+
+    def _current_setup_name(self) -> str:
+        if hasattr(self, "setup_name_input"):
+            typed_name = self.setup_name_input.text().strip()
+            if typed_name:
+                return typed_name
+        if not hasattr(self, "setup_select"):
+            return ""
+        item = self.setup_select.currentItem()
+        if item is None:
+            return ""
+        return item.text().strip()
+
+    def _set_selected_setup_name(self, name: str, *, trigger: bool = False) -> None:
+        if not hasattr(self, "setup_select"):
+            return
+        target = name.strip()
+        should_block = not trigger
+        if should_block:
+            self.setup_select.blockSignals(True)
+        if hasattr(self, "setup_name_input"):
+            self.setup_name_input.setText(target)
+        try:
+            if not target:
+                self.setup_select.clearSelection()
+                self.setup_select.setCurrentItem(None)
+                return
+            matches = self.setup_select.findItems(target, Qt.MatchExactly)
+            if matches:
+                self.setup_select.setCurrentItem(matches[0])
+            else:
+                self.setup_select.clearSelection()
+                self.setup_select.setCurrentItem(None)
+        finally:
+            if should_block:
+                self.setup_select.blockSignals(False)
+
+    def _setup_names_in_ui_order(self) -> List[str]:
+        if not hasattr(self, "setup_select"):
+            return []
+        names: List[str] = []
+        for index in range(self.setup_select.count()):
+            item = self.setup_select.item(index)
+            if item is None:
+                continue
+            name = item.text().strip()
+            if name:
+                names.append(name)
+        return names
+
+    def _save_setup_order(self) -> None:
+        self.settings_store.setValue("setup_order", json.dumps(self._setup_names_in_ui_order()))
+
+    def _load_setup_order(self) -> List[str]:
+        raw_value = self.settings_store.value("setup_order", "")
+        if not raw_value:
+            return []
+        try:
+            data = json.loads(str(raw_value))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return []
+        if not isinstance(data, list):
+            return []
+        ordered: List[str] = []
+        seen: Set[str] = set()
+        for value in data:
+            name = str(value).strip()
+            lowered = name.lower()
+            if not name or lowered in seen:
+                continue
+            seen.add(lowered)
+            ordered.append(name)
+        return ordered
+
+    def _on_setup_order_changed(self, *_args) -> None:
+        self._save_setup_order()
+
+    def _apply_setup_list_minimum_height(self) -> None:
+        if not hasattr(self, "setup_select"):
+            return
+        row_height = self.setup_select.sizeHintForRow(0)
+        if row_height <= 0:
+            row_height = max(20, self.setup_select.fontMetrics().height() + 8)
+        frame = self.setup_select.frameWidth() * 2
+        target_height = (row_height * 8) + frame
+        self.setup_select.setMinimumHeight(target_height)
+        self.setup_select.setMaximumHeight(target_height)
 
     def _refresh_status_indicator_sizes(self) -> None:
         """Recompute status indicator icon size for all rows using current font size."""
@@ -999,6 +1154,7 @@ class MainWindow(QMainWindow):
         data.setdefault("ha_api_key", "")
         data.setdefault("udp_port", str(self.udp_port))
         data.setdefault("allow_multiple_instances", "false")
+        data.setdefault("reconnect_on_drop", "true" if self.reconnect_on_drop else "false")
         return data
 
     @staticmethod
@@ -1280,6 +1436,8 @@ class MainWindow(QMainWindow):
 
     def _save_default_json_mapping(self, updates: Dict[str, str]) -> str:
         """Persist app-level defaults to local override file and refresh runtime state."""
+        reconnect_value = str(updates.pop("reconnect_on_drop", "true" if self.reconnect_on_drop else "false"))
+        self._set_reconnect_on_drop(reconnect_value.strip().lower() in {"1", "true", "yes", "on"})
         existing: Dict[str, object] = {}
         if DEFAULT_LOCAL_CONFIG_PATH.exists():
             try:
@@ -1379,25 +1537,43 @@ class MainWindow(QMainWindow):
 
     def _refresh_setup_targets(self) -> None:
         VNC_SETUPS_DIR.mkdir(parents=True, exist_ok=True)
-        current_text = self.setup_select.currentText().strip() if hasattr(self, "setup_select") else ""
+        current_text = self._current_setup_name() if hasattr(self, "setup_select") else ""
         if not current_text:
             current_text = str(self.settings_store.value("last_setup_name", "")).strip()
         names = sorted((p.stem for p in VNC_SETUPS_DIR.glob("*.json")), key=str.lower)
+        stored_order = self._load_setup_order()
+        known_names = {name.lower(): name for name in names}
+        ordered_names: List[str] = []
+        seen: Set[str] = set()
+        for saved_name in stored_order:
+            actual_name = known_names.get(saved_name.lower())
+            if actual_name is None:
+                continue
+            lowered = actual_name.lower()
+            if lowered in seen:
+                continue
+            seen.add(lowered)
+            ordered_names.append(actual_name)
+        for name in names:
+            lowered = name.lower()
+            if lowered in seen:
+                continue
+            seen.add(lowered)
+            ordered_names.append(name)
         self.setup_select.blockSignals(True)
         self.setup_select.clear()
-        self.setup_select.addItem("")
-        for name in names:
-            self.setup_select.addItem(name)
-        if current_text:
-            idx = self.setup_select.findText(current_text)
-            if idx >= 0:
-                self.setup_select.setCurrentIndex(idx)
-            else:
-                self.setup_select.setEditText(current_text)
+        for name in ordered_names:
+            QListWidgetItem(name, self.setup_select)
         self.setup_select.blockSignals(False)
+        self._apply_setup_list_minimum_height()
+        self._save_setup_order()
+        if current_text:
+            self._set_selected_setup_name(current_text, trigger=False)
+        elif hasattr(self, "setup_name_input"):
+            self.setup_name_input.clear()
 
     def _save_current_setup(self) -> None:
-        raw_name = self.setup_select.currentText().strip()
+        raw_name = self._current_setup_name()
         path = self._setup_path_for_name(raw_name)
         if path is None:
             self._show_info("Enter a setup name before saving.")
@@ -1410,6 +1586,7 @@ class MainWindow(QMainWindow):
         for connection_name, row in self.rows.items():
             connections[connection_name] = {
                 "tagged": bool(row.tag.isChecked()),
+                "minimized": bool(row.is_minimized()),
                 "position_view": row.selected_position(MODE_VIEW),
                 "position_control": row.selected_position(MODE_CONTROL),
                 "link_view": row.selected_link(MODE_VIEW),
@@ -1418,12 +1595,12 @@ class MainWindow(QMainWindow):
         payload["connections"] = connections
         save_json(path, payload)
         self._refresh_setup_targets()
-        self.setup_select.setCurrentText(path.stem)
+        self._set_selected_setup_name(path.stem, trigger=False)
         self.settings_store.setValue("last_setup_name", path.stem)
         self._show_info(f"Saved setup: {path.stem}")
 
     def _delete_current_setup(self) -> None:
-        raw_name = self.setup_select.currentText().strip()
+        raw_name = self._current_setup_name()
         path = self._setup_path_for_name(raw_name)
         if path is None or not raw_name:
             self._show_info("Select a setup name to delete.")
@@ -1437,15 +1614,19 @@ class MainWindow(QMainWindow):
             self._show_info(f"Failed to delete setup '{raw_name}': {exc}")
             return
         self._refresh_setup_targets()
-        self.setup_select.setCurrentIndex(0)
+        self._set_selected_setup_name("", trigger=False)
         if str(self.settings_store.value("last_setup_name", "")).strip().lower() == raw_name.lower():
             self.settings_store.setValue("last_setup_name", "")
         self._show_info(f"Deleted setup: {raw_name}")
 
-    def _on_setup_selection_changed(self, index: int) -> None:
-        if index < 0:
+    def _on_setup_selection_changed(
+        self, current: Optional[QListWidgetItem], previous: Optional[QListWidgetItem]
+    ) -> None:
+        if current is None:
             return
-        selected_name = self.setup_select.currentText().strip()
+        selected_name = current.text().strip()
+        if hasattr(self, "setup_name_input"):
+            self.setup_name_input.setText(selected_name)
         self.settings_store.setValue("last_setup_name", selected_name)
         if not selected_name:
             return
@@ -1468,6 +1649,7 @@ class MainWindow(QMainWindow):
         # Reset all rows first so missing keys/rows in the setup become defaults.
         for connection_name, row in self.rows.items():
             row.tag.setChecked(False)
+            row.set_minimized(False)
             row.set_selected_position(MODE_VIEW, "")
             row.set_selected_position(MODE_CONTROL, "")
             row.set_selected_link(MODE_VIEW, "")
@@ -1478,6 +1660,7 @@ class MainWindow(QMainWindow):
             if row is None or not isinstance(config, dict):
                 continue
             row.tag.setChecked(bool(config.get("tagged", row.tag.isChecked())))
+            row.set_minimized(bool(config.get("minimized", False)))
             pos_v = str(config.get("position_view", "")).strip()
             pos_c = str(config.get("position_control", "")).strip()
             link_v = str(config.get("link_view", "")).strip()
@@ -1497,6 +1680,7 @@ class MainWindow(QMainWindow):
         """Clear all setup-driven UI state: tags, positions, and links."""
         for connection_name, row in self.rows.items():
             row.tag.setChecked(False)
+            row.set_minimized(False)
             row.set_selected_position(MODE_VIEW, "")
             row.set_selected_position(MODE_CONTROL, "")
             row.set_selected_link(MODE_VIEW, "")
@@ -1504,7 +1688,7 @@ class MainWindow(QMainWindow):
             self._persist_ui_selections(connection_name, MODE_VIEW)
             self._persist_ui_selections(connection_name, MODE_CONTROL)
         if hasattr(self, "setup_select"):
-            self.setup_select.setCurrentIndex(0)
+            self._set_selected_setup_name("", trigger=False)
         self._show_info("Setup cleared.")
 
     def _build_session_link_options(self) -> List[Tuple[str, str]]:
@@ -1615,7 +1799,7 @@ class MainWindow(QMainWindow):
             return (
                 False,
                 f"{connection_name} is currently open on station '{remote_holder}'. "
-                "Enable 'Take over session' to force open.",
+                "Enable 'Allow shared sessions' to open it anyway.",
             )
 
         takeover_used = bool(remote_holder_id and self.takeover_checkbox.isChecked())
@@ -2234,10 +2418,57 @@ class MainWindow(QMainWindow):
             self.rows_layout.addWidget(line)
         self.rows_layout.addStretch(1)
         self._clear_duplicate_positions_after_load()
+        self._restore_local_ui_state()
         self._refresh_owner_labels()
         self._refresh_binary_sensor_indicators()
         if hasattr(self, "setup_select"):
             self._refresh_setup_targets()
+
+    def _collect_local_ui_state(self) -> Dict[str, object]:
+        connections: Dict[str, object] = {}
+        for connection_name, row in self.rows.items():
+            connections[connection_name] = {
+                "tagged": bool(row.tag.isChecked()),
+                "minimized": bool(row.is_minimized()),
+                "position_view": row.selected_position(MODE_VIEW),
+                "position_control": row.selected_position(MODE_CONTROL),
+                "link_view": row.selected_link(MODE_VIEW),
+                "link_control": row.selected_link(MODE_CONTROL),
+            }
+        current_setup = self._current_setup_name() if hasattr(self, "setup_select") else ""
+        return {
+            "setup_name": current_setup,
+            "connections": connections,
+        }
+
+    def _restore_local_ui_state(self) -> None:
+        raw_state = self.settings_store.value("local_ui_state", "")
+        if not raw_state:
+            return
+        try:
+            data = json.loads(str(raw_state))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return
+        if not isinstance(data, dict):
+            return
+        setup_name = str(data.get("setup_name", "")).strip()
+        if setup_name and hasattr(self, "setup_select"):
+            self._set_selected_setup_name(setup_name, trigger=False)
+            self.settings_store.setValue("last_setup_name", setup_name)
+        connections = data.get("connections", {})
+        if not isinstance(connections, dict):
+            return
+        for connection_name, config in connections.items():
+            row = self.rows.get(str(connection_name))
+            if row is None or not isinstance(config, dict):
+                continue
+            row.tag.setChecked(bool(config.get("tagged", row.tag.isChecked())))
+            row.set_minimized(bool(config.get("minimized", row.is_minimized())))
+            row.set_selected_position(MODE_VIEW, str(config.get("position_view", "")).strip())
+            row.set_selected_position(MODE_CONTROL, str(config.get("position_control", "")).strip())
+            row.set_selected_link(MODE_VIEW, str(config.get("link_view", "")).strip())
+            row.set_selected_link(MODE_CONTROL, str(config.get("link_control", "")).strip())
+        self._clear_duplicate_positions_after_load()
 
     def _populate_row_from_saved_settings(self, row: ConnectionRow) -> None:
         view_settings = load_session_settings(config_path_for(row.entry.name, MODE_VIEW))
@@ -2296,11 +2527,15 @@ class MainWindow(QMainWindow):
         self._layout_tool_window.activateWindow()
 
     def _on_layout_tool_closed(self) -> None:
-        """Refresh row position selectors after editing position presets."""
+        """Refresh UI state after closing the layout tool."""
         self.position_names = [p.name for p in scan_positions()]
         for row in self.rows.values():
             row.refresh_option_sets(self.position_names, self.session_link_options)
+        for connection_name in self.rows.keys():
+            self._refresh_row_ks_buttons(connection_name)
         self._clear_duplicate_positions_after_load()
+        self._binary_sensor_targets_dirty = True
+        self._refresh_binary_sensor_indicators()
 
     def _set_open_controls_enabled(self, enabled: bool) -> None:
         """Enable/disable all actions that can open new sessions."""
@@ -2344,6 +2579,9 @@ class MainWindow(QMainWindow):
         self.settings_store.setValue("main_height", self.height())
         self.settings_store.setValue("chat_width", self.chat_window.width())
         self.settings_store.setValue("chat_height", self.chat_window.height())
+        if hasattr(self, "setup_select"):
+            self.settings_store.setValue("last_setup_name", self._current_setup_name())
+        self.settings_store.setValue("local_ui_state", json.dumps(self._collect_local_ui_state()))
         if hasattr(self, "ha_binary_sensor_timer") and self.ha_binary_sensor_timer.isActive():
             self.ha_binary_sensor_timer.stop()
         set_json_warning_reporter(None)
