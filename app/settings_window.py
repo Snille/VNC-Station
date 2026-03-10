@@ -25,17 +25,48 @@ from PyQt5.QtWidgets import (
 from .constants import GEARS_ICON_PATH, HA_ICON_PATH, SAVE_ICON_PATH
 from .constants import EXPORT_ICON_PATH, IMPORT_ICON_PATH, VALIDATE_ICON_PATH
 
-DEFAULT_BUTTON_STYLE = "background:#1971c2; color:white; font-weight:700; border-radius:4px;"
-SUCCESS_BUTTON_STYLE = "background:#2f9e44; color:white; font-weight:700; border-radius:4px;"
-ERROR_BUTTON_STYLE = "background:#c92a2a; color:white; font-weight:700; border-radius:4px;"
-SAVE_BUTTON_STYLE = "background:#6741d9; color:white; font-weight:700; border-radius:4px;"
+BUTTON_CHROME = "color:white; font-weight:700; padding:2px 6px 4px 6px; border:none; border-radius:4px;"
+DEFAULT_BUTTON_STYLE = f"background:#666666; {BUTTON_CHROME}"
+SUCCESS_BUTTON_STYLE = f"background:#2f9e44; {BUTTON_CHROME}"
+ERROR_BUTTON_STYLE = f"background:#c92a2a; {BUTTON_CHROME}"
+SAVE_BUTTON_STYLE = f"background:#666666; {BUTTON_CHROME}"
+MAINTENANCE_BUTTON_STYLE = f"background:#006b57; {BUTTON_CHROME}"
+ICON_TEXT_GAP_PREFIX = "\u2009"
+BUTTON_ICON_PATH_PROPERTY = "button_icon_path"
+BUTTON_ICON_BASE_SIZE_PROPERTY = "button_icon_base_size"
+BUTTON_TEXT_RAW_PROPERTY = "button_text_raw"
+
+
+def _button_icons_enabled() -> bool:
+    settings = QSettings("VNCStation", "Controller")
+    value = settings.value("use_button_icons", "true")
+    return str(value).strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _button_text_without_prefix(text: str) -> str:
+    return text.lstrip(f" {ICON_TEXT_GAP_PREFIX}")
+
+
+def _apply_button_icon_preference(button: QPushButton) -> None:
+    raw_text = str(button.property(BUTTON_TEXT_RAW_PROPERTY) or _button_text_without_prefix(button.text()))
+    button.setProperty(BUTTON_TEXT_RAW_PROPERTY, raw_text)
+    if _button_icons_enabled():
+        icon_path = str(button.property(BUTTON_ICON_PATH_PROPERTY) or "").strip()
+        if icon_path and Path(icon_path).exists():
+            button.setIcon(QIcon(icon_path))
+            size_px = int(button.property(BUTTON_ICON_BASE_SIZE_PROPERTY) or 16)
+            button.setIconSize(QSize(size_px, size_px))
+        button.setText(f"{ICON_TEXT_GAP_PREFIX}{raw_text}" if raw_text else "")
+        return
+    button.setIcon(QIcon())
+    button.setText(raw_text)
 
 
 def _set_button_icon(button: QPushButton, icon_path: Path, size_px: int = 16) -> None:
-    if not icon_path.exists():
-        return
-    button.setIcon(QIcon(str(icon_path)))
-    button.setIconSize(QSize(size_px, size_px))
+    button.setProperty(BUTTON_ICON_PATH_PROPERTY, str(icon_path))
+    button.setProperty(BUTTON_ICON_BASE_SIZE_PROPERTY, int(size_px))
+    button.setProperty(BUTTON_TEXT_RAW_PROPERTY, _button_text_without_prefix(button.text()))
+    _apply_button_icon_preference(button)
 
 
 def _int_from_mapping(data: Dict[str, object], key: str, fallback: int) -> int:
@@ -69,6 +100,8 @@ class SettingsWindow(QDialog):
         defaults: Dict[str, object],
         apply_theme: Callable[[str], None],
         apply_font_size: Callable[[int], None],
+        use_button_icons: bool,
+        apply_button_icons: Callable[[bool], None],
         save_defaults: Callable[[Dict[str, str]], str],
         show_toast: Callable[[str], None],
         run_validation: Callable[[], None],
@@ -81,6 +114,8 @@ class SettingsWindow(QDialog):
         self._apply_theme = apply_theme
         self._apply_font_size = apply_font_size
         self._save_defaults = save_defaults
+        self._use_button_icons = use_button_icons
+        self._apply_button_icons = apply_button_icons
         self._show_toast = show_toast
         self._run_validation = run_validation
         self._import_config = import_config
@@ -126,6 +161,9 @@ class SettingsWindow(QDialog):
         appearance_row.addWidget(self.font_size_spin)
         appearance_row.addWidget(self.apply_btn)
         root.addLayout(appearance_row)
+        self.button_icons_checkbox = QCheckBox("Use button icons")
+        self.button_icons_checkbox.setChecked(bool(self._use_button_icons))
+        root.addWidget(self.button_icons_checkbox)
 
         network_label = QLabel("Network")
         network_label.setStyleSheet("font-weight:700;")
@@ -199,15 +237,15 @@ class SettingsWindow(QDialog):
         maintenance_row.addStretch(1)
         self.validate_btn = QPushButton("Validate config")
         _set_button_icon(self.validate_btn, VALIDATE_ICON_PATH)
-        self.validate_btn.setStyleSheet("background:#006b57; color:white; font-weight:700; border-radius:4px;")
+        self.validate_btn.setStyleSheet(MAINTENANCE_BUTTON_STYLE)
         self.validate_btn.clicked.connect(self._run_validation)
         self.import_btn = QPushButton("Import config")
         _set_button_icon(self.import_btn, IMPORT_ICON_PATH)
-        self.import_btn.setStyleSheet("background:#006b57; color:white; font-weight:700; border-radius:4px;")
+        self.import_btn.setStyleSheet(MAINTENANCE_BUTTON_STYLE)
         self.import_btn.clicked.connect(self._import_config)
         self.export_btn = QPushButton("Export config")
         _set_button_icon(self.export_btn, EXPORT_ICON_PATH)
-        self.export_btn.setStyleSheet("background:#006b57; color:white; font-weight:700; border-radius:4px;")
+        self.export_btn.setStyleSheet(MAINTENANCE_BUTTON_STYLE)
         self.export_btn.clicked.connect(self._export_config)
         maintenance_row.addWidget(self.validate_btn)
         maintenance_row.addWidget(self.import_btn)
@@ -307,6 +345,7 @@ class SettingsWindow(QDialog):
         }
 
     def _save(self) -> None:
+        self._apply_button_icons(self.button_icons_checkbox.isChecked())
         payload = self._collect_save_payload()
         message = self._save_defaults(payload)
         self._show_toast(message)

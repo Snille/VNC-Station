@@ -33,12 +33,42 @@ from .config import load_default_mapping
 from .constants import APP_DIR, CANCEL_ICON_PATH, GEARS_ICON_PATH, HA_ICON_PATH, SAVE_ICON_PATH
 from .models import SessionSettings
 
+ICON_TEXT_GAP_PREFIX = "\u2009"
+BUTTON_ICON_PATH_PROPERTY = "button_icon_path"
+BUTTON_ICON_BASE_SIZE_PROPERTY = "button_icon_base_size"
+BUTTON_TEXT_RAW_PROPERTY = "button_text_raw"
+
+
+def _button_icons_enabled() -> bool:
+    settings = QSettings("VNCStation", "Controller")
+    value = settings.value("use_button_icons", "true")
+    return str(value).strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _button_text_without_prefix(text: str) -> str:
+    return text.lstrip(f" {ICON_TEXT_GAP_PREFIX}")
+
+
+def _apply_button_icon_preference(button: QPushButton) -> None:
+    raw_text = str(button.property(BUTTON_TEXT_RAW_PROPERTY) or _button_text_without_prefix(button.text()))
+    button.setProperty(BUTTON_TEXT_RAW_PROPERTY, raw_text)
+    if _button_icons_enabled():
+        icon_path = str(button.property(BUTTON_ICON_PATH_PROPERTY) or "").strip()
+        if icon_path and Path(icon_path).exists():
+            button.setIcon(QIcon(icon_path))
+            size_px = int(button.property(BUTTON_ICON_BASE_SIZE_PROPERTY) or 14)
+            button.setIconSize(QSize(size_px, size_px))
+        button.setText(f"{ICON_TEXT_GAP_PREFIX}{raw_text}" if raw_text else "")
+        return
+    button.setIcon(QIcon())
+    button.setText(raw_text)
+
 
 def _set_button_icon(button: QPushButton, icon_path: Path, size_px: int = 14) -> None:
-    if not icon_path.exists():
-        return
-    button.setIcon(QIcon(str(icon_path)))
-    button.setIconSize(QSize(size_px, size_px))
+    button.setProperty(BUTTON_ICON_PATH_PROPERTY, str(icon_path))
+    button.setProperty(BUTTON_ICON_BASE_SIZE_PROPERTY, int(size_px))
+    button.setProperty(BUTTON_TEXT_RAW_PROPERTY, _button_text_without_prefix(button.text()))
+    _apply_button_icon_preference(button)
 
 
 class SensorMappingsEditor(QWidget):

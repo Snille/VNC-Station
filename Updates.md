@@ -1,10 +1,14 @@
 # Updates
 
 Project: `VNC Station Controller`  
-Latest version in repository: `1.5.1`
+Latest version in repository: `1.5.2`
 
 ## Version Milestones
 
+- `1.5.2` (`release`, 2026-03-10)
+  - Added global `Use button icons` toggle in Settings and refreshed utility-window button styling.
+  - Updated the Settings and `Positions & Sessions` manuals/screenshots for the current UI.
+  - Refined HA sensor search with `Enter` submit and wildcard matching examples such as `*m18*`.
 - `1.5.1` (`release`, 2026-03-10)
   - Refined window naming, VNC sizing alignment, README screenshots, and HA sensor search behavior.
 - `1.5.0` (`release`, 2026-03-09)

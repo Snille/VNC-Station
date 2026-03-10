@@ -2,7 +2,7 @@
 
 Windows desktop app (PyQt5) for managing multiple TightVNC sessions in `view` and `control` mode, with station-to-station coordination over UDP and built-in chat.
 
-Current version: `1.5.1`
+Current version: `1.5.2`
 
 ## Table Of Contents
 
@@ -39,9 +39,9 @@ Current interface examples:
     <td align="center"><strong>Station Settings</strong></td>
   </tr>
   <tr>
-    <td><a href="manual/manual-assets/images/1.5.0/01-main-window-setup-area.png"><img src="manual/manual-assets/images/1.5.0/01-main-window-setup-area.png" alt="Main window" width="260"></a></td>
-    <td><a href="manual/manual-assets/images/1.5.0/02-chat-window.png"><img src="manual/manual-assets/images/1.5.0/02-chat-window.png" alt="Chat window" width="260"></a></td>
-    <td><a href="manual/manual-assets/images/1.5.0/03-settings-window-network-and-maintenance.png"><img src="manual/manual-assets/images/1.5.0/03-settings-window-network-and-maintenance.png" alt="Settings window" width="260"></a></td>
+    <td><a href="manual/manual-assets/images/1.5.2/01-main-window-setup-area.png"><img src="manual/manual-assets/images/1.5.2/01-main-window-setup-area.png" alt="Main window" width="260"></a></td>
+    <td><a href="manual/manual-assets/images/1.5.2/02-chat-window.png"><img src="manual/manual-assets/images/1.5.2/02-chat-window.png" alt="Chat window" width="260"></a></td>
+    <td><a href="manual/manual-assets/images/1.5.2/03-settings-window-network-and-maintenance.png"><img src="manual/manual-assets/images/1.5.2/03-settings-window-network-and-maintenance.png" alt="Settings window" width="260"></a></td>
   </tr>
   <tr>
     <td align="center"><strong>Session Editor</strong></td>
@@ -49,8 +49,8 @@ Current interface examples:
     <td align="center"><strong>Documentation</strong></td>
   </tr>
   <tr>
-    <td><a href="manual/manual-assets/images/1.5.0/04-layout-tool-session-active-folder.png"><img src="manual/manual-assets/images/1.5.0/04-layout-tool-session-active-folder.png" alt="Session layout tool" width="260"></a></td>
-    <td><a href="manual/manual-assets/images/1.5.0/05-layout-tool-position-mode.png"><img src="manual/manual-assets/images/1.5.0/05-layout-tool-position-mode.png" alt="Position layout tool" width="260"></a></td>
+    <td><a href="manual/manual-assets/images/1.5.2/04-layout-tool-session-ha-search.png"><img src="manual/manual-assets/images/1.5.2/04-layout-tool-session-ha-search.png" alt="Session layout tool" width="260"></a></td>
+    <td><a href="manual/manual-assets/images/1.5.2/05-layout-tool-position-mode.png"><img src="manual/manual-assets/images/1.5.2/05-layout-tool-position-mode.png" alt="Position layout tool" width="260"></a></td>
     <td align="center">See <code>manual/</code> for the current role-based guides, workflows, and reference material.</td>
   </tr>
 </table>
@@ -91,6 +91,7 @@ Manuals are split by role:
 ```text
 VNC-Station/
   app/
+  manual/
   vnc-view/
   vnc-control/
   vnc-positions/
@@ -217,8 +218,9 @@ Also make sure `python.exe` is allowed in Windows Defender Firewall.
 10. Use setup presets from the setup list on the lower left; click one to apply it immediately, drag to reorder it, and use `Setup name` + `Save` / `Clear` / `Delete` on the right.
 11. Use `Change Settings` and run `Validate config`, `Export config`, or `Import config` from the Settings window.
 12. Configure `Active Folder` and optional `Active Button Text` in Edit dialogs; the active button(s) open the configured file (or latest file in folder).
-13. Use `Change Settings` to open app settings (theme, font size, UDP port, reconnect-on-drop, allow-multiple-instances option, defaults, HA URL/key, HA connection test, maintenance tools).
+13. Use `Change Settings` to open app settings (theme, font size, `Use button icons`, UDP port, reconnect-on-drop, allow-multiple-instances option, defaults, HA URL/key, HA connection test, maintenance tools).
 14. In `Edit View` / `Edit Control`, add HA sensors and map icons (single icon or binary true/false icons), reorder `Selected Sensors` by drag-and-drop, and optionally set binary state color rules.
+15. In the HA sensor search field, press `Enter` to search immediately and use wildcard patterns such as `*m18*` or `*door*m18*`.
 
 Startup note:
 - On launch, open actions are briefly locked while the app requests current session ownership from other stations.
@@ -264,9 +266,11 @@ Startup note:
 - Linked close behavior: closing a session also closes linked sessions recursively (loop-safe).
 - Per-session `Active Folder` file buttons with optional custom button text per mode.
 - App-level `Change Settings` window for theme, font size, UDP port, reconnect-on-drop, allow-multiple-instances option, defaults, HA connectivity, and maintenance tools.
+- Global `Use button icons` preference: show or hide button icons across the main window and utility windows.
 - Single-instance protection by default: blocks launching a second app instance on the same station unless explicitly enabled in settings.
 - HA connection testing (`/api/`) with toast feedback and success/fail button color feedback.
 - `Edit View`/`Edit Control` HA sensor search from Home Assistant (`/api/states`).
+- HA sensor search supports `Enter` submit and `*` wildcard patterns against entity IDs, names, and state text.
 - Per-sensor icon mapping: one icon for generic sensors, separate true/false icons for binary sensors.
 - Per-sensor tooltip templates with `{name}`, `{state}`, and `{entity_id}` placeholders.
 - Drag-and-drop ordering in `Selected Sensors`; icon display order follows the saved list order.
@@ -337,6 +341,7 @@ For binary-style entities (`binary_sensor.*`, `input_boolean.*`):
   - `Positions` selector with `Load Pos` / `Save Pos` for `vnc-positions/*.json`
   - top `Save` saves to current selected target
   - bottom save allows saving to another target
+  - utility buttons use the same gray style as the Settings window; config import/export/validate remains distinct in Settings only
 
 ## Testing
 

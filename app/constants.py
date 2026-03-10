@@ -3,7 +3,7 @@
 from pathlib import Path
 import sys
 
-APP_VERSION = "1.5.1"
+APP_VERSION = "1.5.2"
 
 
 # Base directory for user/runtime files.

@@ -75,6 +75,12 @@ Create this structure at repository root:
 │  ├─ settings_dialog.py
 │  ├─ settings_window.py
 │  └─ main_window.py
+├─ manual/
+│  ├─ user-guide.md
+│  ├─ advanced-user-guide.md
+│  ├─ admin-guide.md
+│  └─ manual-assets/
+│     └─ images/
 ├─ tests/
 │  ├─ test_logic.py
 │  ├─ test_config_merge.py
@@ -86,8 +92,7 @@ Create this structure at repository root:
 ├─ Example files/
 │  ├─ dummy.vnc
 │  ├─ dummy.json
-│  ├─ TightVNC-Viewer-Help.txt
-│  └─ Screenshots/
+│  └─ TightVNC-Viewer-Help.txt
 ├─ vnc-view/
 ├─ vnc-control/
 ├─ vnc-positions/
@@ -242,8 +247,9 @@ Connection separators:
 
 Button colors:
 - View: green background
-- Control: red background
+- Control: orange background (`#b87400`)
 - Edit buttons: blue background
+- Utility/setup/chat/save/close buttons: gray background (`#666666`)
 
 Name button click:
 - toggles tag checkbox
@@ -304,6 +310,7 @@ Fields:
 - label_border_color
 - ks (folder path with browse button)
 - HA sensor search + selected sensors list
+- HA search supports `Enter` submit and `*` wildcards (for example `*m18*`)
 - per-sensor icon mapping:
   - `Icon`
   - `Binary true`
@@ -330,6 +337,10 @@ Default size:
 Fields:
 - theme selector (`Auto`/`Light`/`Dark`)
 - font size + apply
+- `Use button icons` checkbox
+- `UDP Port`
+- `Allow multiple instances on the same station`
+- `Reconnect on drop`
 - all `default.json` fields
 - `Home Assistant URL`
 - `HA API Key`
@@ -342,7 +353,7 @@ Fields:
 ## 5.5 Chat Window
 
 Window title:
-- `VNC Chat - <station-name>`
+- `Chat - <station-name>`
 
 Window icon:
 - `app/images/chat.png`
@@ -505,6 +516,7 @@ Theme modes:
 
 Theme consistency:
 - apply same style to both main window and chat window
+- Settings and `Positions & Sessions` utility buttons use the same gray button styling, except the Settings config maintenance buttons which stay distinct.
 
 ## 11. Icons
 

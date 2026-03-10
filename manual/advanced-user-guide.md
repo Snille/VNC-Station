@@ -1,7 +1,7 @@
 # VNC Station Advanced User Guide
 
 Audience: power users who prepare layouts, setups, links, Active Folder behavior, and Home Assistant mappings.  
-App version: `1.5.1`
+App version: `1.5.2`
 
 ## When To Use This Guide
 
@@ -45,7 +45,7 @@ Use `Position` mode only for reusable VNC geometry.
 
 To set label styling, Active Folder behavior, or HA sensor mapping, use `Session` mode.
 
-![Layout tool in position mode](manual-assets/images/1.5.0/05-layout-tool-position-mode.png)
+![Layout tool in position mode](manual-assets/images/1.5.2/05-layout-tool-position-mode.png)
 
 Figure 1: Position mode in the layout tool for reusable VNC placement presets.
 
@@ -64,7 +64,7 @@ Use `Session` mode for:
 - Active Button Text
 - HA sensors and icons
 
-![Layout tool in session mode](manual-assets/images/1.5.0/04-layout-tool-session-active-folder.png)
+![Layout tool in session mode](manual-assets/images/1.5.2/04-layout-tool-session-ha-search.png)
 
 Figure 2: Session mode in the layout tool.
 
@@ -74,6 +74,7 @@ Key areas in this screenshot:
 - center: VNC and label fields
 - `Active Folder` row: folder path plus `Browse...`
 - below that: `Active Button Text`
+- HA area: search field, search results, selected sensors, and per-sensor mappings
 
 Expected result after saving:
 
@@ -166,6 +167,8 @@ Behavior to remember:
 
 - multiple icons can be shown in one row header
 - saved order follows the drag order in `Selected Sensors`
+- press `Enter` in the search field to run the search immediately
+- use `*` wildcards for contains-style matching, for example `*m18*` or `*door*m18*`
 - color rules can affect the row indicator area and overlay label background
 - malformed session JSON or defaults can fall back to safe defaults, with a toast/log warning for troubleshooting
 
