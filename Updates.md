@@ -1,10 +1,15 @@
 # Updates
 
 Project: `VNC Station Controller`  
-Latest version in repository: `1.5.2`
+Latest version in repository: `1.5.3`
 
 ## Version Milestones
 
+- `1.5.3` (`release`, 2026-03-10)
+  - Unified button padding/font styling across the app and aligned session-row action columns.
+  - Removed the extra divider above the setup area in the main window.
+  - Active Folder button toasts now show the full resolved opened path.
+  - `Positions & Sessions` now shrinks back to a tighter size when switching from `Session` mode to `Position` mode.
 - `1.5.2` (`release`, 2026-03-10)
   - Added global `Use button icons` toggle in Settings and refreshed utility-window button styling.
   - Updated the Settings and `Positions & Sessions` manuals/screenshots for the current UI.

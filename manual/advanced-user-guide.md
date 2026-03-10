@@ -1,7 +1,7 @@
 # VNC Station Advanced User Guide
 
 Audience: power users who prepare layouts, setups, links, Active Folder behavior, and Home Assistant mappings.  
-App version: `1.5.2`
+App version: `1.5.3`
 
 ## When To Use This Guide
 
@@ -45,7 +45,7 @@ Use `Position` mode only for reusable VNC geometry.
 
 To set label styling, Active Folder behavior, or HA sensor mapping, use `Session` mode.
 
-![Layout tool in position mode](manual-assets/images/1.5.2/05-layout-tool-position-mode.png)
+![Layout tool in position mode](manual-assets/images/1.5.3/05-layout-tool-position-mode.png)
 
 Figure 1: Position mode in the layout tool for reusable VNC placement presets.
 
@@ -64,7 +64,7 @@ Use `Session` mode for:
 - Active Button Text
 - HA sensors and icons
 
-![Layout tool in session mode](manual-assets/images/1.5.2/04-layout-tool-session-ha-search.png)
+![Layout tool in session mode](manual-assets/images/1.5.3/04-layout-tool-session-ha-search.png)
 
 Figure 2: Session mode in the layout tool.
 
@@ -105,6 +105,7 @@ Recommended test:
 2. reopen the target row
 3. click the active button
 4. confirm the correct file opens
+5. confirm the toast shows the full resolved path you expected
 
 If the path points at a folder, test with realistic file churn so you confirm the newest expected file is the one operators actually get.
 

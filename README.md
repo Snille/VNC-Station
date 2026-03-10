@@ -2,7 +2,7 @@
 
 Windows desktop app (PyQt5) for managing multiple TightVNC sessions in `view` and `control` mode, with station-to-station coordination over UDP and built-in chat.
 
-Current version: `1.5.2`
+Current version: `1.5.3`
 
 ## Table Of Contents
 
@@ -39,9 +39,9 @@ Current interface examples:
     <td align="center"><strong>Station Settings</strong></td>
   </tr>
   <tr>
-    <td><a href="manual/manual-assets/images/1.5.2/01-main-window-setup-area.png"><img src="manual/manual-assets/images/1.5.2/01-main-window-setup-area.png" alt="Main window" width="260"></a></td>
-    <td><a href="manual/manual-assets/images/1.5.2/02-chat-window.png"><img src="manual/manual-assets/images/1.5.2/02-chat-window.png" alt="Chat window" width="260"></a></td>
-    <td><a href="manual/manual-assets/images/1.5.2/03-settings-window-network-and-maintenance.png"><img src="manual/manual-assets/images/1.5.2/03-settings-window-network-and-maintenance.png" alt="Settings window" width="260"></a></td>
+    <td><a href="manual/manual-assets/images/1.5.3/01-main-window-setup-area.png"><img src="manual/manual-assets/images/1.5.3/01-main-window-setup-area.png" alt="Main window" width="260"></a></td>
+    <td><a href="manual/manual-assets/images/1.5.3/02-chat-window.png"><img src="manual/manual-assets/images/1.5.3/02-chat-window.png" alt="Chat window" width="260"></a></td>
+    <td><a href="manual/manual-assets/images/1.5.3/03-settings-window-network-and-maintenance.png"><img src="manual/manual-assets/images/1.5.3/03-settings-window-network-and-maintenance.png" alt="Settings window" width="260"></a></td>
   </tr>
   <tr>
     <td align="center"><strong>Session Editor</strong></td>
@@ -49,8 +49,8 @@ Current interface examples:
     <td align="center"><strong>Documentation</strong></td>
   </tr>
   <tr>
-    <td><a href="manual/manual-assets/images/1.5.2/04-layout-tool-session-ha-search.png"><img src="manual/manual-assets/images/1.5.2/04-layout-tool-session-ha-search.png" alt="Session layout tool" width="260"></a></td>
-    <td><a href="manual/manual-assets/images/1.5.2/05-layout-tool-position-mode.png"><img src="manual/manual-assets/images/1.5.2/05-layout-tool-position-mode.png" alt="Position layout tool" width="260"></a></td>
+    <td><a href="manual/manual-assets/images/1.5.3/04-layout-tool-session-ha-search.png"><img src="manual/manual-assets/images/1.5.3/04-layout-tool-session-ha-search.png" alt="Session layout tool" width="260"></a></td>
+    <td><a href="manual/manual-assets/images/1.5.3/05-layout-tool-position-mode.png"><img src="manual/manual-assets/images/1.5.3/05-layout-tool-position-mode.png" alt="Position layout tool" width="260"></a></td>
     <td align="center">See <code>manual/</code> for the current role-based guides, workflows, and reference material.</td>
   </tr>
 </table>
@@ -217,7 +217,7 @@ Also make sure `python.exe` is allowed in Windows Defender Firewall.
 9. Use `Positions & Sessions` for visual layout editing and position preset management.
 10. Use setup presets from the setup list on the lower left; click one to apply it immediately, drag to reorder it, and use `Setup name` + `Save` / `Clear` / `Delete` on the right.
 11. Use `Change Settings` and run `Validate config`, `Export config`, or `Import config` from the Settings window.
-12. Configure `Active Folder` and optional `Active Button Text` in Edit dialogs; the active button(s) open the configured file (or latest file in folder).
+12. Configure `Active Folder` and optional `Active Button Text` in Edit dialogs; the active button(s) open the configured file (or latest file in folder), and the toast reports the full resolved path that was opened.
 13. Use `Change Settings` to open app settings (theme, font size, `Use button icons`, UDP port, reconnect-on-drop, allow-multiple-instances option, defaults, HA URL/key, HA connection test, maintenance tools).
 14. In `Edit View` / `Edit Control`, add HA sensors and map icons (single icon or binary true/false icons), reorder `Selected Sensors` by drag-and-drop, and optionally set binary state color rules.
 15. In the HA sensor search field, press `Enter` to search immediately and use wildcard patterns such as `*m18*` or `*door*m18*`.
@@ -265,6 +265,7 @@ Startup note:
 - Per-mode session linking (`Link V` / `Link C`): opens linked sessions together with view/control actions.
 - Linked close behavior: closing a session also closes linked sessions recursively (loop-safe).
 - Per-session `Active Folder` file buttons with optional custom button text per mode.
+- When an Active Folder button opens a file, the toast reports the full resolved path.
 - App-level `Change Settings` window for theme, font size, UDP port, reconnect-on-drop, allow-multiple-instances option, defaults, HA connectivity, and maintenance tools.
 - Global `Use button icons` preference: show or hide button icons across the main window and utility windows.
 - Single-instance protection by default: blocks launching a second app instance on the same station unless explicitly enabled in settings.

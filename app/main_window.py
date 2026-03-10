@@ -96,6 +96,7 @@ ICON_TEXT_GAP_PREFIX = "\u2009"  # thin space: slightly tighter icon-to-text gap
 BUTTON_ICON_PATH_PROPERTY = "button_icon_path"
 BUTTON_ICON_BASE_SIZE_PROPERTY = "button_icon_base_size"
 BUTTON_TEXT_RAW_PROPERTY = "button_text_raw"
+BUTTON_CHROME = "font-weight:700; padding:2px 6px 4px 6px; border:none; border-radius:4px;"
 
 
 def _icon_size_for_font_size(point_size: int) -> int:
@@ -253,7 +254,7 @@ class ConnectionRow:
 
         self.tag = QCheckBox()
         self.name_btn = QPushButton(entry.name)
-        self.name_btn.setStyleSheet("font-weight:600; text-align:left; padding:1px 3px; border-radius:4px;")
+        self.name_btn.setStyleSheet(f"{BUTTON_CHROME} text-align:left;")
         self.name_btn.clicked.connect(lambda: self.tag.setChecked(not self.tag.isChecked()))
         header_row.addWidget(self.tag)
         header_row.addWidget(self.name_btn, 1)
@@ -349,7 +350,9 @@ class ConnectionRow:
         self.ks_btn.clicked.connect(lambda: callbacks["open_ks"](entry.name, "shared"))
         self.ksv_btn.clicked.connect(lambda: callbacks["open_ks"](entry.name, MODE_VIEW))
         self.ksc_btn.clicked.connect(lambda: callbacks["open_ks"](entry.name, MODE_CONTROL))
-        ks_row = QHBoxLayout()
+        ks_row = QVBoxLayout()
+        ks_row.setContentsMargins(0, 0, 0, 0)
+        ks_row.setSpacing(3)
         ks_row.setAlignment(Qt.AlignRight)
         ks_row.addWidget(self.ks_btn, 0, Qt.AlignRight)
         ks_row.addWidget(self.ksv_btn, 0, Qt.AlignRight)
@@ -577,20 +580,18 @@ class ConnectionRow:
         if available:
             chosen_bg = highlight_bg.strip() or active_bg
             button.setStyleSheet(
-                f"background:{chosen_bg}; color:white; font-weight:600; "
-                "padding:2px 6px 4px 6px; border:none; border-radius:4px;"
+                f"background:{chosen_bg}; color:white; {BUTTON_CHROME}"
             )
             button.setToolTip("")
             return
         button.setStyleSheet(
-            "background:#edf0f3; color:#6b7280; font-weight:500; "
-            "padding:2px 6px 4px 6px; border:none; border-radius:4px;"
+            f"background:#edf0f3; color:#6b7280; {BUTTON_CHROME}"
         )
         button.setToolTip("No .vnc file available for this mode")
 
     def _apply_minimize_button_style(self) -> None:
         self.minimize_btn.setStyleSheet(
-            "background:#5f6b7a; color:white; font-weight:700; padding:1px 7px; border:none; border-radius:4px;"
+            f"background:#5f6b7a; color:white; {BUTTON_CHROME}"
         )
 
     def set_mode_background_color(self, mode: str, color_text: str) -> None:
@@ -634,16 +635,16 @@ class ConnectionRow:
         self._render_status_indicator()
 
     def update_action_button_font(self, point_size: int) -> None:
-        bigger = QFont(QApplication.instance().font() if QApplication.instance() is not None else QFont())
-        base_size = point_size if point_size > 0 else bigger.pointSize()
+        button_font = QFont(QApplication.instance().font() if QApplication.instance() is not None else QFont())
+        base_size = point_size if point_size > 0 else button_font.pointSize()
         if base_size <= 0:
             base_size = 10
-        bigger.setPointSize(base_size + 2)
-        self.ks_btn.setFont(bigger)
-        self.ksv_btn.setFont(bigger)
-        self.ksc_btn.setFont(bigger)
-        self.view_btn.setFont(bigger)
-        self.control_btn.setFont(bigger)
+        button_font.setPointSize(base_size)
+        self.ks_btn.setFont(button_font)
+        self.ksv_btn.setFont(button_font)
+        self.ksc_btn.setFont(button_font)
+        self.view_btn.setFont(button_font)
+        self.control_btn.setFont(button_font)
 
     def _render_status_indicator(self) -> None:
         for movie in self._status_indicator_movies:
@@ -806,11 +807,6 @@ class MainWindow(QMainWindow):
         self.rows_layout.setContentsMargins(2, 2, 2, 2)
         scroll.setWidget(content)
         self._rebuild_connection_rows()
-
-        setup_divider = QFrame()
-        setup_divider.setFrameShape(QFrame.HLine)
-        setup_divider.setFrameShadow(QFrame.Sunken)
-        root.addWidget(setup_divider)
 
         lower_panel = QHBoxLayout()
         root.addLayout(lower_panel)
@@ -1015,7 +1011,7 @@ class MainWindow(QMainWindow):
                 _refresh_button_icon_state(child)
 
     def _apply_setup_manage_row_font(self) -> None:
-        """Use slightly larger text for setup selector and setup action buttons."""
+        """Keep setup widgets aligned with the global app font."""
         if not hasattr(self, "setup_select"):
             return
         app = QApplication.instance()
@@ -1024,22 +1020,22 @@ class MainWindow(QMainWindow):
         base_size = app.font().pointSize()
         if base_size <= 0:
             return
-        bigger = QFont(app.font())
-        bigger.setPointSize(base_size + 2)
-        self.setup_select.setFont(bigger)
+        aligned_font = QFont(app.font())
+        aligned_font.setPointSize(base_size)
+        self.setup_select.setFont(aligned_font)
         self._apply_setup_list_minimum_height()
         if hasattr(self, "setup_name_input"):
-            self.setup_name_input.setFont(bigger)
+            self.setup_name_input.setFont(aligned_font)
         if hasattr(self, "setup_save_btn"):
-            self.setup_save_btn.setFont(bigger)
+            self.setup_save_btn.setFont(aligned_font)
         if hasattr(self, "setup_clear_btn"):
-            self.setup_clear_btn.setFont(bigger)
+            self.setup_clear_btn.setFont(aligned_font)
         if hasattr(self, "setup_delete_btn"):
-            self.setup_delete_btn.setFont(bigger)
+            self.setup_delete_btn.setFont(aligned_font)
         if hasattr(self, "setup_view_btn"):
-            self.setup_view_btn.setFont(bigger)
+            self.setup_view_btn.setFont(aligned_font)
         if hasattr(self, "setup_control_btn"):
-            self.setup_control_btn.setFont(bigger)
+            self.setup_control_btn.setFont(aligned_font)
 
     def _current_setup_name(self) -> str:
         if hasattr(self, "setup_name_input"):
@@ -1142,7 +1138,7 @@ class MainWindow(QMainWindow):
         if mode == "Auto":
             self.effective_theme = "Dark" if windows_prefers_dark() else "Light"
         effective = self.effective_theme if mode == "Auto" else mode
-        base_button_style = "QPushButton{padding:2px 6px 4px 6px; border-radius:4px;}"
+        base_button_style = f"QPushButton{{{BUTTON_CHROME}}}"
         light_row_style = (
             "QFrame#connectionRowCard{background:#fbfcfd; border:1px solid #e5e7eb; border-radius:6px;}"
             "QLabel#ownerLabel{color:#6b7280;}"
@@ -2154,7 +2150,7 @@ class MainWindow(QMainWindow):
 
         try:
             os.startfile(str(target))
-            self._show_info(f"Opened active file: {target.name}")
+            self._show_info(f"Opened active file: {target}")
         except OSError as exc:
             self._show_info(f"Failed to open active file: {exc}")
 

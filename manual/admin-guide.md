@@ -1,7 +1,7 @@
 # VNC Station Admin Guide
 
 Audience: administrators responsible for deployment, station settings, networking, validation, and recovery.  
-App version: `1.5.2`
+App version: `1.5.3`
 
 ## When To Use This Guide
 
@@ -58,7 +58,7 @@ Do not:
 
 Open `Change Settings` and configure the station before production use.
 
-![Settings window](manual-assets/images/1.5.2/03-settings-window-network-and-maintenance.png)
+![Settings window](manual-assets/images/1.5.3/03-settings-window-network-and-maintenance.png)
 
 Figure 1: Settings window for network, reconnect, HA, validation, and save operations.
 

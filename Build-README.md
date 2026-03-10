@@ -163,6 +163,7 @@ Additional per-connection keys:
 - `position_name` (selected position preset name from `vnc-positions`, optional)
 - `linked_session` (token format `<ConnectionName>|view|control`, optional)
 - `ks` (folder or file path, optional; if folder, open latest modified file at click time)
+- clicking the row active button shows a toast with the full resolved opened path
 - `ha_sensors` (list of selected entity IDs, optional)
 - `ha_sensor_icons` (list of mappings, optional):
   - `entity_id`
@@ -238,7 +239,7 @@ For each connection, render compact two-column card rows including:
   - position selectors (`V`/`C`)
   - link selectors (`V`/`C`)
 - right column:
-  - `[Active button(s) dynamic text]`
+  - `[Active button(s) dynamic text]` (`KS` or stacked `KSV` / `KSC`)
   - `[View|Close] [Control|Close]` (text toggles with local session state)
   - `[Edit View] [Edit Control]`
 
@@ -651,6 +652,7 @@ Packaging requirement:
 - Active button text logic:
   - one visible button => custom `ks_button_text` (or fallback `KS`)
   - two visible buttons => per-mode custom `ks_button_text` (or fallback `KSV`/`KSC`)
+  - when two visible buttons are shown, `KSV` and `KSC` stack vertically in the same action column as `View` and `Control`
 - Shared-session overrides log in local and remote chat.
 - `/help`, `/nick`, `/topic`, `/me`, `/away`, `/notify` work as specified.
 - Notify sound plays only for `/notify`.

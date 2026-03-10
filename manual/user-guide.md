@@ -1,7 +1,7 @@
 # VNC Station User Guide
 
 Audience: operators using the app during normal production work.  
-App version: `1.5.2`
+App version: `1.5.3`
 
 ## When To Use This Guide
 
@@ -35,7 +35,7 @@ The app has two main areas:
 - a scrollable list of machines/sessions
 - a lower control area for setups, batch actions, and tools
 
-![Main window with setup area](manual-assets/images/1.5.2/01-main-window-setup-area.png)
+![Main window with setup area](manual-assets/images/1.5.3/01-main-window-setup-area.png)
 
 Figure 1: Main operator window with connection rows and the lower setup/session control area.
 
@@ -175,7 +175,7 @@ Do not:
 
 Use chat for coordination, handover, and escalation.
 
-![Chat window](manual-assets/images/1.5.2/02-chat-window.png)
+![Chat window](manual-assets/images/1.5.3/02-chat-window.png)
 
 Figure 2: Chat window with target selector, topic area, chat log, and input box.
 

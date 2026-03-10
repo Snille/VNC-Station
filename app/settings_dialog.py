@@ -37,6 +37,7 @@ ICON_TEXT_GAP_PREFIX = "\u2009"
 BUTTON_ICON_PATH_PROPERTY = "button_icon_path"
 BUTTON_ICON_BASE_SIZE_PROPERTY = "button_icon_base_size"
 BUTTON_TEXT_RAW_PROPERTY = "button_text_raw"
+BUTTON_BASE_CHROME = "font-weight:700; padding:2px 6px 4px 6px; border:none; border-radius:4px;"
 
 
 def _button_icons_enabled() -> bool:
@@ -96,7 +97,7 @@ class SensorMappingsEditor(QWidget):
         self.sensor_search_input.returnPressed.connect(self._start_sensor_search)
         self.sensor_search_btn = QPushButton("Search")
         _set_button_icon(self.sensor_search_btn, HA_ICON_PATH)
-        self.sensor_search_btn.setStyleSheet("background:#1971c2; color:white; font-weight:700; border-radius:4px;")
+        self.sensor_search_btn.setStyleSheet(f"background:#1971c2; color:white; {BUTTON_BASE_CHROME}")
         self.sensor_search_btn.clicked.connect(self._start_sensor_search)
         search_row.addWidget(self.sensor_search_input, 1)
         search_row.addWidget(self.sensor_search_btn)
@@ -585,7 +586,7 @@ class SettingsDialog(QDialog):
         saved_geometry = self._geometry_store.value("edit_session_dialog_geometry")
         if not saved_geometry or not self.restoreGeometry(saved_geometry):
             self.resize(620, 820)
-        self.setStyleSheet("QPushButton{padding:2px 6px;}")
+        self.setStyleSheet(f"QPushButton{{{BUTTON_BASE_CHROME}}}")
         self._fields: Dict[str, object] = {}
 
         layout = QVBoxLayout(self)
@@ -618,9 +619,9 @@ class SettingsDialog(QDialog):
         cancel = QPushButton("Cancel")
         save = QPushButton("Save")
         _set_button_icon(cancel, CANCEL_ICON_PATH)
-        cancel.setStyleSheet("background:#1971c2; color:white; font-weight:700; border-radius:4px;")
+        cancel.setStyleSheet(f"background:#1971c2; color:white; {BUTTON_BASE_CHROME}")
         _set_button_icon(save, SAVE_ICON_PATH)
-        save.setStyleSheet("background:#6741d9; color:white; font-weight:700; border-radius:4px;")
+        save.setStyleSheet(f"background:#6741d9; color:white; {BUTTON_BASE_CHROME}")
         save.clicked.connect(self.accept)
         cancel.clicked.connect(self.reject)
         buttons.addWidget(cancel)

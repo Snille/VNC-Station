@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from PyQt5.QtCore import QPoint, QRect, QSettings, QSize, Qt, pyqtSignal
+from PyQt5.QtCore import QPoint, QRect, QSettings, QSize, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
@@ -489,7 +489,7 @@ class LayoutToolWindow(QMainWindow):
     def _apply_theme(self, mode: str) -> None:
         self.theme_mode = mode
         effective = "Dark" if mode == "Auto" and windows_prefers_dark() else ("Light" if mode == "Auto" else mode)
-        base_button_style = "QPushButton{padding:2px 6px 4px 6px; border:none; border-radius:4px;}"
+        base_button_style = "QPushButton{font-weight:700; padding:2px 6px 4px 6px; border:none; border-radius:4px;}"
         if effective == "Dark":
             self.setStyleSheet(
                 "QWidget{background:#1f2328;color:#e6edf3;} "
@@ -526,6 +526,22 @@ class LayoutToolWindow(QMainWindow):
             self.info_label.setText(
                 "Session mode: edit full VNC + label settings and save to connection JSON."
             )
+        QTimer.singleShot(0, lambda: self._resize_for_editor_mode(is_position_mode))
+
+    def _resize_for_editor_mode(self, is_position_mode: bool) -> None:
+        """Shrink the window when switching to lighter position mode."""
+        central = self.centralWidget()
+        if central is None:
+            return
+        layout = central.layout()
+        if layout is not None:
+            layout.invalidate()
+            layout.activate()
+        central.adjustSize()
+        self.adjustSize()
+        target = self.sizeHint().expandedTo(self.minimumSizeHint())
+        if is_position_mode:
+            self.resize(max(420, target.width()), max(300, target.height()))
 
     def _apply_preview_styles(self) -> None:
         s = self._collect_settings()
