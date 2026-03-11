@@ -1,10 +1,14 @@
 # Updates
 
 Project: `VNC Station Controller`  
-Latest version in repository: `1.5.3`
+Latest version in repository: `1.6.0`
 
 ## Version Milestones
 
+- `1.6.0` (`release`, 2026-03-11)
+  - Split `Positions & Sessions` into dedicated `Positions` and `Sessions` windows with separate saved geometries.
+  - Reworked minimized session rows with bulk minimize/restore, inline action buttons, link/owner icons, and control-mode owner icon support.
+  - Added `Follow links on tagged`, expanded Active Folder to support file or folder selection, and refreshed settings/session editor layouts.
 - `1.5.3` (`release`, 2026-03-10)
   - Unified button padding/font styling across the app and aligned session-row action columns.
   - Removed the extra divider above the setup area in the main window.

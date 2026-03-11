@@ -3,7 +3,7 @@
 from pathlib import Path
 import sys
 
-APP_VERSION = "1.5.3"
+APP_VERSION = "1.6.0"
 
 
 # Base directory for user/runtime files.
@@ -39,7 +39,12 @@ UNLOCK_ICON_PATH = APP_DIR / "images" / "unlock.png"
 APPLYSETUP_ICON_PATH = APP_DIR / "images" / "applysetup.png"
 SPREADSHEET_ICON_PATH = APP_DIR / "images" / "spreadsheet.png"
 LINK_ICON_PATH = APP_DIR / "images" / "link.png"
+LINK_DARK_ICON_PATH = APP_DIR / "images" / "link-dark.png"
+LINK_LIGHT_ICON_PATH = APP_DIR / "images" / "link-light.png"
 MONITOR_ICON_PATH = APP_DIR / "images" / "monitor.png"
+USER_CONTROL_ICON_PATH = APP_DIR / "images" / "user-control.png"
+USER_DARK_ICON_PATH = APP_DIR / "images" / "user-dark.png"
+USER_LIGHT_ICON_PATH = APP_DIR / "images" / "user-light.png"
 NOTICE_SOUND_PATH = APP_DIR / "sounds" / "notice.wav"
 INDICATOR_DOOR_OPEN_ICON_PATH = APP_DIR / "images" / "indicator-dooropen.png"
 INDICATOR_DOOR_CLOSED_ICON_PATH = APP_DIR / "images" / "indicator-doorclosed.png"

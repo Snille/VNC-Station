@@ -12,6 +12,7 @@ from PyQt5.QtCore import QSettings, QSize, Qt, pyqtSignal
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QColorDialog,
     QComboBox,
     QDialog,
@@ -590,24 +591,32 @@ class SettingsDialog(QDialog):
         self._fields: Dict[str, object] = {}
 
         layout = QVBoxLayout(self)
+        top_fields_row = QHBoxLayout()
+        layout.addLayout(top_fields_row)
+        left_form = QFormLayout()
+        right_form = QFormLayout()
+        top_fields_row.addLayout(left_form, 1)
+        top_fields_row.addLayout(right_form, 1)
+
+        self._add_spin(left_form, "x", "Window X", settings.x, -10000, 10000)
+        self._add_spin(left_form, "y", "Window Y", settings.y, -10000, 10000)
+        self._add_spin(left_form, "width", "Window Width", settings.width, 100, 6000)
+        self._add_spin(left_form, "height", "Window Height", settings.height, 100, 6000)
+        self._add_text(left_form, "label_text", "Label Text", settings.label_text)
+        self._add_spin(left_form, "label_x", "Label Offset X", settings.label_x, -10000, 10000)
+        self._add_spin(left_form, "label_y", "Label Offset Y", settings.label_y, -10000, 10000)
+
+        self._add_spin(right_form, "label_width", "Label Width", settings.label_width, 30, 4000)
+        self._add_spin(right_form, "label_height", "Label Height", settings.label_height, 20, 2000)
+        self._add_text(right_form, "label_bg", "Label Background", settings.label_bg)
+        self._add_spin(right_form, "label_font", "Label Font Size", settings.label_font, 8, 180)
+        self._add_text(right_form, "label_font_color", "Label Font Color", settings.label_font_color)
+        self._add_spin(right_form, "label_border_size", "Label Border Size", settings.label_border_size, 0, 40)
+        self._add_text(right_form, "label_border_color", "Label Border Color", settings.label_border_color)
+
         form = QFormLayout()
         layout.addLayout(form)
-
-        self._add_spin(form, "x", "Window X", settings.x, -10000, 10000)
-        self._add_spin(form, "y", "Window Y", settings.y, -10000, 10000)
-        self._add_spin(form, "width", "Window Width", settings.width, 100, 6000)
-        self._add_spin(form, "height", "Window Height", settings.height, 100, 6000)
-        self._add_text(form, "label_text", "Label Text", settings.label_text)
-        self._add_spin(form, "label_x", "Label Offset X", settings.label_x, -10000, 10000)
-        self._add_spin(form, "label_y", "Label Offset Y", settings.label_y, -10000, 10000)
-        self._add_spin(form, "label_width", "Label Width", settings.label_width, 30, 4000)
-        self._add_spin(form, "label_height", "Label Height", settings.label_height, 20, 2000)
-        self._add_text(form, "label_bg", "Label Background", settings.label_bg)
-        self._add_spin(form, "label_font", "Label Font Size", settings.label_font, 8, 180)
-        self._add_text(form, "label_font_color", "Label Font Color", settings.label_font_color)
-        self._add_spin(form, "label_border_size", "Label Border Size", settings.label_border_size, 0, 40)
-        self._add_text(form, "label_border_color", "Label Border Color", settings.label_border_color)
-        self._add_folder_picker(form, "ks", "Active Folder", settings.ks)
+        self._add_active_path_picker(form, settings.ks)
         self._add_text(form, "ks_button_text", "Active Button Text", settings.ks_button_text)
 
         self.sensor_editor = SensorMappingsEditor(settings, self)
@@ -627,6 +636,10 @@ class SettingsDialog(QDialog):
         buttons.addWidget(cancel)
         buttons.addWidget(save)
 
+        layout.activate()
+        hinted = self.sizeHint()
+        self.resize(max(self.width(), hinted.width()), hinted.height())
+
     def closeEvent(self, event) -> None:
         self._geometry_store.setValue("edit_session_dialog_geometry", self.saveGeometry())
         super().closeEvent(event)
@@ -643,10 +656,28 @@ class SettingsDialog(QDialog):
         self._fields[key] = field
         form.addRow(label, field)
 
-    def _add_folder_picker(self, form: QFormLayout, key: str, label: str, value: str) -> None:
+    @staticmethod
+    def _looks_like_file_path(value: str) -> bool:
+        text = value.strip()
+        if not text:
+            return False
+        path = Path(text)
+        if path.exists():
+            return path.is_file()
+        return bool(path.suffix)
+
+    def _update_active_path_ui(self) -> None:
+        file_mode = self.ks_file_checkbox.isChecked()
+        self.ks_path_label.setText("Active Path/File" if file_mode else "Active Folder")
+        self.ks_browse_btn.setText("Browse file..." if file_mode else "Browse folder...")
+
+    def _add_active_path_picker(self, form: QFormLayout, value: str) -> None:
         row = QHBoxLayout()
         field = QLineEdit(value)
-        browse_btn = QPushButton("Browse...")
+        self.ks_path_label = QLabel("Active Folder")
+        self.ks_browse_btn = QPushButton("Browse...")
+        self.ks_file_checkbox = QCheckBox("Select file instead of folder")
+        self.ks_file_checkbox.setChecked(self._looks_like_file_path(value))
 
         def browse() -> None:
             start_dir = field.text().strip()
@@ -654,17 +685,28 @@ class SettingsDialog(QDialog):
                 current = Path(start_dir)
                 if current.is_file():
                     start_dir = str(current.parent)
-            path = QFileDialog.getExistingDirectory(self, "Select Active Folder", start_dir or "")
+            if self.ks_file_checkbox.isChecked():
+                path, _selected_filter = QFileDialog.getOpenFileName(
+                    self,
+                    "Select Active File",
+                    start_dir or "",
+                    "All Files (*)",
+                )
+            else:
+                path = QFileDialog.getExistingDirectory(self, "Select Active Folder", start_dir or "")
             if path:
                 field.setText(path)
 
-        browse_btn.clicked.connect(browse)
+        self.ks_browse_btn.clicked.connect(browse)
+        self.ks_file_checkbox.toggled.connect(lambda _checked: self._update_active_path_ui())
         row.addWidget(field, 1)
-        row.addWidget(browse_btn)
+        row.addWidget(self.ks_browse_btn)
         wrapper = QVBoxLayout()
         wrapper.addLayout(row)
-        self._fields[key] = field
-        form.addRow(label, wrapper)
+        wrapper.addWidget(self.ks_file_checkbox)
+        self._fields["ks"] = field
+        form.addRow(self.ks_path_label, wrapper)
+        self._update_active_path_ui()
 
     def values(self) -> SessionSettings:
         """Read all current UI fields back into a SessionSettings object."""

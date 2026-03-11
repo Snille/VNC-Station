@@ -12,6 +12,7 @@ from PyQt5.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
+    QFrame,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -139,10 +140,6 @@ class SettingsWindow(QDialog):
 
         root = QVBoxLayout(self)
 
-        appearance_label = QLabel("Appearance")
-        appearance_label.setStyleSheet("font-weight:700;")
-        root.addWidget(appearance_label)
-
         appearance_row = QHBoxLayout()
         self.theme_combo = QComboBox()
         self.theme_combo.addItems(["Auto", "Light", "Dark"])
@@ -157,56 +154,97 @@ class SettingsWindow(QDialog):
         self.apply_btn.clicked.connect(self._apply_appearance)
         appearance_row.addWidget(QLabel("Theme:"))
         appearance_row.addWidget(self.theme_combo)
-        appearance_row.addWidget(QLabel("Font Size:"))
+        appearance_row.addWidget(QLabel("Font size:"))
         appearance_row.addWidget(self.font_size_spin)
         appearance_row.addWidget(self.apply_btn)
         root.addLayout(appearance_row)
-        self.button_icons_checkbox = QCheckBox("Use button icons")
-        self.button_icons_checkbox.setChecked(bool(self._use_button_icons))
-        root.addWidget(self.button_icons_checkbox)
+
+        appearance_separator = QFrame()
+        appearance_separator.setFrameShape(QFrame.HLine)
+        appearance_separator.setFrameShadow(QFrame.Sunken)
+        root.addWidget(appearance_separator)
+
+        station_row = QHBoxLayout()
+        station_row.addWidget(QLabel("Station name:"))
+        self._fields["station_name"] = QLineEdit(str(defaults.get("station_name", "Station 01")))
+        station_row.addWidget(self._fields["station_name"], 1)
+        root.addLayout(station_row)
+
+        station_separator = QFrame()
+        station_separator.setFrameShape(QFrame.HLine)
+        station_separator.setFrameShadow(QFrame.Sunken)
+        root.addWidget(station_separator)
 
         network_label = QLabel("Network")
         network_label.setStyleSheet("font-weight:700;")
         root.addWidget(network_label)
+
         network_row = QHBoxLayout()
         network_row.addWidget(QLabel("UDP Port:"))
         self.udp_port_spin = QSpinBox()
         self.udp_port_spin.setRange(1, 65535)
         self.udp_port_spin.setValue(_int_from_mapping(defaults, "udp_port", 50000))
         network_row.addWidget(self.udp_port_spin)
+        self.reconnect_checkbox = QCheckBox("Reconnect on drop")
+        self.reconnect_checkbox.setChecked(_bool_from_mapping(defaults, "reconnect_on_drop", False))
+        network_row.addWidget(self.reconnect_checkbox)
+        network_row.addStretch(1)
+        root.addLayout(network_row)
+
+        network_flags_row = QHBoxLayout()
+        self.follow_links_on_tagged_checkbox = QCheckBox("Follow links on tagged")
+        self.follow_links_on_tagged_checkbox.setChecked(
+            _bool_from_mapping(defaults, "follow_links_on_tagged", False)
+        )
+        network_flags_row.addWidget(self.follow_links_on_tagged_checkbox)
         self.allow_multi_checkbox = QCheckBox("Allow multiple instances on the same station")
         self.allow_multi_checkbox.setChecked(
             _bool_from_mapping(defaults, "allow_multiple_instances", False)
         )
-        network_row.addWidget(self.allow_multi_checkbox)
-        network_row.addStretch(1)
-        root.addLayout(network_row)
-        self.reconnect_checkbox = QCheckBox("Reconnect on drop")
-        self.reconnect_checkbox.setChecked(_bool_from_mapping(defaults, "reconnect_on_drop", False))
-        root.addWidget(self.reconnect_checkbox)
+        network_flags_row.addWidget(self.allow_multi_checkbox)
+        network_flags_row.addStretch(1)
+        root.addLayout(network_flags_row)
 
         defaults_label = QLabel("Default Session Values")
         defaults_label.setStyleSheet("font-weight:700;")
         root.addWidget(defaults_label)
 
-        form = QFormLayout()
-        root.addLayout(form)
+        window_row = QHBoxLayout()
+        left_window_form = QFormLayout()
+        right_window_form = QFormLayout()
+        window_row.addLayout(left_window_form, 1)
+        window_row.addLayout(right_window_form, 1)
+        root.addLayout(window_row)
+        self._add_spin(left_window_form, "x", "VNC X", _int_from_mapping(defaults, "x", 1), -10000, 10000)
+        self._add_spin(right_window_form, "y", "VNC Y", _int_from_mapping(defaults, "y", 1), -10000, 10000)
+        self._add_spin(left_window_form, "width", "VNC width", _int_from_mapping(defaults, "width", 1300), 100, 6000)
+        self._add_spin(right_window_form, "height", "VNC height", _int_from_mapping(defaults, "height", 880), 100, 6000)
 
-        self._add_spin(form, "x", "Window X", _int_from_mapping(defaults, "x", 1), -10000, 10000)
-        self._add_spin(form, "y", "Window Y", _int_from_mapping(defaults, "y", 1), -10000, 10000)
-        self._add_spin(form, "width", "Window Width", _int_from_mapping(defaults, "width", 1300), 100, 6000)
-        self._add_spin(form, "height", "Window Height", _int_from_mapping(defaults, "height", 880), 100, 6000)
-        self._add_text(form, "label_text", "Label Text", str(defaults.get("label_text", "Default")))
-        self._add_spin(form, "label_x", "Label Offset X", _int_from_mapping(defaults, "label_x", 10), -10000, 10000)
-        self._add_spin(form, "label_y", "Label Offset Y", _int_from_mapping(defaults, "label_y", 10), -10000, 10000)
-        self._add_text(form, "label_bg", "Label Background", str(defaults.get("label_bg", "white")))
-        self._add_spin(form, "label_width", "Label Width", _int_from_mapping(defaults, "label_width", 200), 30, 4000)
-        self._add_spin(form, "label_height", "Label Height", _int_from_mapping(defaults, "label_height", 100), 20, 2000)
-        self._add_spin(form, "label_font", "Label Font Size", _int_from_mapping(defaults, "label_font", 18), 8, 180)
-        self._add_text(form, "label_font_color", "Label Font Color", str(defaults.get("label_font_color", "black")))
-        self._add_spin(form, "label_border_size", "Label Border Size", _int_from_mapping(defaults, "label_border_size", 5), 0, 40)
-        self._add_text(form, "label_border_color", "Label Border Color", str(defaults.get("label_border_color", "yellow")))
-        self._add_text(form, "station_name", "Station Name", str(defaults.get("station_name", "Station 01")))
+        defaults_separator = QFrame()
+        defaults_separator.setFrameShape(QFrame.HLine)
+        defaults_separator.setFrameShadow(QFrame.Sunken)
+        root.addWidget(defaults_separator)
+
+        label_row = QHBoxLayout()
+        left_label_form = QFormLayout()
+        right_label_form = QFormLayout()
+        label_row.addLayout(left_label_form, 1)
+        label_row.addLayout(right_label_form, 1)
+        root.addLayout(label_row)
+        self._add_text(left_label_form, "label_text", "Label text", str(defaults.get("label_text", "Default")))
+        self._add_spin(right_label_form, "label_border_size", "Border size", _int_from_mapping(defaults, "label_border_size", 5), 0, 40)
+        self._add_spin(left_label_form, "label_font", "Font size", _int_from_mapping(defaults, "label_font", 18), 8, 180)
+        self._add_text(right_label_form, "label_font_color", "Font color", str(defaults.get("label_font_color", "black")))
+        self._add_text(left_label_form, "label_bg", "Label background", str(defaults.get("label_bg", "white")))
+        self._add_text(right_label_form, "label_border_color", "Label border color", str(defaults.get("label_border_color", "yellow")))
+        self._add_spin(left_label_form, "label_x", "Label offset X", _int_from_mapping(defaults, "label_x", 10), -10000, 10000)
+        self._add_spin(right_label_form, "label_y", "Label offset Y", _int_from_mapping(defaults, "label_y", 10), -10000, 10000)
+        self._add_spin(left_label_form, "label_width", "Label width", _int_from_mapping(defaults, "label_width", 200), 30, 4000)
+        self._add_spin(right_label_form, "label_height", "Label height", _int_from_mapping(defaults, "label_height", 100), 20, 2000)
+
+        self.button_icons_checkbox = QCheckBox("Use button icons")
+        self.button_icons_checkbox.setChecked(bool(self._use_button_icons))
+        root.addWidget(self.button_icons_checkbox)
 
         ha_label = QLabel("Home Assistant")
         ha_label.setStyleSheet("font-weight:700;")
@@ -273,6 +311,9 @@ class SettingsWindow(QDialog):
             _bool_from_mapping(defaults, "allow_multiple_instances", False)
         )
         self.reconnect_checkbox.setChecked(_bool_from_mapping(defaults, "reconnect_on_drop", False))
+        self.follow_links_on_tagged_checkbox.setChecked(
+            _bool_from_mapping(defaults, "follow_links_on_tagged", False)
+        )
         spin_defaults = {
             "x": 1,
             "y": 1,
@@ -342,6 +383,7 @@ class SettingsWindow(QDialog):
             "udp_port": str(self.udp_port_spin.value()),
             "allow_multiple_instances": "true" if self.allow_multi_checkbox.isChecked() else "false",
             "reconnect_on_drop": "true" if self.reconnect_checkbox.isChecked() else "false",
+            "follow_links_on_tagged": "true" if self.follow_links_on_tagged_checkbox.isChecked() else "false",
         }
 
     def _save(self) -> None:

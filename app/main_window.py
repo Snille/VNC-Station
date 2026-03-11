@@ -60,7 +60,9 @@ from .constants import (
     GEARS_ICON_PATH,
     HELLO_INTERVAL_MS,
     ICON_PATH,
+    LINK_DARK_ICON_PATH,
     LINK_ICON_PATH,
+    LINK_LIGHT_ICON_PATH,
     MODE_CONTROL,
     MODE_VIEW,
     MONITOR_ICON_PATH,
@@ -70,6 +72,9 @@ from .constants import (
     SESSION_BROADCAST_INTERVAL_MS,
     STATION_PRESENCE_CHECK_MS,
     UDP_PORT,
+    USER_CONTROL_ICON_PATH,
+    USER_DARK_ICON_PATH,
+    USER_LIGHT_ICON_PATH,
     VNC_SETUPS_DIR,
     UNLOCK_ICON_PATH,
     UNTAG_ICON_PATH,
@@ -240,6 +245,9 @@ class ConnectionRow:
         self._mode_highlight: Dict[str, str] = {MODE_VIEW: "", MODE_CONTROL: ""}
         self._indicators_bg_color = ""
         self._mode_open_state: Dict[str, bool] = {MODE_VIEW: False, MODE_CONTROL: False}
+        self._owner_header_in_use = False
+        self._owner_header_mode = ""
+        self._owner_header_theme = "Light"
         self._minimized = False
         self.widget = QFrame()
         self.widget.setObjectName("connectionRowCard")
@@ -255,9 +263,43 @@ class ConnectionRow:
         self.tag = QCheckBox()
         self.name_btn = QPushButton(entry.name)
         self.name_btn.setStyleSheet(f"{BUTTON_CHROME} text-align:left;")
+        self.name_btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
         self.name_btn.clicked.connect(lambda: self.tag.setChecked(not self.tag.isChecked()))
         header_row.addWidget(self.tag)
-        header_row.addWidget(self.name_btn, 1)
+        header_row.addWidget(self.name_btn)
+        self.link_header_icon = QLabel()
+        self.link_header_icon.setVisible(False)
+        header_row.addWidget(self.link_header_icon)
+        self.minimized_ks_btn = QPushButton("KS")
+        self.minimized_ksv_btn = QPushButton("KSV")
+        self.minimized_ksc_btn = QPushButton("KSC")
+        _set_button_icon(self.minimized_ks_btn, SPREADSHEET_ICON_PATH)
+        _set_button_icon(self.minimized_ksv_btn, SPREADSHEET_ICON_PATH)
+        _set_button_icon(self.minimized_ksc_btn, SPREADSHEET_ICON_PATH)
+        _set_compact_button(self.minimized_ks_btn)
+        _set_compact_button(self.minimized_ksv_btn)
+        _set_compact_button(self.minimized_ksc_btn)
+        self.minimized_ks_btn.clicked.connect(lambda: callbacks["open_ks"](entry.name, "shared"))
+        self.minimized_ksv_btn.clicked.connect(lambda: callbacks["open_ks"](entry.name, MODE_VIEW))
+        self.minimized_ksc_btn.clicked.connect(lambda: callbacks["open_ks"](entry.name, MODE_CONTROL))
+        self.minimized_ks_btn.setVisible(False)
+        self.minimized_ksv_btn.setVisible(False)
+        self.minimized_ksc_btn.setVisible(False)
+        header_row.addWidget(self.minimized_ks_btn)
+        header_row.addWidget(self.minimized_ksv_btn)
+        header_row.addWidget(self.minimized_ksc_btn)
+        self.minimized_view_btn = QPushButton("View")
+        _set_button_icon(self.minimized_view_btn, VIEW_ICON_PATH)
+        _set_compact_button(self.minimized_view_btn)
+        self.minimized_view_btn.clicked.connect(lambda: callbacks["toggle_open"](entry.name, MODE_VIEW))
+        self.minimized_view_btn.setVisible(False)
+        header_row.addWidget(self.minimized_view_btn)
+        self.minimized_control_btn = QPushButton("Control")
+        _set_button_icon(self.minimized_control_btn, CONTROL_ICON_PATH)
+        _set_compact_button(self.minimized_control_btn)
+        self.minimized_control_btn.clicked.connect(lambda: callbacks["toggle_open"](entry.name, MODE_CONTROL))
+        self.minimized_control_btn.setVisible(False)
+        header_row.addWidget(self.minimized_control_btn)
         self.indicators_widget = QWidget()
         self.indicators_widget.setObjectName("sensorIndicators")
         self.indicators_layout = QHBoxLayout(self.indicators_widget)
@@ -265,6 +307,9 @@ class ConnectionRow:
         self.indicators_layout.setSpacing(2)
         header_row.addStretch(1)
         header_row.addWidget(self.indicators_widget)
+        self.owner_header_icon = QLabel()
+        self.owner_header_icon.setVisible(False)
+        header_row.addWidget(self.owner_header_icon)
         self.minimize_btn = QPushButton("-")
         _set_compact_button(self.minimize_btn)
         self.minimize_btn.setToolTip("Minimize this session card")
@@ -301,10 +346,10 @@ class ConnectionRow:
         self._fill_position_combo(self.position_view)
         self._fill_position_combo(self.position_control)
         self.position_view.currentTextChanged.connect(
-            lambda _text: self._notify_position_change(MODE_VIEW)
+            lambda _text: self._on_position_combo_changed(MODE_VIEW)
         )
         self.position_control.currentTextChanged.connect(
-            lambda _text: self._notify_position_change(MODE_CONTROL)
+            lambda _text: self._on_position_combo_changed(MODE_CONTROL)
         )
         pos_header = QHBoxLayout()
         pos_header.addWidget(_make_icon_text_label("Position", MONITOR_ICON_PATH))
@@ -323,9 +368,9 @@ class ConnectionRow:
         _set_compact_combo(self.link_control)
         self._fill_link_combo(self.link_view, MODE_VIEW)
         self._fill_link_combo(self.link_control, MODE_CONTROL)
-        self.link_view.currentTextChanged.connect(lambda _text: self._notify_link_change(MODE_VIEW))
+        self.link_view.currentTextChanged.connect(lambda _text: self._on_link_combo_changed(MODE_VIEW))
         self.link_control.currentTextChanged.connect(
-            lambda _text: self._notify_link_change(MODE_CONTROL)
+            lambda _text: self._on_link_combo_changed(MODE_CONTROL)
         )
         link_header = QHBoxLayout()
         link_header.addWidget(_make_icon_text_label("Link", LINK_ICON_PATH))
@@ -383,10 +428,16 @@ class ConnectionRow:
 
         self._apply_mode_button_style(self.view_btn, view_available, "#2f9e44")
         self._apply_mode_button_style(self.control_btn, control_available, "#b87400")
+        self._apply_mode_button_style(self.minimized_view_btn, view_available, "#2f9e44")
+        self._apply_mode_button_style(self.minimized_control_btn, control_available, "#b87400")
+        self._apply_mode_button_style(self.minimized_ksv_btn, view_available, "#666666")
+        self._apply_mode_button_style(self.minimized_ksc_btn, control_available, "#666666")
         self._apply_mode_button_style(self.ksv_btn, view_available, "#666666")
         self._apply_mode_button_style(self.ksc_btn, control_available, "#666666")
         self._apply_minimize_button_style()
         self._refresh_ks_buttons("", "", "", "")
+        self._update_minimized_action_buttons()
+        self._update_link_header_icon()
 
     def set_mode_open_state(self, mode: str, is_open: bool, available: bool) -> None:
         """Toggle row action text between open/close while keeping icon."""
@@ -399,10 +450,24 @@ class ConnectionRow:
                 "#2f9e44",
                 self._mode_highlight.get(MODE_VIEW, ""),
             )
+            _set_button_text_for_icon_state(self.minimized_view_btn, "Close" if is_open else "View")
+            self._apply_mode_button_style(
+                self.minimized_view_btn,
+                available,
+                "#2f9e44",
+                self._mode_highlight.get(MODE_VIEW, ""),
+            )
             return
         _set_button_text_for_icon_state(self.control_btn, "Close" if is_open else "Control")
         self._apply_mode_button_style(
             self.control_btn,
+            available,
+            "#b87400",
+            self._mode_highlight.get(MODE_CONTROL, ""),
+        )
+        _set_button_text_for_icon_state(self.minimized_control_btn, "Close" if is_open else "Control")
+        self._apply_mode_button_style(
+            self.minimized_control_btn,
             available,
             "#b87400",
             self._mode_highlight.get(MODE_CONTROL, ""),
@@ -413,10 +478,18 @@ class ConnectionRow:
             return
         self._callbacks["position_changed"](self.entry.name, mode)
 
+    def _on_position_combo_changed(self, mode: str) -> None:
+        self._update_minimized_action_buttons()
+        self._notify_position_change(mode)
+
     def _notify_link_change(self, mode: str) -> None:
         if self._syncing:
             return
         self._callbacks["link_changed"](self.entry.name, mode)
+
+    def _on_link_combo_changed(self, mode: str) -> None:
+        self._update_link_header_icon()
+        self._notify_link_change(mode)
 
     def _fill_position_combo(self, combo: QComboBox) -> None:
         combo.clear()
@@ -456,6 +529,8 @@ class ConnectionRow:
     def set_minimized(self, minimized: bool) -> None:
         self._minimized = bool(minimized)
         self.body_widget.setVisible(not self._minimized)
+        self._update_minimized_action_buttons()
+        self._update_owner_header_icon()
         self.minimize_btn.setText("+" if self._minimized else "-")
         self.minimize_btn.setToolTip(
             "Restore this session card" if self._minimized else "Minimize this session card"
@@ -463,6 +538,9 @@ class ConnectionRow:
 
     def toggle_minimized(self) -> None:
         self.set_minimized(not self._minimized)
+        minimized_changed = self._callbacks.get("minimized_changed")
+        if callable(minimized_changed):
+            minimized_changed()
 
     @staticmethod
     def _make_session_token(connection_name: str, mode: str) -> str:
@@ -487,6 +565,7 @@ class ConnectionRow:
         self._syncing = True
         self._set_combo_text(combo, name.strip())
         self._syncing = False
+        self._update_minimized_action_buttons()
 
     def selected_link(self, mode: str) -> str:
         combo = self.link_view if mode == MODE_VIEW else self.link_control
@@ -500,6 +579,7 @@ class ConnectionRow:
         self._syncing = True
         self._set_combo_data(combo, token.strip())
         self._syncing = False
+        self._update_link_header_icon()
 
     def _refresh_ks_buttons(
         self, view_ks: str, control_ks: str, view_label: str, control_label: str
@@ -519,12 +599,29 @@ class ConnectionRow:
         self.ks_btn.setVisible(same)
         self.ksv_btn.setVisible(view_only or both_different)
         self.ksc_btn.setVisible(control_only or both_different)
+        self.minimized_ks_btn.setVisible(self._minimized and same)
+        self.minimized_ksv_btn.setVisible(self._minimized and (view_only or both_different))
+        self.minimized_ksc_btn.setVisible(self._minimized and (control_only or both_different))
         self.ks_btn.setEnabled(same)
+        self.minimized_ks_btn.setEnabled(same)
         _set_button_text_for_icon_state(self.ksv_btn, view_label or ("KS" if view_only else "KSV"))
         _set_button_text_for_icon_state(self.ksc_btn, control_label or ("KS" if control_only else "KSC"))
+        _set_button_text_for_icon_state(
+            self.minimized_ksv_btn, view_label or ("KS" if view_only else "KSV")
+        )
+        _set_button_text_for_icon_state(
+            self.minimized_ksc_btn, control_label or ("KS" if control_only else "KSC")
+        )
         if same:
             _set_button_text_for_icon_state(self.ks_btn, view_label or control_label or "KS")
+            _set_button_text_for_icon_state(
+                self.minimized_ks_btn, view_label or control_label or "KS"
+            )
             self.ks_btn.setStyleSheet(
+                "background:#666666; color:white; font-weight:700; "
+                "padding:2px 6px 4px 6px; border:none; border-radius:4px;"
+            )
+            self.minimized_ks_btn.setStyleSheet(
                 "background:#666666; color:white; font-weight:700; "
                 "padding:2px 6px 4px 6px; border:none; border-radius:4px;"
             )
@@ -633,6 +730,8 @@ class ConnectionRow:
         """Scale status indicator icon based on current app font size."""
         self._status_indicator_icon_px = _status_indicator_size_for_font_size(point_size)
         self._render_status_indicator()
+        self._update_link_header_icon()
+        self._update_owner_header_icon()
 
     def update_action_button_font(self, point_size: int) -> None:
         button_font = QFont(QApplication.instance().font() if QApplication.instance() is not None else QFont())
@@ -645,6 +744,11 @@ class ConnectionRow:
         self.ksc_btn.setFont(button_font)
         self.view_btn.setFont(button_font)
         self.control_btn.setFont(button_font)
+        self.minimized_ks_btn.setFont(button_font)
+        self.minimized_ksv_btn.setFont(button_font)
+        self.minimized_ksc_btn.setFont(button_font)
+        self.minimized_view_btn.setFont(button_font)
+        self.minimized_control_btn.setFont(button_font)
 
     def _render_status_indicator(self) -> None:
         for movie in self._status_indicator_movies:
@@ -681,6 +785,51 @@ class ConnectionRow:
             visible_count += 1
         self.indicators_widget.setVisible(visible_count > 0 or bool(self._indicators_bg_color))
 
+    def set_owner_in_use(self, in_use: bool, mode: str = "") -> None:
+        self._owner_header_in_use = bool(in_use)
+        self._owner_header_mode = mode.strip().lower() if self._owner_header_in_use else ""
+        self._update_owner_header_icon()
+
+    def set_effective_theme(self, theme: str) -> None:
+        self._owner_header_theme = "Dark" if str(theme).strip().lower() == "dark" else "Light"
+        self._update_link_header_icon()
+        self._update_owner_header_icon()
+
+    def _set_header_icon(self, label: QLabel, icon_path: Path, tooltip: str, visible: bool) -> None:
+        label.setVisible(visible)
+        if not visible:
+            label.clear()
+            return
+        pixmap = QPixmap(str(icon_path)).scaled(
+            self._status_indicator_icon_px,
+            self._status_indicator_icon_px,
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation,
+        )
+        label.setPixmap(pixmap)
+        label.setFixedSize(self._status_indicator_icon_px + 2, self._status_indicator_icon_px + 2)
+        label.setToolTip(tooltip)
+
+    def _update_owner_header_icon(self) -> None:
+        visible = self._minimized and self._owner_header_in_use
+        if self._owner_header_mode == MODE_CONTROL:
+            icon_path = USER_CONTROL_ICON_PATH
+        else:
+            icon_path = USER_DARK_ICON_PATH if self._owner_header_theme == "Dark" else USER_LIGHT_ICON_PATH
+        self._set_header_icon(self.owner_header_icon, icon_path, "Session currently in use", visible)
+
+    def _update_link_header_icon(self) -> None:
+        has_link = bool(self.selected_link(MODE_VIEW) or self.selected_link(MODE_CONTROL))
+        icon_path = LINK_DARK_ICON_PATH if self._owner_header_theme == "Dark" else LINK_LIGHT_ICON_PATH
+        self._set_header_icon(self.link_header_icon, icon_path, "Session link configured", has_link)
+
+    def _update_minimized_action_buttons(self) -> None:
+        self.minimized_view_btn.setVisible(self._minimized and bool(self.selected_position(MODE_VIEW)))
+        self.minimized_control_btn.setVisible(self._minimized and bool(self.selected_position(MODE_CONTROL)))
+        self.minimized_ks_btn.setVisible(self._minimized and not self.ks_btn.isHidden())
+        self.minimized_ksv_btn.setVisible(self._minimized and not self.ksv_btn.isHidden())
+        self.minimized_ksc_btn.setVisible(self._minimized and not self.ksc_btn.isHidden())
+
 class MainWindow(QMainWindow):
     """Primary controller window that coordinates all app subsystems."""
     binary_sensor_states_received = pyqtSignal(object)
@@ -703,6 +852,7 @@ class MainWindow(QMainWindow):
         self.effective_theme = "Dark" if windows_prefers_dark() else "Light"
         self.reconnect_on_drop = str(self.settings_store.value("reconnect_on_drop", "false")).lower() == "true"
         self.udp_port = self._load_udp_port_setting()
+        self.follow_links_on_tagged = self._load_follow_links_on_tagged_setting()
         self.connections = scan_connections()
         self.position_names: List[str] = [p.name for p in scan_positions()]
         self.session_link_options: List[Tuple[str, str]] = self._build_session_link_options()
@@ -714,7 +864,8 @@ class MainWindow(QMainWindow):
         self._online_snapshot: set[str] = set()
         self._startup_sync_pending = True
         self._startup_sync_attempts = 0
-        self._layout_tool_window: Optional[LayoutToolWindow] = None
+        self._positions_tool_window: Optional[LayoutToolWindow] = None
+        self._sessions_tool_window: Optional[LayoutToolWindow] = None
         self._settings_window: Optional[SettingsWindow] = None
         self._binary_sensor_by_connection: Dict[str, List[Dict[str, str]]] = {}
         self._binary_sensor_by_connection_mode: Dict[str, Dict[str, List[Dict[str, str]]]] = {}
@@ -849,6 +1000,14 @@ class MainWindow(QMainWindow):
         )
         self.setup_control_btn.clicked.connect(lambda: self._toggle_setup_mode(MODE_CONTROL))
         setup_actions_row.addWidget(self.setup_control_btn)
+        setup_actions_row.addStretch(1)
+        self.minimize_all_btn = QPushButton("-")
+        _set_compact_button(self.minimize_all_btn)
+        self.minimize_all_btn.setToolTip("Minimize all session cards")
+        self.minimize_all_btn.setStyleSheet(f"background:#5f6b7a; color:white; {BUTTON_CHROME}")
+        self.minimize_all_btn.clicked.connect(self._toggle_all_rows_minimized)
+        setup_actions_row.addWidget(self.minimize_all_btn)
+        self._refresh_minimize_all_button()
         self._refresh_setup_mode_buttons()
         self._refresh_setup_targets()
 
@@ -932,19 +1091,25 @@ class MainWindow(QMainWindow):
 
         actions_row5 = QHBoxLayout()
         root.addLayout(actions_row5)
-        session_tool_btn = QPushButton("Positions && Sessions")
-        _set_button_icon(session_tool_btn, EDIT_ICON_PATH)
-        _set_compact_button(session_tool_btn)
-        session_tool_btn.setStyleSheet("background:#1971c2; color:white; font-weight:700; border-radius:4px;")
-        session_tool_btn.clicked.connect(self._open_layout_tool)
-        settings_btn = QPushButton("Change Settings")
+        positions_tool_btn = QPushButton("Positions")
+        _set_button_icon(positions_tool_btn, EDIT_ICON_PATH)
+        _set_compact_button(positions_tool_btn)
+        positions_tool_btn.setStyleSheet("background:#1971c2; color:white; font-weight:700; border-radius:4px;")
+        positions_tool_btn.clicked.connect(self._open_positions_tool)
+        sessions_tool_btn = QPushButton("Sessions")
+        _set_button_icon(sessions_tool_btn, EDIT_ICON_PATH)
+        _set_compact_button(sessions_tool_btn)
+        sessions_tool_btn.setStyleSheet("background:#1971c2; color:white; font-weight:700; border-radius:4px;")
+        sessions_tool_btn.clicked.connect(self._open_sessions_tool)
+        settings_btn = QPushButton("Settings")
         _set_button_icon(settings_btn, GEARS_ICON_PATH)
         _set_compact_button(settings_btn)
         settings_btn.setStyleSheet("background:#1971c2; color:white; font-weight:700; border-radius:4px;")
         settings_btn.clicked.connect(self._open_settings_window)
-        _match_button_widths(session_tool_btn, settings_btn)
+        _match_button_widths(positions_tool_btn, sessions_tool_btn, settings_btn)
         actions_row5.addWidget(self.chat_btn)
-        actions_row5.addWidget(session_tool_btn)
+        actions_row5.addWidget(positions_tool_btn)
+        actions_row5.addWidget(sessions_tool_btn)
         actions_row5.addWidget(settings_btn)
         actions_row5.addStretch(1)
 
@@ -1155,8 +1320,13 @@ class MainWindow(QMainWindow):
 
         self.setStyleSheet(stylesheet)
         self.chat_window.setStyleSheet(stylesheet)
-        if self._layout_tool_window is not None:
-            self._layout_tool_window.set_theme_mode(mode)
+        if hasattr(self, "rows"):
+            for row in self.rows.values():
+                row.set_effective_theme(effective)
+        if self._positions_tool_window is not None:
+            self._positions_tool_window.set_theme_mode(mode)
+        if self._sessions_tool_window is not None:
+            self._sessions_tool_window.set_theme_mode(mode)
         # Toast uses opposite contrast of the selected/effective app theme.
         if effective == "Dark":
             self.toast.set_theme("light")
@@ -1179,6 +1349,11 @@ class MainWindow(QMainWindow):
     def _load_udp_port_setting(self) -> int:
         data = load_default_mapping()
         return self._parse_udp_port(data.get("udp_port"), UDP_PORT)
+
+    def _load_follow_links_on_tagged_setting(self) -> bool:
+        data = load_default_mapping()
+        value = data.get("follow_links_on_tagged", "false")
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
     def _bind_network_signals(self) -> None:
         self.network.station_seen.connect(self._on_station_seen)
@@ -1242,6 +1417,9 @@ class MainWindow(QMainWindow):
         data.setdefault("udp_port", str(self.udp_port))
         data.setdefault("allow_multiple_instances", "false")
         data.setdefault("reconnect_on_drop", "true" if self.reconnect_on_drop else "false")
+        data.setdefault(
+            "follow_links_on_tagged", "true" if self.follow_links_on_tagged else "false"
+        )
         return data
 
     @staticmethod
@@ -1525,6 +1703,13 @@ class MainWindow(QMainWindow):
         """Persist app-level defaults to local override file and refresh runtime state."""
         reconnect_value = str(updates.pop("reconnect_on_drop", "true" if self.reconnect_on_drop else "false"))
         self._set_reconnect_on_drop(reconnect_value.strip().lower() in {"1", "true", "yes", "on"})
+        follow_links_value = str(
+            updates.pop(
+                "follow_links_on_tagged",
+                "true" if self.follow_links_on_tagged else "false",
+            )
+        )
+        self.follow_links_on_tagged = follow_links_value.strip().lower() in {"1", "true", "yes", "on"}
         existing: Dict[str, object] = {}
         if DEFAULT_LOCAL_CONFIG_PATH.exists():
             try:
@@ -1556,6 +1741,7 @@ class MainWindow(QMainWindow):
     def _reload_runtime_defaults_from_disk(self) -> None:
         """Refresh runtime state from imported default/default.local config files."""
         self.default_settings = load_default_settings()
+        self.follow_links_on_tagged = self._load_follow_links_on_tagged_setting()
         new_udp_port = self._load_udp_port_setting()
         if new_udp_port != self.udp_port:
             self._recreate_network_bus(new_udp_port)
@@ -1763,19 +1949,21 @@ class MainWindow(QMainWindow):
             self._persist_ui_selections(connection_name, MODE_VIEW)
             self._persist_ui_selections(connection_name, MODE_CONTROL)
         self._clear_duplicate_positions_after_load()
+        self._refresh_minimize_all_button()
         self._show_info(f"Applied setup: {selected_name}")
 
     def _clear_setup_state(self) -> None:
         """Clear all setup-driven UI state: tags, positions, and links."""
         for connection_name, row in self.rows.items():
             row.tag.setChecked(False)
-            row.set_minimized(False)
+            row.set_minimized(True)
             row.set_selected_position(MODE_VIEW, "")
             row.set_selected_position(MODE_CONTROL, "")
             row.set_selected_link(MODE_VIEW, "")
             row.set_selected_link(MODE_CONTROL, "")
             self._persist_ui_selections(connection_name, MODE_VIEW)
             self._persist_ui_selections(connection_name, MODE_CONTROL)
+        self._refresh_minimize_all_button()
         if hasattr(self, "setup_select"):
             self._set_selected_setup_name("", trigger=False)
         self._show_info("Setup cleared.")
@@ -1948,6 +2136,42 @@ class MainWindow(QMainWindow):
         """Close all currently running sessions."""
         self.session_manager.close_all()
 
+    def _toggle_all_rows_minimized(self) -> None:
+        """Minimize all rows, or restore only configured/tagged rows when all are collapsed."""
+        if self._all_rows_minimized():
+            rows_to_expand = []
+            for row in self.rows.values():
+                should_expand = (
+                    row.tag.isChecked()
+                    or bool(row.selected_position(MODE_VIEW))
+                    or bool(row.selected_position(MODE_CONTROL))
+                    or bool(row.selected_link(MODE_VIEW))
+                    or bool(row.selected_link(MODE_CONTROL))
+                )
+                if should_expand:
+                    rows_to_expand.append(row)
+            if not rows_to_expand:
+                rows_to_expand = list(self.rows.values())
+            for row in self.rows.values():
+                row.set_minimized(row not in rows_to_expand)
+            self._refresh_minimize_all_button()
+            return
+        for row in self.rows.values():
+            row.set_minimized(True)
+        self._refresh_minimize_all_button()
+
+    def _all_rows_minimized(self) -> bool:
+        return bool(self.rows) and all(row.is_minimized() for row in self.rows.values())
+
+    def _refresh_minimize_all_button(self) -> None:
+        if not hasattr(self, "minimize_all_btn"):
+            return
+        all_minimized = self._all_rows_minimized()
+        self.minimize_all_btn.setText("+" if all_minimized else "-")
+        self.minimize_all_btn.setToolTip(
+            "Expand configured/tagged session cards" if all_minimized else "Minimize all session cards"
+        )
+
     def _close_tagged_sessions(self) -> None:
         """Close both modes for all currently tagged connection rows."""
         any_tagged = False
@@ -1962,11 +2186,17 @@ class MainWindow(QMainWindow):
 
     def _open_tagged(self, mode: str) -> None:
         """Open selected mode for every currently tagged connection row."""
+        if self._startup_sync_pending:
+            self._show_info("Please wait: synchronizing session ownership...")
+            return
         any_tagged = False
         for row in self.rows.values():
             if row.tag.isChecked():
                 any_tagged = True
-                self._open_session(row.entry.name, mode)
+                if self.follow_links_on_tagged:
+                    self._open_session_with_link(row.entry.name, mode, visited=set())
+                else:
+                    self._open_single_session(row.entry.name, mode)
         if not any_tagged:
             self._show_info("No tagged connections.")
 
@@ -2391,6 +2621,8 @@ class MainWindow(QMainWindow):
             local_modes = [m for (conn, m) in self.session_manager.sessions.keys() if conn == name]
             if local_modes:
                 row.owner_label.setText(f"Owner: {self.station_name} ({'/'.join(sorted(local_modes))})")
+                owner_mode = MODE_CONTROL if MODE_CONTROL in local_modes else (local_modes[0] if local_modes else "")
+                row.set_owner_in_use(True, owner_mode)
             else:
                 matches = []
                 for (conn, mode), (holder, age_seconds) in remote_info.items():
@@ -2401,8 +2633,10 @@ class MainWindow(QMainWindow):
                     row.owner_label.setText(
                         f"Owner: {holder} [{mode}] {format_elapsed_duration(age_seconds)}"
                     )
+                    row.set_owner_in_use(True, mode)
                 else:
                     row.owner_label.setText("Owner: available")
+                    row.set_owner_in_use(False, "")
             row.set_mode_open_state(
                 MODE_VIEW, MODE_VIEW in local_modes, row.entry.view_vnc_path is not None
             )
@@ -2491,12 +2725,14 @@ class MainWindow(QMainWindow):
                     "close": self._close_session,
                     "edit": self._edit_session,
                     "open_ks": self._open_ks_file,
+                    "minimized_changed": self._refresh_minimize_all_button,
                     "position_changed": self._on_position_selection_changed,
                     "link_changed": self._on_link_selection_changed,
                 },
                 self.position_names,
                 self.session_link_options,
             )
+            row.set_effective_theme(self.effective_theme)
             self._populate_row_from_saved_settings(row)
             row.tag.toggled.connect(lambda _checked, self=self: self._refresh_tagged_mode_buttons())
             self.rows[entry.name] = row
@@ -2508,6 +2744,7 @@ class MainWindow(QMainWindow):
         self.rows_layout.addStretch(1)
         self._clear_duplicate_positions_after_load()
         self._restore_local_ui_state()
+        self._refresh_minimize_all_button()
         self._refresh_owner_labels()
         self._refresh_binary_sensor_indicators()
         if hasattr(self, "setup_select"):
@@ -2558,6 +2795,7 @@ class MainWindow(QMainWindow):
             row.set_selected_link(MODE_VIEW, str(config.get("link_view", "")).strip())
             row.set_selected_link(MODE_CONTROL, str(config.get("link_control", "")).strip())
         self._clear_duplicate_positions_after_load()
+        self._refresh_minimize_all_button()
 
     def _populate_row_from_saved_settings(self, row: ConnectionRow) -> None:
         view_settings = load_session_settings(config_path_for(row.entry.name, MODE_VIEW))
@@ -2606,14 +2844,37 @@ class MainWindow(QMainWindow):
         self.toast.show_message(text)
         LOGGER.info("Info: %s", text)
 
-    def _open_layout_tool(self) -> None:
-        """Open or focus the visual layout tool window."""
-        if self._layout_tool_window is None or not self._layout_tool_window.isVisible():
-            self._layout_tool_window = LayoutToolWindow(theme_mode=self.theme_mode)
-            self._layout_tool_window.window_closed.connect(self._on_layout_tool_closed)
-        self._layout_tool_window.show()
-        self._layout_tool_window.raise_()
-        self._layout_tool_window.activateWindow()
+    def _open_positions_tool(self) -> None:
+        """Open or focus the dedicated positions tool window."""
+        if self._positions_tool_window is None or not self._positions_tool_window.isVisible():
+            self._positions_tool_window = LayoutToolWindow(
+                theme_mode=self.theme_mode,
+                editor_mode="position",
+            )
+            self._positions_tool_window.window_closed.connect(self._on_positions_tool_closed)
+        self._positions_tool_window.show()
+        self._positions_tool_window.raise_()
+        self._positions_tool_window.activateWindow()
+
+    def _open_sessions_tool(self) -> None:
+        """Open or focus the dedicated sessions tool window."""
+        if self._sessions_tool_window is None or not self._sessions_tool_window.isVisible():
+            self._sessions_tool_window = LayoutToolWindow(
+                theme_mode=self.theme_mode,
+                editor_mode="session",
+            )
+            self._sessions_tool_window.window_closed.connect(self._on_sessions_tool_closed)
+        self._sessions_tool_window.show()
+        self._sessions_tool_window.raise_()
+        self._sessions_tool_window.activateWindow()
+
+    def _on_positions_tool_closed(self) -> None:
+        self._positions_tool_window = None
+        self._on_layout_tool_closed()
+
+    def _on_sessions_tool_closed(self) -> None:
+        self._sessions_tool_window = None
+        self._on_layout_tool_closed()
 
     def _on_layout_tool_closed(self) -> None:
         """Refresh UI state after closing the layout tool."""
@@ -2688,6 +2949,10 @@ class MainWindow(QMainWindow):
         set_json_warning_reporter(None)
         self.session_manager.close_all()
         self.network.close()
+        if self._positions_tool_window is not None:
+            self._positions_tool_window.close()
+        if self._sessions_tool_window is not None:
+            self._sessions_tool_window.close()
         if self._settings_window is not None:
             self._settings_window.close()
         self.chat_window.close()

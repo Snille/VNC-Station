@@ -3,13 +3,15 @@
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from PyQt5.QtCore import QPoint, QRect, QSettings, QSize, Qt, QTimer, pyqtSignal
+from PyQt5.QtCore import QPoint, QRect, QSettings, QSize, Qt, pyqtSignal
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QDialog,
     QFileDialog,
+    QFrame,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -282,15 +284,20 @@ class LayoutToolWindow(QMainWindow):
 
     window_closed = pyqtSignal()
 
-    def __init__(self, theme_mode: str = "Auto") -> None:
+    def __init__(self, theme_mode: str = "Auto", editor_mode: str = "position") -> None:
         super().__init__()
         self._geometry_store = QSettings("VNCStation", "Controller")
         self.settings = load_default_settings()
         self.theme_mode = theme_mode
+        normalized_mode = editor_mode.strip().lower()
+        if normalized_mode not in {"position", "session"}:
+            normalized_mode = "position"
+        self._fixed_editor_mode = "Position" if normalized_mode == "position" else "Session"
+        self._geometry_key_prefix = "positions" if normalized_mode == "position" else "sessions"
         self._syncing_form = False
         self._load_targets: List[Tuple[str, str]] = []
         self._position_paths_by_name: dict[str, Path] = {}
-        self.setWindowTitle("Positions & Sessions")
+        self.setWindowTitle("Positions" if normalized_mode == "position" else "Sessions")
         if GEARS_ICON_PATH.exists():
             self.setWindowIcon(QIcon(str(GEARS_ICON_PATH)))
         self.resize(620, 860)
@@ -316,17 +323,32 @@ class LayoutToolWindow(QMainWindow):
         self._apply_theme(self.theme_mode)
         self.vnc_preview.show()
         self._apply_editor_mode(self.mode_box.currentText())
+        self._load_initial_target_for_mode()
 
     def _restore_saved_window_geometries(self) -> None:
-        main_geometry = self._geometry_store.value("layout_tool_window_geometry")
+        main_geometry = self._geometry_store.value(
+            f"layout_tool_{self._geometry_key_prefix}_window_geometry"
+        )
         if main_geometry:
             self.restoreGeometry(main_geometry)
-        vnc_geometry = self._geometry_store.value("layout_tool_vnc_preview_geometry")
+        vnc_geometry = self._geometry_store.value(
+            f"layout_tool_{self._geometry_key_prefix}_vnc_preview_geometry"
+        )
         if vnc_geometry:
             self.vnc_preview.restoreGeometry(vnc_geometry)
-        label_geometry = self._geometry_store.value("layout_tool_label_preview_geometry")
+        label_geometry = self._geometry_store.value(
+            f"layout_tool_{self._geometry_key_prefix}_label_preview_geometry"
+        )
         if label_geometry:
             self.label_preview.restoreGeometry(label_geometry)
+
+    def _load_initial_target_for_mode(self) -> None:
+        if self._fixed_editor_mode.strip().lower() != "session":
+            return
+        if self.load_target_box.count() <= 0:
+            return
+        self.load_target_box.setCurrentIndex(0)
+        self._load_selected_target_settings()
 
     def _build_ui(self) -> None:
         root_widget = QWidget(self)
@@ -337,14 +359,18 @@ class LayoutToolWindow(QMainWindow):
         top = QVBoxLayout()
         root.addLayout(top)
 
-        mode_row = QHBoxLayout()
-        top.addLayout(mode_row)
+        top_row = QHBoxLayout()
+        top.addLayout(top_row)
+
+        self.mode_selector_widget = QWidget()
+        mode_row = QHBoxLayout(self.mode_selector_widget)
+        mode_row.setContentsMargins(0, 0, 0, 0)
         mode_row.addWidget(QLabel("Edit mode:"))
         self.mode_box = QComboBox()
         self.mode_box.addItems(["Position", "Session"])
         self.mode_box.currentTextChanged.connect(self._apply_editor_mode)
         mode_row.addWidget(self.mode_box)
-        mode_row.addStretch(1)
+        top_row.addWidget(self.mode_selector_widget)
 
         self.session_load_widget = QWidget()
         load_row = QHBoxLayout(self.session_load_widget)
@@ -363,7 +389,8 @@ class LayoutToolWindow(QMainWindow):
         save_current_btn.setStyleSheet(SAVE_BUTTON_STYLE)
         save_current_btn.clicked.connect(self._save_selected_target_settings)
         load_row.addWidget(save_current_btn)
-        top.addWidget(self.session_load_widget)
+        top_row.addWidget(self.session_load_widget, 1)
+        top_row.addStretch(1)
 
         self.position_tools_widget = QWidget()
         position_row = QHBoxLayout(self.position_tools_widget)
@@ -394,43 +421,66 @@ class LayoutToolWindow(QMainWindow):
         root.addWidget(self.info_label)
 
         self.geometry_form_widget = QWidget()
-        geometry_form = QFormLayout(self.geometry_form_widget)
+        geometry_row = QHBoxLayout(self.geometry_form_widget)
+        geometry_row.setContentsMargins(0, 0, 0, 0)
+        geometry_left_form = QFormLayout()
+        geometry_right_form = QFormLayout()
+        geometry_row.addLayout(geometry_left_form, 1)
+        geometry_row.addLayout(geometry_right_form, 1)
         root.addWidget(self.geometry_form_widget)
-        self.x_spin = self._spin(geometry_form, "VNC X", -10000, 10000, self.settings.x)
-        self.y_spin = self._spin(geometry_form, "VNC Y", -10000, 10000, self.settings.y)
-        self.w_spin = self._spin(geometry_form, "VNC Width", 100, 8000, self.settings.width)
-        self.h_spin = self._spin(geometry_form, "VNC Height", 100, 8000, self.settings.height)
+        self.x_spin = self._spin(geometry_left_form, "VNC X", -10000, 10000, self.settings.x)
+        self.y_spin = self._spin(geometry_right_form, "VNC Y", -10000, 10000, self.settings.y)
+        self.w_spin = self._spin(geometry_left_form, "VNC Width", 100, 8000, self.settings.width)
+        self.h_spin = self._spin(geometry_right_form, "VNC Height", 100, 8000, self.settings.height)
+
+        self.session_section_separator = QFrame()
+        self.session_section_separator.setFrameShape(QFrame.HLine)
+        self.session_section_separator.setFrameShadow(QFrame.Sunken)
+        root.addWidget(self.session_section_separator)
 
         self.label_form_widget = QWidget()
-        label_form = QFormLayout(self.label_form_widget)
+        label_row = QHBoxLayout(self.label_form_widget)
+        label_row.setContentsMargins(0, 0, 0, 0)
+        label_left_form = QFormLayout()
+        label_right_form = QFormLayout()
+        label_row.addLayout(label_left_form, 1)
+        label_row.addLayout(label_right_form, 1)
         root.addWidget(self.label_form_widget)
         self.label_text = QLineEdit(self.settings.label_text)
-        label_form.addRow("Label Text", self.label_text)
-        self.lx_spin = self._spin(label_form, "Label Offset X", -10000, 10000, self.settings.label_x)
-        self.ly_spin = self._spin(label_form, "Label Offset Y", -10000, 10000, self.settings.label_y)
-        self.lw_spin = self._spin(label_form, "Label Width", 30, 8000, self.settings.label_width)
-        self.lh_spin = self._spin(label_form, "Label Height", 20, 4000, self.settings.label_height)
-        self.font_spin = self._spin(label_form, "Label Font", 8, 200, self.settings.label_font)
-        self.border_spin = self._spin(label_form, "Border Size", 0, 40, self.settings.label_border_size)
+        label_left_form.addRow("Label text", self.label_text)
+        self.border_spin = self._spin(label_right_form, "Border size", 0, 40, self.settings.label_border_size)
+        self.font_spin = self._spin(label_left_form, "Font size", 8, 200, self.settings.label_font)
         self.bg_text = QLineEdit(self.settings.label_bg)
         self.fg_text = QLineEdit(self.settings.label_font_color)
         self.border_text = QLineEdit(self.settings.label_border_color)
-        label_form.addRow("Label Background", self.bg_text)
-        label_form.addRow("Label Font Color", self.fg_text)
-        label_form.addRow("Label Border Color", self.border_text)
+        label_right_form.addRow("Font color", self.fg_text)
+        label_left_form.addRow("Label background", self.bg_text)
+        label_right_form.addRow("Label border color", self.border_text)
+        self.lx_spin = self._spin(label_left_form, "Label offset X", -10000, 10000, self.settings.label_x)
+        self.ly_spin = self._spin(label_right_form, "Label offset Y", -10000, 10000, self.settings.label_y)
+        self.lw_spin = self._spin(label_left_form, "Label width", 30, 8000, self.settings.label_width)
+        self.lh_spin = self._spin(label_right_form, "Label height", 20, 4000, self.settings.label_height)
 
         self.extra_form_widget = QWidget()
         extra_form = QFormLayout(self.extra_form_widget)
         root.addWidget(self.extra_form_widget)
         self.ks_text = QLineEdit(self.settings.ks)
+        self.ks_label = QLabel("Active Folder")
         self.ks_browse_btn = QPushButton("Browse...")
+        self.ks_file_checkbox = QCheckBox("Select file instead of folder")
+        self.ks_file_checkbox.setChecked(self._looks_like_file_path(self.settings.ks))
+        self.ks_file_checkbox.toggled.connect(lambda _checked: self._update_ks_picker_ui())
         self.ks_browse_btn.clicked.connect(self._browse_active_folder)
         ks_row = QHBoxLayout()
         ks_row.addWidget(self.ks_text, 1)
         ks_row.addWidget(self.ks_browse_btn)
-        extra_form.addRow("Active Folder", ks_row)
+        ks_wrapper = QVBoxLayout()
+        ks_wrapper.addLayout(ks_row)
+        ks_wrapper.addWidget(self.ks_file_checkbox)
+        extra_form.addRow(self.ks_label, ks_wrapper)
         self.ks_button_text = QLineEdit(self.settings.ks_button_text)
         extra_form.addRow("Active Button Text", self.ks_button_text)
+        self._update_ks_picker_ui()
 
         self.sensor_editor = SensorMappingsEditor(self.settings, self)
         root.addWidget(self.sensor_editor, 1)
@@ -476,7 +526,8 @@ class LayoutToolWindow(QMainWindow):
         close_row.addWidget(close_btn)
         close_row.addStretch(1)
 
-        self.mode_box.setCurrentText("Position")
+        self.mode_box.setCurrentText(self._fixed_editor_mode)
+        self.mode_selector_widget.setVisible(False)
         self._apply_editor_mode(self.mode_box.currentText())
 
     def _spin(self, form: QFormLayout, label: str, low: int, high: int, value: int) -> QSpinBox:
@@ -485,6 +536,21 @@ class LayoutToolWindow(QMainWindow):
         field.setValue(value)
         form.addRow(label, field)
         return field
+
+    @staticmethod
+    def _looks_like_file_path(value: str) -> bool:
+        text = value.strip()
+        if not text:
+            return False
+        path = Path(text)
+        if path.exists():
+            return path.is_file()
+        return bool(path.suffix)
+
+    def _update_ks_picker_ui(self) -> None:
+        file_mode = self.ks_file_checkbox.isChecked()
+        self.ks_label.setText("Active Path/File" if file_mode else "Active Folder")
+        self.ks_browse_btn.setText("Browse file..." if file_mode else "Browse folder...")
 
     def _apply_theme(self, mode: str) -> None:
         self.theme_mode = mode
@@ -508,6 +574,7 @@ class LayoutToolWindow(QMainWindow):
         is_position_mode = mode.strip().lower() == "position"
         self.session_load_widget.setVisible(not is_position_mode)
         self.position_tools_widget.setVisible(is_position_mode)
+        self.session_section_separator.setVisible(not is_position_mode)
         self.label_form_widget.setVisible(not is_position_mode)
         self.extra_form_widget.setVisible(not is_position_mode)
         self.sensor_editor.setVisible(not is_position_mode)
@@ -526,22 +593,6 @@ class LayoutToolWindow(QMainWindow):
             self.info_label.setText(
                 "Session mode: edit full VNC + label settings and save to connection JSON."
             )
-        QTimer.singleShot(0, lambda: self._resize_for_editor_mode(is_position_mode))
-
-    def _resize_for_editor_mode(self, is_position_mode: bool) -> None:
-        """Shrink the window when switching to lighter position mode."""
-        central = self.centralWidget()
-        if central is None:
-            return
-        layout = central.layout()
-        if layout is not None:
-            layout.invalidate()
-            layout.activate()
-        central.adjustSize()
-        self.adjustSize()
-        target = self.sizeHint().expandedTo(self.minimumSizeHint())
-        if is_position_mode:
-            self.resize(max(420, target.width()), max(300, target.height()))
 
     def _apply_preview_styles(self) -> None:
         s = self._collect_settings()
@@ -636,6 +687,7 @@ class LayoutToolWindow(QMainWindow):
         self.fg_text.setText(self.settings.label_font_color)
         self.border_text.setText(self.settings.label_border_color)
         self.ks_text.setText(self.settings.ks)
+        self.ks_file_checkbox.setChecked(self._looks_like_file_path(self.settings.ks))
         self.ks_button_text.setText(self.settings.ks_button_text)
         self._replace_sensor_editor(self.settings)
         self._syncing_form = False
@@ -724,6 +776,7 @@ class LayoutToolWindow(QMainWindow):
         self.fg_text.setText(self.settings.label_font_color)
         self.border_text.setText(self.settings.label_border_color)
         self.ks_text.setText(self.settings.ks)
+        self.ks_file_checkbox.setChecked(self._looks_like_file_path(self.settings.ks))
         self.ks_button_text.setText(self.settings.ks_button_text)
         self._replace_sensor_editor(self.settings)
         self._syncing_form = False
@@ -771,7 +824,15 @@ class LayoutToolWindow(QMainWindow):
             current = Path(start_dir)
             if current.is_file():
                 start_dir = str(current.parent)
-        path = QFileDialog.getExistingDirectory(self, "Select Active Folder", start_dir or "")
+        if self.ks_file_checkbox.isChecked():
+            path, _selected_filter = QFileDialog.getOpenFileName(
+                self,
+                "Select Active File",
+                start_dir or "",
+                "All Files (*)",
+            )
+        else:
+            path = QFileDialog.getExistingDirectory(self, "Select Active Folder", start_dir or "")
         if path:
             self.ks_text.setText(path)
 
@@ -788,9 +849,18 @@ class LayoutToolWindow(QMainWindow):
         old_editor.deleteLater()
 
     def closeEvent(self, event) -> None:
-        self._geometry_store.setValue("layout_tool_window_geometry", self.saveGeometry())
-        self._geometry_store.setValue("layout_tool_vnc_preview_geometry", self.vnc_preview.saveGeometry())
-        self._geometry_store.setValue("layout_tool_label_preview_geometry", self.label_preview.saveGeometry())
+        self._geometry_store.setValue(
+            f"layout_tool_{self._geometry_key_prefix}_window_geometry",
+            self.saveGeometry(),
+        )
+        self._geometry_store.setValue(
+            f"layout_tool_{self._geometry_key_prefix}_vnc_preview_geometry",
+            self.vnc_preview.saveGeometry(),
+        )
+        self._geometry_store.setValue(
+            f"layout_tool_{self._geometry_key_prefix}_label_preview_geometry",
+            self.label_preview.saveGeometry(),
+        )
         self.vnc_preview.close()
         self.label_preview.close()
         self.window_closed.emit()

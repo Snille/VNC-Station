@@ -1,7 +1,7 @@
 # VNC Station User Guide
 
 Audience: operators using the app during normal production work.  
-App version: `1.5.3`
+App version: `1.6.0`
 
 ## When To Use This Guide
 
@@ -35,7 +35,7 @@ The app has two main areas:
 - a scrollable list of machines/sessions
 - a lower control area for setups, batch actions, and tools
 
-![Main window with setup area](manual-assets/images/1.5.3/01-main-window-setup-area.png)
+![Main window with setup area](manual-assets/images/1.6.0/01-main-window-setup-area.png)
 
 Figure 1: Main operator window with connection rows and the lower setup/session control area.
 
@@ -47,7 +47,7 @@ Key areas in this screenshot:
 - next row: `Close all sessions` and `Untag all`
 - next row: `Setup name`, then `Save`, `Clear`, and `Delete`
 - lower right: `Allow shared sessions`
-- bottom row: `Chat`, `Positions & Sessions`, and `Change Settings`
+- bottom row: `Chat`, `Positions`, `Sessions`, and `Settings`
 
 ## 2. Start Of Shift
 
@@ -175,7 +175,7 @@ Do not:
 
 Use chat for coordination, handover, and escalation.
 
-![Chat window](manual-assets/images/1.5.3/02-chat-window.png)
+![Chat window](manual-assets/images/1.6.0/02-chat-window.png)
 
 Figure 2: Chat window with target selector, topic area, chat log, and input box.
 
@@ -251,7 +251,7 @@ If something looks wrong:
 | Chat does not show other stations | UDP/firewall/network problem | escalate to admin |
 | A dropped session does not return | reconnect behavior may be disabled | ask admin to check `Reconnect on drop` in Settings |
 | A machine shows alarm colors or icons you do not expect | HA state changed or a mapping is configured for alarms | treat it as an operational signal first, then ask an advanced user to verify the mapping if needed |
-| The row has a useful file button but it opens the wrong item | Active Folder points at a folder and a different file is now the newest one | tell the advanced user which row was affected so the session configuration can be checked |
+| The row has a useful file button but it opens the wrong item | the session is using folder mode and a different file is now the newest one | tell the advanced user which row was affected so the session configuration can be checked |
 
 ## 11. End Of Shift
 

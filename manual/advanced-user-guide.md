@@ -1,7 +1,7 @@
 # VNC Station Advanced User Guide
 
 Audience: power users who prepare layouts, setups, links, Active Folder behavior, and Home Assistant mappings.  
-App version: `1.5.3`
+App version: `1.6.0`
 
 ## When To Use This Guide
 
@@ -31,29 +31,28 @@ This order matters because setups depend on positions and links already being co
 
 ## 2. Create Reusable Positions
 
-Use `Positions & Sessions` in `Position` mode for reusable VNC geometry.
+Use `Positions` for reusable VNC geometry.
 
 Typical flow:
 
-1. Open `Positions & Sessions`.
-2. Set `Edit mode` to `Position`.
-3. Move and size the VNC preview.
-4. Save the preset.
-5. Apply that preset from `Pos V` or `Pos C` in the main window.
+1. Open `Positions`.
+2. Move and size the VNC preview.
+3. Save the preset.
+4. Apply that preset from `Pos V` or `Pos C` in the main window.
 
-Use `Position` mode only for reusable VNC geometry.
+Use the `Positions` window only for reusable VNC geometry.
 
-To set label styling, Active Folder behavior, or HA sensor mapping, use `Session` mode.
+To set label styling, Active Folder behavior, or HA sensor mapping, use the `Sessions` window.
 
-![Layout tool in position mode](manual-assets/images/1.5.3/05-layout-tool-position-mode.png)
+![Layout tool in position mode](manual-assets/images/1.6.0/05-layout-tool-position-mode.png)
 
-Figure 1: Position mode in the layout tool for reusable VNC placement presets.
+Figure 1: Positions window for reusable VNC placement presets.
 
 ## 3. Edit One Session In Detail
 
-Use `Edit View`, `Edit Control`, or `Positions & Sessions` in `Session` mode when you need to change one target in detail.
+Use `Edit View`, `Edit Control`, or `Sessions` when you need to change one target in detail.
 
-Use `Session` mode for:
+Use `Sessions` for:
 
 - VNC position and size
 - `position_name` override if you want this session to follow a saved position preset
@@ -64,15 +63,15 @@ Use `Session` mode for:
 - Active Button Text
 - HA sensors and icons
 
-![Layout tool in session mode](manual-assets/images/1.5.3/04-layout-tool-session-ha-search.png)
+![Layout tool in session mode](manual-assets/images/1.6.0/04-layout-tool-session-ha-search.png)
 
-Figure 2: Session mode in the layout tool.
+Figure 2: Sessions window for per-session editing.
 
 Key areas in this screenshot:
 
-- top: `Edit mode` and `Load settings`
+- top: `Load settings`
 - center: VNC and label fields
-- `Active Folder` row: folder path plus `Browse...`
+- `Active Folder` / `Active Path/File` row: folder-or-file path plus `Browse...` and file-mode checkbox
 - below that: `Active Button Text`
 - HA area: search field, search results, selected sensors, and per-sensor mappings
 
@@ -84,12 +83,12 @@ Expected result after saving:
 
 ## 4. Configure Active Folder
 
-Use `Active Folder` when operators need quick access to related files from the row.
+Use `Active Folder` / `Active Path/File` when operators need quick access to related files from the row.
 
 Behavior:
 
-- if the path points to a file, that file opens
-- if the path points to a folder, the newest file in that folder opens
+- when the checkbox is off, browse selects a folder and the newest file in that folder opens
+- when the checkbox is on, browse selects a specific file path and that file opens
 - `Active Button Text` changes the visible row button text
 
 Good uses:
@@ -175,7 +174,7 @@ Behavior to remember:
 
 Recommended workflow:
 
-1. verify HA connection in `Change Settings`
+1. verify HA connection in `Settings`
 2. add sensors to the session
 3. assign icons
 4. test both normal and alarm states

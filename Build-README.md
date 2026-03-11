@@ -53,7 +53,12 @@ Create this structure at repository root:
 │  │  ├─ applysetup.png
 │  │  ├─ spreadsheet.png
 │  │  ├─ link.png
+│  │  ├─ link-dark.png
+│  │  ├─ link-light.png
 │  │  ├─ monitor.png
+│  │  ├─ user-dark.png
+│  │  ├─ user-light.png
+│  │  ├─ user-control.png
 │  │  ├─ dooropen.png
 │  │  └─ doorclosed.png
 │  ├─ sounds/
@@ -266,7 +271,7 @@ Bottom fixed controls (in this exact order):
      - `[Save] [Clear] [Delete]`
      - `[Allow shared sessions checkbox]`
 2. bottom row:
-   - `[Chat] [Positions & Sessions] [Change Settings]`
+   - `[Chat] [Positions] [Sessions] [Settings]`
 
 Setup list behavior:
 - loads setup names from `vnc-setups/*.json`
@@ -279,13 +284,18 @@ Setup list behavior:
 - custom setup list order is persisted and restored on next app start
 - last selected setup is persisted and restored on next app start
 
-`Positions & Sessions` button behavior:
-- opens `layout_tool.py` UI for visual pre-placement of VNC/label settings
-- tool provides `Load settings` selector for `connection [view/control]`
+`Positions` button behavior:
+- opens `layout_tool.py` in dedicated position mode
 - tool provides `Positions` selector for `vnc-positions/*.json`
+- position `Load Pos`/`Save Pos` reads/writes `vnc-positions/*.json`
+- label coordinates are not edited here
+
+`Sessions` button behavior:
+- opens `layout_tool.py` in dedicated session mode
+- tool provides `Load settings` selector for `connection [view/control]`
+- automatically loads the first available session when the window opens
 - if selected target JSON is missing, load defaults from `default.json`
 - top `Save` writes to selected target
-- position `Load Pos`/`Save Pos` reads/writes `vnc-positions/*.json`
 - label coordinates are offsets from VNC window top-left (not absolute screen coordinates)
 
 ## 5.3 Edit Settings Dialog
@@ -309,7 +319,7 @@ Fields:
 - label_font_color
 - label_border_size
 - label_border_color
-- ks (folder path with browse button)
+- ks (folder path or file path with browse button and file-mode checkbox)
 - HA sensor search + selected sensors list
 - HA search supports `Enter` submit and `*` wildcards (for example `*m18*`)
 - per-sensor icon mapping:
@@ -327,7 +337,7 @@ Save behavior:
 
 ## 5.4 App Settings Window
 
-Opened from main window `Change Settings`.
+Opened from main window `Settings`.
 
 Window title:
 - `Settings`
@@ -338,10 +348,12 @@ Default size:
 Fields:
 - theme selector (`Auto`/`Light`/`Dark`)
 - font size + apply
+- station name
 - `Use button icons` checkbox
 - `UDP Port`
 - `Allow multiple instances on the same station`
 - `Reconnect on drop`
+- `Follow links on tagged`
 - all `default.json` fields
 - `Home Assistant URL`
 - `HA API Key`
@@ -517,7 +529,7 @@ Theme modes:
 
 Theme consistency:
 - apply same style to both main window and chat window
-- Settings and `Positions & Sessions` utility buttons use the same gray button styling, except the Settings config maintenance buttons which stay distinct.
+- Settings, `Positions`, and `Sessions` utility buttons use the same gray button styling, except the Settings config maintenance buttons which stay distinct.
 
 ## 11. Icons
 
@@ -532,7 +544,8 @@ Required icons:
   - `view.png`, `control.png`, `edit.png`, `import.png`, `export.png`,
     `validate.png`, `save.png`, `open.png`, `cancel.png`, `delete.png`,
     `untag.png`, `unlock.png`, `applysetup.png`,
-    `spreadsheet.png`, `link.png`, `monitor.png`
+    `spreadsheet.png`, `link.png`, `link-dark.png`, `link-light.png`,
+    `monitor.png`, `user-dark.png`, `user-light.png`, `user-control.png`
 
 Custom HA sensor status icons (user-provided):
 - place files in `app/images/`
@@ -639,7 +652,7 @@ Packaging requirement:
 - App settings window default size is `460x760` when no saved geometry exists.
 - Chat window uses chat icon.
 - Connection list layout and bottom controls match section 5.2.
-- `Change Settings` opens app settings window.
+- `Settings` opens app settings window.
 - `.vnc` launch uses `-optionsfile=...`.
 - Overlay follows moved VNC window.
 - Overlay uses label offsets relative to VNC window.
