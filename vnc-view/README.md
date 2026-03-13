@@ -1,0 +1,5 @@
+# vnc-view
+
+Place per-target View mode `.vnc` files here.
+
+This folder is kept in Git with `.gitkeep`, but station-specific connection files are intentionally ignored.

@@ -41,9 +41,13 @@ default.local.json
 # Keep these folders, but do not sync station-specific session files
 vnc-view/*
 !vnc-view/.gitkeep
+!vnc-view/README.md
 vnc-control/*
 !vnc-control/.gitkeep
+!vnc-control/README.md
 vnc-positions/*
 !vnc-positions/.gitkeep
+!vnc-positions/README.md
 vnc-setups/*
 !vnc-setups/.gitkeep
+!vnc-setups/README.md

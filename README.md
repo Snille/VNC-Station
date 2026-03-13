@@ -39,9 +39,9 @@ Current interface examples:
     <td align="center"><strong>Station Settings</strong></td>
   </tr>
   <tr>
-    <td><a href="manual/manual-assets/images/1.6.0/01-main-window-setup-area.png"><img src="manual/manual-assets/images/1.6.0/01-main-window-setup-area.png" alt="Main window" width="260"></a></td>
-    <td><a href="manual/manual-assets/images/1.6.0/02-chat-window.png"><img src="manual/manual-assets/images/1.6.0/02-chat-window.png" alt="Chat window" width="260"></a></td>
-    <td><a href="manual/manual-assets/images/1.6.0/03-settings-window-network-and-maintenance.png"><img src="manual/manual-assets/images/1.6.0/03-settings-window-network-and-maintenance.png" alt="Settings window" width="260"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.6.0/01-main-window-setup-area.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.6.0/01-main-window-setup-area.png" alt="Main window" width="260"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.6.0/02-chat-window.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.6.0/02-chat-window.png" alt="Chat window" width="260"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.6.0/03-settings-window-network-and-maintenance.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.6.0/03-settings-window-network-and-maintenance.png" alt="Settings window" width="260"></a></td>
   </tr>
   <tr>
     <td align="center"><strong>Session Editor</strong></td>
@@ -49,9 +49,9 @@ Current interface examples:
     <td align="center"><strong>Documentation</strong></td>
   </tr>
   <tr>
-    <td><a href="manual/manual-assets/images/1.6.0/04-layout-tool-session-ha-search.png"><img src="manual/manual-assets/images/1.6.0/04-layout-tool-session-ha-search.png" alt="Session layout tool" width="260"></a></td>
-    <td><a href="manual/manual-assets/images/1.6.0/05-layout-tool-position-mode.png"><img src="manual/manual-assets/images/1.6.0/05-layout-tool-position-mode.png" alt="Position layout tool" width="260"></a></td>
-    <td align="center">See <code>manual/</code> for the current role-based guides, workflows, and reference material.</td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.6.0/04-layout-tool-session-ha-search.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.6.0/04-layout-tool-session-ha-search.png" alt="Session layout tool" width="260"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.6.0/05-layout-tool-position-mode.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.6.0/05-layout-tool-position-mode.png" alt="Position layout tool" width="260"></a></td>
+    <td align="center">See the <a href="manual/README.md">manual index</a> for the current role-based guides, workflows, and reference material.</td>
   </tr>
 </table>
 
@@ -64,15 +64,15 @@ Home Assistant integration is configured per session and can drive:
 - tooltip text
 - alarm color rules for row indicators and session labels
 
-See `manual/advanced-user-guide.md` for the current configuration workflow.
+See [manual/advanced-user-guide.md](manual/advanced-user-guide.md) for the current configuration workflow.
 
 ## User Manual
 
 Manuals are split by role:
 
-- Production users: `manual/user-guide.md`
-- Advanced users: `manual/advanced-user-guide.md`
-- Admin/deployment: `manual/admin-guide.md`
+- Production users: [manual/user-guide.md](manual/user-guide.md)
+- Advanced users: [manual/advanced-user-guide.md](manual/advanced-user-guide.md)
+- Admin/deployment: [manual/admin-guide.md](manual/admin-guide.md)
 
 ## What You Need Before Starting
 
@@ -108,7 +108,7 @@ Note: `vnc-view/` and `vnc-control/` are intentionally git-ignored for station-s
 
 ## Example Files (Templates)
 
-`Example files/` contains starter templates you can copy, rename and edit:
+[Example files/README.md](Example%20files/README.md) contains starter templates you can copy, rename and edit:
 
 - `dummy.vnc`
 - `dummy.json`

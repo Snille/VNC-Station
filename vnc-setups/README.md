@@ -1,0 +1,5 @@
+# vnc-setups
+
+Store saved setup preset `.json` files here.
+
+This folder stays in the repo so public users can see the expected location even when no presets are checked in.
