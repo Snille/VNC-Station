@@ -49,7 +49,7 @@ from .config import (
     update_session_overrides,
 )
 from .constants import (
-    APPLYSETUP_ICON_PATH,
+    APP_VERSION,
     CANCEL_ICON_PATH,
     CHAT_ICON_PATH,
     CLEAR_ICON_PATH,
@@ -94,7 +94,8 @@ from .tools import (
     validate_runtime_configuration_details,
 )
 from .vnc import SessionManager
-from .layout_tool import LayoutToolWindow
+from .position_settings import PositionSettingsWindow
+from .session_settings import SessionSettingsWindow
 
 LOGGER = logging.getLogger(__name__)
 ICON_TEXT_GAP_PREFIX = "\u2009"  # thin space: slightly tighter icon-to-text gap
@@ -322,6 +323,13 @@ class ConnectionRow:
         body_row.setSpacing(6)
         outer.addWidget(self.body_widget)
 
+        self.child_container = QWidget()
+        self.child_layout = QVBoxLayout(self.child_container)
+        self.child_layout.setContentsMargins(22, 2, 0, 0)
+        self.child_layout.setSpacing(6)
+        outer.addWidget(self.child_container)
+        self.child_container.setVisible(False)
+
         self.details_widget = QWidget()
         left_col = QVBoxLayout(self.details_widget)
         left_col.setContentsMargins(0, 0, 0, 0)
@@ -443,14 +451,15 @@ class ConnectionRow:
         """Toggle row action text between open/close while keeping icon."""
         self._mode_open_state[mode] = bool(is_open)
         if mode == MODE_VIEW:
-            _set_button_text_for_icon_state(self.view_btn, "Close" if is_open else "View")
+            view_label = "Close" if is_open else self._view_button_label()
+            _set_button_text_for_icon_state(self.view_btn, view_label)
             self._apply_mode_button_style(
                 self.view_btn,
                 available,
                 "#2f9e44",
                 self._mode_highlight.get(MODE_VIEW, ""),
             )
-            _set_button_text_for_icon_state(self.minimized_view_btn, "Close" if is_open else "View")
+            _set_button_text_for_icon_state(self.minimized_view_btn, view_label)
             self._apply_mode_button_style(
                 self.minimized_view_btn,
                 available,
@@ -479,6 +488,7 @@ class ConnectionRow:
         self._callbacks["position_changed"](self.entry.name, mode)
 
     def _on_position_combo_changed(self, mode: str) -> None:
+        self._refresh_mode_button_labels(mode)
         self._update_minimized_action_buttons()
         self._notify_position_change(mode)
 
@@ -529,6 +539,7 @@ class ConnectionRow:
     def set_minimized(self, minimized: bool) -> None:
         self._minimized = bool(minimized)
         self.body_widget.setVisible(not self._minimized)
+        self._refresh_child_visibility()
         self._update_minimized_action_buttons()
         self._update_owner_header_icon()
         self.minimize_btn.setText("+" if self._minimized else "-")
@@ -565,6 +576,7 @@ class ConnectionRow:
         self._syncing = True
         self._set_combo_text(combo, name.strip())
         self._syncing = False
+        self._refresh_mode_button_labels(mode)
         self._update_minimized_action_buttons()
 
     def selected_link(self, mode: str) -> str:
@@ -580,6 +592,21 @@ class ConnectionRow:
         self._set_combo_data(combo, token.strip())
         self._syncing = False
         self._update_link_header_icon()
+
+    def clear_child_rows(self) -> None:
+        while self.child_layout.count():
+            item = self.child_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
+        self._refresh_child_visibility()
+
+    def add_child_row(self, child_row: "ConnectionRow") -> None:
+        self.child_layout.addWidget(child_row.widget)
+        self._refresh_child_visibility()
+
+    def _refresh_child_visibility(self) -> None:
+        self.child_container.setVisible(not self._minimized and self.child_layout.count() > 0)
 
     def _refresh_ks_buttons(
         self, view_ks: str, control_ks: str, view_label: str, control_label: str
@@ -669,6 +696,18 @@ class ConnectionRow:
         for button in buttons:
             button.setMinimumWidth(width)
             button.setMaximumWidth(width)
+
+    def _view_button_label(self) -> str:
+        selected_view = self.selected_position(MODE_VIEW)
+        return selected_view or "View"
+
+    def _refresh_mode_button_labels(self, mode: str) -> None:
+        if mode != MODE_VIEW:
+            return
+        available = self.entry.view_vnc_path is not None
+        is_open = self._mode_open_state.get(MODE_VIEW, False)
+        self.set_mode_open_state(MODE_VIEW, is_open, available)
+        self._match_action_button_widths()
 
     @staticmethod
     def _apply_mode_button_style(button: QPushButton, available: bool, active_bg: str, highlight_bg: str = "") -> None:
@@ -857,6 +896,7 @@ class MainWindow(QMainWindow):
         self.position_names: List[str] = [p.name for p in scan_positions()]
         self.session_link_options: List[Tuple[str, str]] = self._build_session_link_options()
         self.rows: Dict[str, ConnectionRow] = {}
+        self._suspend_tag_auto_assign = False
         # Tracks latest remote holder per (connection, mode) by station id.
         self._remote_mode_holders: Dict[Tuple[str, str], str] = {}
         # Station id -> latest seen station display name.
@@ -864,8 +904,8 @@ class MainWindow(QMainWindow):
         self._online_snapshot: set[str] = set()
         self._startup_sync_pending = True
         self._startup_sync_attempts = 0
-        self._positions_tool_window: Optional[LayoutToolWindow] = None
-        self._sessions_tool_window: Optional[LayoutToolWindow] = None
+        self._positions_tool_window: Optional[PositionSettingsWindow] = None
+        self._sessions_tool_window: Optional[SessionSettingsWindow] = None
         self._settings_window: Optional[SettingsWindow] = None
         self._binary_sensor_by_connection: Dict[str, List[Dict[str, str]]] = {}
         self._binary_sensor_by_connection_mode: Dict[str, Dict[str, List[Dict[str, str]]]] = {}
@@ -937,7 +977,7 @@ class MainWindow(QMainWindow):
 
     def _build_ui(self) -> None:
         """Create widgets, connection list, and fixed bottom action rows."""
-        self.setWindowTitle(self.station_name)
+        self._refresh_window_title()
         if ICON_PATH.exists():
             self.setWindowIcon(QIcon(str(ICON_PATH)))
         self.resize(
@@ -975,6 +1015,7 @@ class MainWindow(QMainWindow):
         self.setup_select.setDropIndicatorShown(True)
         self.setup_select.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setup_select.currentItemChanged.connect(self._on_setup_selection_changed)
+        self.setup_select.itemClicked.connect(self._on_setup_item_clicked)
         self.setup_select.model().rowsMoved.connect(self._on_setup_order_changed)
         self._apply_setup_list_minimum_height()
         setup_list_panel.addWidget(self.setup_select, 1)
@@ -986,34 +1027,6 @@ class MainWindow(QMainWindow):
         setup_actions_row = QHBoxLayout()
         setup_actions_row.setAlignment(Qt.AlignLeft)
         controls_panel.addLayout(setup_actions_row)
-        self.setup_view_btn = QPushButton("Setup View")
-        _set_button_icon(self.setup_view_btn, APPLYSETUP_ICON_PATH)
-        _set_compact_button(self.setup_view_btn)
-        self.setup_view_btn.setStyleSheet("background:#2f9e44; color:white; font-weight:700; border-radius:4px;")
-        self.setup_view_btn.clicked.connect(lambda: self._toggle_setup_mode(MODE_VIEW))
-        setup_actions_row.addWidget(self.setup_view_btn)
-        self.setup_control_btn = QPushButton("Setup Control")
-        _set_button_icon(self.setup_control_btn, APPLYSETUP_ICON_PATH)
-        _set_compact_button(self.setup_control_btn)
-        self.setup_control_btn.setStyleSheet(
-            "background:#b87400; color:white; font-weight:700; border-radius:4px;"
-        )
-        self.setup_control_btn.clicked.connect(lambda: self._toggle_setup_mode(MODE_CONTROL))
-        setup_actions_row.addWidget(self.setup_control_btn)
-        setup_actions_row.addStretch(1)
-        self.minimize_all_btn = QPushButton("-")
-        _set_compact_button(self.minimize_all_btn)
-        self.minimize_all_btn.setToolTip("Minimize all session cards")
-        self.minimize_all_btn.setStyleSheet(f"background:#5f6b7a; color:white; {BUTTON_CHROME}")
-        self.minimize_all_btn.clicked.connect(self._toggle_all_rows_minimized)
-        setup_actions_row.addWidget(self.minimize_all_btn)
-        self._refresh_minimize_all_button()
-        self._refresh_setup_mode_buttons()
-        self._refresh_setup_targets()
-
-        actions_row1 = QHBoxLayout()
-        actions_row1.setAlignment(Qt.AlignLeft)
-        controls_panel.addLayout(actions_row1)
         untag_all = QPushButton("Untag all")
         _set_button_icon(untag_all, UNTAG_ICON_PATH)
         _set_compact_button(untag_all)
@@ -1030,9 +1043,18 @@ class MainWindow(QMainWindow):
         self.control_all_btn.setStyleSheet("background:#b87400; color:white; font-weight:700; border-radius:4px;")
         self.control_all_btn.clicked.connect(lambda: self._toggle_tagged_mode(MODE_CONTROL))
         _match_button_widths(self.view_all_btn, self.control_all_btn)
-        actions_row1.addWidget(self.view_all_btn)
-        actions_row1.addWidget(self.control_all_btn)
+        setup_actions_row.addWidget(self.view_all_btn)
+        setup_actions_row.addWidget(self.control_all_btn)
+        setup_actions_row.addStretch(1)
+        self.minimize_all_btn = QPushButton("-")
+        _set_compact_button(self.minimize_all_btn)
+        self.minimize_all_btn.setToolTip("Minimize all session cards")
+        self.minimize_all_btn.setStyleSheet(f"background:#5f6b7a; color:white; {BUTTON_CHROME}")
+        self.minimize_all_btn.clicked.connect(self._toggle_all_rows_minimized)
+        setup_actions_row.addWidget(self.minimize_all_btn)
+        self._refresh_minimize_all_button()
         self._refresh_tagged_mode_buttons()
+        self._refresh_setup_targets()
 
         actions_row_close_all = QHBoxLayout()
         actions_row_close_all.setAlignment(Qt.AlignLeft)
@@ -1123,6 +1145,9 @@ class MainWindow(QMainWindow):
         point_size = app.font().pointSize()
         return point_size if point_size > 0 else 10
 
+    def _refresh_window_title(self) -> None:
+        self.setWindowTitle(f"{self.station_name} v{APP_VERSION}")
+
     def _load_font_size_setting(self) -> int:
         default_size = self._default_app_font_size()
         raw_value = self.settings_store.value("font_size", default_size)
@@ -1197,10 +1222,6 @@ class MainWindow(QMainWindow):
             self.setup_clear_btn.setFont(aligned_font)
         if hasattr(self, "setup_delete_btn"):
             self.setup_delete_btn.setFont(aligned_font)
-        if hasattr(self, "setup_view_btn"):
-            self.setup_view_btn.setFont(aligned_font)
-        if hasattr(self, "setup_control_btn"):
-            self.setup_control_btn.setFont(aligned_font)
 
     def _current_setup_name(self) -> str:
         if hasattr(self, "setup_name_input"):
@@ -1730,7 +1751,7 @@ class MainWindow(QMainWindow):
         new_station_name = self.default_settings.station_name.strip() or self.station_name
         if new_station_name != self.station_name:
             self.station_name = new_station_name
-            self.setWindowTitle(self.station_name)
+            self._refresh_window_title()
             self.network.set_station_name(self.station_name)
             self.chat_window.set_station_title(self.station_name)
             self.chat_window.add_notice(f"Station name updated to {self.station_name}")
@@ -1749,7 +1770,7 @@ class MainWindow(QMainWindow):
         new_station_name = self.default_settings.station_name.strip() or self.station_name
         if new_station_name != self.station_name:
             self.station_name = new_station_name
-            self.setWindowTitle(self.station_name)
+            self._refresh_window_title()
             self.network.set_station_name(self.station_name)
             self.chat_window.set_station_title(self.station_name)
             self.chat_window.add_notice(f"Station name updated to {self.station_name}")
@@ -1900,6 +1921,14 @@ class MainWindow(QMainWindow):
         if current is None:
             return
         selected_name = current.text().strip()
+        self._apply_setup_by_name(selected_name)
+
+    def _on_setup_item_clicked(self, item: QListWidgetItem) -> None:
+        if item is None:
+            return
+        self._apply_setup_by_name(item.text().strip())
+
+    def _apply_setup_by_name(self, selected_name: str) -> None:
         if hasattr(self, "setup_name_input"):
             self.setup_name_input.setText(selected_name)
         self.settings_store.setValue("last_setup_name", selected_name)
@@ -1922,48 +1951,58 @@ class MainWindow(QMainWindow):
             self._show_info(f"Invalid setup connections in '{selected_name}'.")
             return
         # Reset all rows first so missing keys/rows in the setup become defaults.
-        for connection_name, row in self.rows.items():
-            row.tag.setChecked(False)
-            row.set_minimized(False)
-            row.set_selected_position(MODE_VIEW, "")
-            row.set_selected_position(MODE_CONTROL, "")
-            row.set_selected_link(MODE_VIEW, "")
-            row.set_selected_link(MODE_CONTROL, "")
+        self._suspend_tag_auto_assign = True
+        try:
+            for connection_name, row in self.rows.items():
+                row.tag.setChecked(False)
+                row.set_minimized(False)
+                row.set_selected_position(MODE_VIEW, "")
+                row.set_selected_position(MODE_CONTROL, "")
+                row.set_selected_link(MODE_VIEW, "")
+                row.set_selected_link(MODE_CONTROL, "")
 
-        for connection_name, config in connections.items():
-            row = self.rows.get(str(connection_name))
-            if row is None or not isinstance(config, dict):
-                continue
-            row.tag.setChecked(bool(config.get("tagged", row.tag.isChecked())))
-            row.set_minimized(bool(config.get("minimized", False)))
-            pos_v = str(config.get("position_view", "")).strip()
-            pos_c = str(config.get("position_control", "")).strip()
-            link_v = str(config.get("link_view", "")).strip()
-            link_c = str(config.get("link_control", "")).strip()
-            row.set_selected_position(MODE_VIEW, pos_v)
-            row.set_selected_position(MODE_CONTROL, pos_c)
-            row.set_selected_link(MODE_VIEW, link_v)
-            row.set_selected_link(MODE_CONTROL, link_c)
+            for connection_name, config in connections.items():
+                row = self.rows.get(str(connection_name))
+                if row is None or not isinstance(config, dict):
+                    continue
+                row.tag.setChecked(bool(config.get("tagged", row.tag.isChecked())))
+                row.set_minimized(bool(config.get("minimized", False)))
+                pos_v = str(config.get("position_view", "")).strip()
+                pos_c = str(config.get("position_control", "")).strip()
+                link_v = str(config.get("link_view", "")).strip()
+                link_c = str(config.get("link_control", "")).strip()
+                row.set_selected_position(MODE_VIEW, pos_v)
+                row.set_selected_position(MODE_CONTROL, pos_c)
+                row.set_selected_link(MODE_VIEW, link_v)
+                row.set_selected_link(MODE_CONTROL, link_c)
+        finally:
+            self._suspend_tag_auto_assign = False
 
-        for connection_name in self.rows.keys():
-            self._persist_ui_selections(connection_name, MODE_VIEW)
-            self._persist_ui_selections(connection_name, MODE_CONTROL)
         self._clear_duplicate_positions_after_load()
+        self._rebuild_row_hierarchy()
         self._refresh_minimize_all_button()
         self._show_info(f"Applied setup: {selected_name}")
 
     def _clear_setup_state(self) -> None:
-        """Clear all setup-driven UI state: tags, positions, and links."""
-        for connection_name, row in self.rows.items():
-            row.tag.setChecked(False)
-            row.set_minimized(True)
-            row.set_selected_position(MODE_VIEW, "")
-            row.set_selected_position(MODE_CONTROL, "")
-            row.set_selected_link(MODE_VIEW, "")
-            row.set_selected_link(MODE_CONTROL, "")
-            self._persist_ui_selections(connection_name, MODE_VIEW)
-            self._persist_ui_selections(connection_name, MODE_CONTROL)
+        """Clear setup-only UI state, then reload persisted per-session settings."""
+        self._suspend_tag_auto_assign = True
+        try:
+            for connection_name, row in self.rows.items():
+                row.tag.setChecked(False)
+                row.set_minimized(True)
+                row.set_selected_position(MODE_VIEW, "")
+                row.set_selected_position(MODE_CONTROL, "")
+                row.set_selected_link(MODE_VIEW, "")
+                row.set_selected_link(MODE_CONTROL, "")
+                self._populate_row_from_saved_settings(row)
+                view_overrides = load_session_overrides(config_path_for(connection_name, MODE_VIEW))
+                if not str(view_overrides.get("position_name", "")).strip():
+                    row.set_selected_position(MODE_VIEW, "")
+                row.set_minimized(True)
+        finally:
+            self._suspend_tag_auto_assign = False
         self._refresh_minimize_all_button()
+        self._rebuild_row_hierarchy()
         if hasattr(self, "setup_select"):
             self._set_selected_setup_name("", trigger=False)
         self._show_info("Setup cleared.")
@@ -2017,7 +2056,6 @@ class MainWindow(QMainWindow):
         update_session_overrides(
             config_path,
             {
-                "position_name": self._selected_position_name(connection_name, mode),
                 "linked_session": self._selected_link_token(connection_name, mode),
             },
         )
@@ -2035,6 +2073,15 @@ class MainWindow(QMainWindow):
         settings.y = preset.y
         settings.width = preset.width
         settings.height = preset.height
+        settings.label_x = preset.label_x
+        settings.label_y = preset.label_y
+        settings.label_bg = preset.label_bg
+        settings.label_width = preset.label_width
+        settings.label_height = preset.label_height
+        settings.label_font = preset.label_font
+        settings.label_font_color = preset.label_font_color
+        settings.label_border_size = preset.label_border_size
+        settings.label_border_color = preset.label_border_color
 
     def _open_session(self, connection_name: str, mode: str) -> None:
         """Open one session and any configured linked session."""
@@ -2193,10 +2240,7 @@ class MainWindow(QMainWindow):
         for row in self.rows.values():
             if row.tag.isChecked():
                 any_tagged = True
-                if self.follow_links_on_tagged:
-                    self._open_session_with_link(row.entry.name, mode, visited=set())
-                else:
-                    self._open_single_session(row.entry.name, mode)
+                self._open_session_with_link(row.entry.name, mode, visited=set())
         if not any_tagged:
             self._show_info("No tagged connections.")
 
@@ -2235,6 +2279,28 @@ class MainWindow(QMainWindow):
         if hasattr(self, "control_all_btn"):
             control_label = "Close tagged" if self._has_open_tagged_mode(MODE_CONTROL) else "Control tagged"
             _set_button_text_for_icon_state(self.control_all_btn, control_label)
+
+    def _next_available_view_position_name(self, current_connection_name: str = "") -> str:
+        used_positions: Set[str] = set()
+        for connection_name, row in self.rows.items():
+            if current_connection_name and connection_name == current_connection_name:
+                continue
+            selected = row.selected_position(MODE_VIEW)
+            if selected:
+                used_positions.add(selected)
+        for position_name in self.position_names:
+            if position_name not in used_positions:
+                return position_name
+        return ""
+
+    def _on_row_tag_toggled(self, row: ConnectionRow, checked: bool) -> None:
+        if checked and not self._suspend_tag_auto_assign and not row.selected_position(MODE_VIEW):
+            next_position = self._next_available_view_position_name(row.entry.name)
+            if next_position:
+                row.set_selected_position(MODE_VIEW, next_position)
+        elif not checked and not self._suspend_tag_auto_assign and row.selected_position(MODE_VIEW):
+            row.set_selected_position(MODE_VIEW, "")
+        self._refresh_tagged_mode_buttons()
 
     def _toggle_session(self, connection_name: str, mode: str) -> None:
         """Toggle one row mode: open when closed, close when open."""
@@ -2333,8 +2399,9 @@ class MainWindow(QMainWindow):
                 return
 
     def _on_link_selection_changed(self, _connection_name: str, _mode: str) -> None:
-        """Reserved for future link validation hooks."""
-        return
+        """Persist row link selections and refresh linked-row nesting."""
+        self._persist_ui_selections(_connection_name, _mode)
+        self._rebuild_row_hierarchy()
 
     def _validate_unique_position_assignments(self, show_message: bool = True) -> bool:
         assignments: Dict[str, Tuple[str, str]] = {}
@@ -2398,17 +2465,28 @@ class MainWindow(QMainWindow):
             return
         config_path = config_path_for(connection_name, mode)
         settings = load_session_settings(config_path)
-        dialog = SettingsDialog(f"Edit {mode.title()} - {connection_name}", settings, self)
+        available_link_options = [
+            (token, label)
+            for token, label in self.session_link_options
+            if token != self._session_token(connection_name, mode)
+        ]
+        dialog = SettingsDialog(
+            f"Edit {mode.title()} - {connection_name}",
+            settings,
+            self,
+            link_options=available_link_options,
+            position_names=self.position_names,
+            selected_position=self._selected_position_name(connection_name, mode),
+        )
         if dialog.exec_() == dialog.Accepted:
-            data = dialog.values().to_json()
-            overrides = load_session_overrides(config_path)
-            data["position_name"] = self._selected_position_name(connection_name, mode) or str(
-                overrides.get("position_name", "")
-            )
-            data["linked_session"] = self._selected_link_token(connection_name, mode) or str(
-                overrides.get("linked_session", "")
-            )
-            save_json(config_path, data)
+            updated_settings = dialog.values()
+            save_json(config_path, updated_settings.to_session_json())
+            row = self.rows.get(connection_name)
+            if row is not None:
+                row.set_selected_position(mode, updated_settings.position_name)
+                row.set_selected_link(mode, updated_settings.linked_session)
+            self._persist_ui_selections(connection_name, mode)
+            self._rebuild_row_hierarchy()
             self._refresh_row_ks_buttons(connection_name)
             self._binary_sensor_targets_dirty = True
             self._refresh_binary_sensor_indicators()
@@ -2483,7 +2561,7 @@ class MainWindow(QMainWindow):
                 self.station_name = new_name
                 self.network.set_station_name(new_name)
                 self.chat_window.set_station_title(new_name)
-                self.setWindowTitle(new_name)
+                self._refresh_window_title()
                 self.default_settings.station_name = new_name
                 local_data: Dict[str, object] = {}
                 if DEFAULT_LOCAL_CONFIG_PATH.exists():
@@ -2514,7 +2592,7 @@ class MainWindow(QMainWindow):
             if "(Away)" not in self.station_name:
                 self.station_name = f"{self.station_name} (Away)"
                 self.network.set_station_name(self.station_name)
-                self.setWindowTitle(self.station_name)
+                self._refresh_window_title()
                 self.chat_window.set_station_title(self.station_name)
             self.network.send_away(True, msg)
             self.chat_window.add_notice(f"Away: {msg}")
@@ -2549,7 +2627,7 @@ class MainWindow(QMainWindow):
             self.station_name = self.station_name.replace(" (Away)", "").strip()
             self.network.set_station_name(self.station_name)
             self.chat_window.set_station_title(self.station_name)
-            self.setWindowTitle(self.station_name)
+            self._refresh_window_title()
             if self.away_message:
                 self.chat_window.add_notice("Away status cleared.")
             self.network.send_away(False, "")
@@ -2708,12 +2786,12 @@ class MainWindow(QMainWindow):
         self.position_names = [p.name for p in scan_positions()]
         self.session_link_options = self._build_session_link_options()
         self._binary_sensor_targets_dirty = True
-        self.rows.clear()
         while self.rows_layout.count():
             item = self.rows_layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
+        self.rows.clear()
         if not self.connections:
             self.rows_layout.addWidget(QLabel("No .vnc files found in vnc-control/ or vnc-view/"))
         for entry in self.connections:
@@ -2734,21 +2812,90 @@ class MainWindow(QMainWindow):
             )
             row.set_effective_theme(self.effective_theme)
             self._populate_row_from_saved_settings(row)
-            row.tag.toggled.connect(lambda _checked, self=self: self._refresh_tagged_mode_buttons())
+            row.tag.toggled.connect(
+                lambda checked, row=row, self=self: self._on_row_tag_toggled(row, checked)
+            )
             self.rows[entry.name] = row
-            self.rows_layout.addWidget(row.widget)
-            line = QFrame()
-            line.setFrameShape(QFrame.HLine)
-            line.setFrameShadow(QFrame.Sunken)
-            self.rows_layout.addWidget(line)
-        self.rows_layout.addStretch(1)
+        self._rebuild_row_hierarchy()
         self._clear_duplicate_positions_after_load()
         self._restore_local_ui_state()
+        self._rebuild_row_hierarchy()
         self._refresh_minimize_all_button()
         self._refresh_owner_labels()
         self._refresh_binary_sensor_indicators()
         if hasattr(self, "setup_select"):
             self._refresh_setup_targets()
+
+    def _linked_row_structure(self) -> Tuple[Dict[str, List[str]], Dict[str, str]]:
+        parent_to_children: Dict[str, List[str]] = {}
+        child_to_parent: Dict[str, str] = {}
+        for connection_name in [entry.name for entry in self.connections]:
+            row = self.rows.get(connection_name)
+            if row is None:
+                continue
+            seen_children: Set[str] = set()
+            for mode in (MODE_VIEW, MODE_CONTROL):
+                parsed = self._parse_session_token(row.selected_link(mode))
+                if parsed is None:
+                    continue
+                child_name, _child_mode = parsed
+                if child_name == connection_name or child_name in seen_children or child_name not in self.rows:
+                    continue
+                if child_name in child_to_parent:
+                    continue
+                if self._would_create_link_cycle(connection_name, child_name, child_to_parent):
+                    continue
+                parent_to_children.setdefault(connection_name, []).append(child_name)
+                child_to_parent[child_name] = connection_name
+                seen_children.add(child_name)
+        return parent_to_children, child_to_parent
+
+    @staticmethod
+    def _would_create_link_cycle(parent_name: str, child_name: str, child_to_parent: Dict[str, str]) -> bool:
+        current = parent_name
+        while current in child_to_parent:
+            current = child_to_parent[current]
+            if current == child_name:
+                return True
+        return False
+
+    def _rebuild_row_hierarchy(self) -> None:
+        if not hasattr(self, "rows_layout"):
+            return
+        for row in self.rows.values():
+            row.clear_child_rows()
+            row.widget.setParent(None)
+        while self.rows_layout.count():
+            item = self.rows_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
+        if not self.rows:
+            self.rows_layout.addWidget(QLabel("No .vnc files found in vnc-control/ or vnc-view/"))
+            self.rows_layout.addStretch(1)
+            return
+        parent_to_children, child_to_parent = self._linked_row_structure()
+
+        def attach_children(parent_name: str) -> None:
+            parent_row = self.rows.get(parent_name)
+            if parent_row is None:
+                return
+            for child_name in parent_to_children.get(parent_name, []):
+                child_row = self.rows.get(child_name)
+                if child_row is None:
+                    continue
+                parent_row.add_child_row(child_row)
+                attach_children(child_name)
+
+        for entry in self.connections:
+            if entry.name in child_to_parent:
+                continue
+            row = self.rows.get(entry.name)
+            if row is None:
+                continue
+            self.rows_layout.addWidget(row.widget)
+            attach_children(entry.name)
+        self.rows_layout.addStretch(1)
 
     def _collect_local_ui_state(self) -> Dict[str, object]:
         connections: Dict[str, object] = {}
@@ -2784,16 +2931,24 @@ class MainWindow(QMainWindow):
         connections = data.get("connections", {})
         if not isinstance(connections, dict):
             return
-        for connection_name, config in connections.items():
-            row = self.rows.get(str(connection_name))
-            if row is None or not isinstance(config, dict):
-                continue
-            row.tag.setChecked(bool(config.get("tagged", row.tag.isChecked())))
-            row.set_minimized(bool(config.get("minimized", row.is_minimized())))
-            row.set_selected_position(MODE_VIEW, str(config.get("position_view", "")).strip())
-            row.set_selected_position(MODE_CONTROL, str(config.get("position_control", "")).strip())
-            row.set_selected_link(MODE_VIEW, str(config.get("link_view", "")).strip())
-            row.set_selected_link(MODE_CONTROL, str(config.get("link_control", "")).strip())
+        self._suspend_tag_auto_assign = True
+        try:
+            for connection_name, config in connections.items():
+                row = self.rows.get(str(connection_name))
+                if row is None or not isinstance(config, dict):
+                    continue
+                row.tag.setChecked(bool(config.get("tagged", row.tag.isChecked())))
+                row.set_minimized(bool(config.get("minimized", row.is_minimized())))
+                row.set_selected_position(MODE_VIEW, str(config.get("position_view", "")).strip())
+                row.set_selected_position(MODE_CONTROL, str(config.get("position_control", "")).strip())
+                stored_link_view = str(config.get("link_view", "")).strip()
+                stored_link_control = str(config.get("link_control", "")).strip()
+                if stored_link_view:
+                    row.set_selected_link(MODE_VIEW, stored_link_view)
+                if stored_link_control:
+                    row.set_selected_link(MODE_CONTROL, stored_link_control)
+        finally:
+            self._suspend_tag_auto_assign = False
         self._clear_duplicate_positions_after_load()
         self._refresh_minimize_all_button()
 
@@ -2847,10 +3002,7 @@ class MainWindow(QMainWindow):
     def _open_positions_tool(self) -> None:
         """Open or focus the dedicated positions tool window."""
         if self._positions_tool_window is None or not self._positions_tool_window.isVisible():
-            self._positions_tool_window = LayoutToolWindow(
-                theme_mode=self.theme_mode,
-                editor_mode="position",
-            )
+            self._positions_tool_window = PositionSettingsWindow(theme_mode=self.theme_mode)
             self._positions_tool_window.window_closed.connect(self._on_positions_tool_closed)
         self._positions_tool_window.show()
         self._positions_tool_window.raise_()
@@ -2859,10 +3011,7 @@ class MainWindow(QMainWindow):
     def _open_sessions_tool(self) -> None:
         """Open or focus the dedicated sessions tool window."""
         if self._sessions_tool_window is None or not self._sessions_tool_window.isVisible():
-            self._sessions_tool_window = LayoutToolWindow(
-                theme_mode=self.theme_mode,
-                editor_mode="session",
-            )
+            self._sessions_tool_window = SessionSettingsWindow(theme_mode=self.theme_mode)
             self._sessions_tool_window.window_closed.connect(self._on_sessions_tool_closed)
         self._sessions_tool_window.show()
         self._sessions_tool_window.raise_()
@@ -2870,20 +3019,22 @@ class MainWindow(QMainWindow):
 
     def _on_positions_tool_closed(self) -> None:
         self._positions_tool_window = None
-        self._on_layout_tool_closed()
+        self._on_settings_tool_closed()
 
     def _on_sessions_tool_closed(self) -> None:
         self._sessions_tool_window = None
-        self._on_layout_tool_closed()
+        self._on_settings_tool_closed()
 
-    def _on_layout_tool_closed(self) -> None:
-        """Refresh UI state after closing the layout tool."""
+    def _on_settings_tool_closed(self) -> None:
+        """Refresh UI state after closing the position/session settings tool."""
         self.position_names = [p.name for p in scan_positions()]
         for row in self.rows.values():
             row.refresh_option_sets(self.position_names, self.session_link_options)
+            self._populate_row_from_saved_settings(row)
         for connection_name in self.rows.keys():
             self._refresh_row_ks_buttons(connection_name)
         self._clear_duplicate_positions_after_load()
+        self._rebuild_row_hierarchy()
         self._binary_sensor_targets_dirty = True
         self._refresh_binary_sensor_indicators()
 
@@ -2891,8 +3042,6 @@ class MainWindow(QMainWindow):
         """Enable/disable all actions that can open new sessions."""
         self.view_all_btn.setEnabled(enabled)
         self.control_all_btn.setEnabled(enabled)
-        self.setup_view_btn.setEnabled(enabled)
-        self.setup_control_btn.setEnabled(enabled)
         for row in self.rows.values():
             row.view_btn.setEnabled(enabled and row.entry.view_vnc_path is not None)
             row.control_btn.setEnabled(enabled and row.entry.control_vnc_path is not None)

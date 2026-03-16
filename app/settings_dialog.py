@@ -576,7 +576,15 @@ class SensorMappingsEditor(QWidget):
 class SettingsDialog(QDialog):
     """Simple form-based editor for SessionSettings values."""
 
-    def __init__(self, title: str, settings: SessionSettings, parent=None) -> None:
+    def __init__(
+        self,
+        title: str,
+        settings: SessionSettings,
+        parent=None,
+        link_options: Optional[List[Tuple[str, str]]] = None,
+        position_names: Optional[List[str]] = None,
+        selected_position: str = "",
+    ) -> None:
         """Build the settings form and prefill it from an existing settings object."""
         super().__init__(parent)
         self.setWindowTitle(title)
@@ -591,31 +599,11 @@ class SettingsDialog(QDialog):
         self._fields: Dict[str, object] = {}
 
         layout = QVBoxLayout(self)
-        top_fields_row = QHBoxLayout()
-        layout.addLayout(top_fields_row)
-        left_form = QFormLayout()
-        right_form = QFormLayout()
-        top_fields_row.addLayout(left_form, 1)
-        top_fields_row.addLayout(right_form, 1)
-
-        self._add_spin(left_form, "x", "Window X", settings.x, -10000, 10000)
-        self._add_spin(left_form, "y", "Window Y", settings.y, -10000, 10000)
-        self._add_spin(left_form, "width", "Window Width", settings.width, 100, 6000)
-        self._add_spin(left_form, "height", "Window Height", settings.height, 100, 6000)
-        self._add_text(left_form, "label_text", "Label Text", settings.label_text)
-        self._add_spin(left_form, "label_x", "Label Offset X", settings.label_x, -10000, 10000)
-        self._add_spin(left_form, "label_y", "Label Offset Y", settings.label_y, -10000, 10000)
-
-        self._add_spin(right_form, "label_width", "Label Width", settings.label_width, 30, 4000)
-        self._add_spin(right_form, "label_height", "Label Height", settings.label_height, 20, 2000)
-        self._add_text(right_form, "label_bg", "Label Background", settings.label_bg)
-        self._add_spin(right_form, "label_font", "Label Font Size", settings.label_font, 8, 180)
-        self._add_text(right_form, "label_font_color", "Label Font Color", settings.label_font_color)
-        self._add_spin(right_form, "label_border_size", "Label Border Size", settings.label_border_size, 0, 40)
-        self._add_text(right_form, "label_border_color", "Label Border Color", settings.label_border_color)
-
         form = QFormLayout()
         layout.addLayout(form)
+        self._add_text(form, "label_text", "Label Text", settings.label_text)
+        self._add_position_selector(form, selected_position or settings.position_name, list(position_names or []))
+        self._add_link_selector(form, settings.linked_session, list(link_options or []))
         self._add_active_path_picker(form, settings.ks)
         self._add_text(form, "ks_button_text", "Active Button Text", settings.ks_button_text)
 
@@ -655,6 +643,30 @@ class SettingsDialog(QDialog):
         field = QLineEdit(value)
         self._fields[key] = field
         form.addRow(label, field)
+
+    def _add_position_selector(
+        self, form: QFormLayout, selected_name: str, position_names: List[str]
+    ) -> None:
+        field = QComboBox()
+        field.addItem("")
+        for name in position_names:
+            field.addItem(name)
+        selected_index = field.findText(selected_name.strip())
+        field.setCurrentIndex(selected_index if selected_index >= 0 else 0)
+        self._fields["position_name"] = field
+        form.addRow("Position", field)
+
+    def _add_link_selector(
+        self, form: QFormLayout, selected_token: str, link_options: List[Tuple[str, str]]
+    ) -> None:
+        field = QComboBox()
+        field.addItem("", "")
+        for token, label in link_options:
+            field.addItem(label, token)
+        selected_index = field.findData(selected_token.strip())
+        field.setCurrentIndex(selected_index if selected_index >= 0 else 0)
+        self._fields["linked_session"] = field
+        form.addRow("Linked Session", field)
 
     @staticmethod
     def _looks_like_file_path(value: str) -> bool:
@@ -713,21 +725,10 @@ class SettingsDialog(QDialog):
         try:
             sensor_ids, sensor_mappings = self.sensor_editor.sensor_values()
             return SessionSettings(
-                x=self._fields["x"].value(),
-                y=self._fields["y"].value(),
-                width=self._fields["width"].value(),
-                height=self._fields["height"].value(),
                 label_text=self._fields["label_text"].text().strip() or "Label",
-                label_x=self._fields["label_x"].value(),
-                label_y=self._fields["label_y"].value(),
-                label_bg=self._fields["label_bg"].text().strip() or "white",
-                label_width=self._fields["label_width"].value(),
-                label_height=self._fields["label_height"].value(),
-                label_font=self._fields["label_font"].value(),
-                label_font_color=self._fields["label_font_color"].text().strip() or "black",
-                label_border_size=self._fields["label_border_size"].value(),
-                label_border_color=self._fields["label_border_color"].text().strip() or "black",
                 station_name="",
+                position_name=self._fields["position_name"].currentText().strip(),
+                linked_session=str(self._fields["linked_session"].currentData() or "").strip(),
                 ks=self._fields["ks"].text().strip(),
                 ks_button_text=self._fields["ks_button_text"].text().strip(),
                 ha_sensors=sensor_ids,

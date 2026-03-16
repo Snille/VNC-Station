@@ -174,6 +174,7 @@ def scan_positions() -> List[PositionPreset]:
     if _POSITION_CACHE_SIGNATURE == signature:
         return list(_POSITION_CACHE_PRESETS)
     presets: List[PositionPreset] = []
+    defaults = load_default_settings()
     for path in files:
         data = _load_json(path)
         if not data:
@@ -188,6 +189,15 @@ def scan_positions() -> List[PositionPreset]:
                 width=max(100, _to_int(data.get("width"), 1300)),
                 height=max(100, _to_int(data.get("height"), 880)),
                 path=path,
+                label_x=_to_int(data.get("label_x"), defaults.label_x),
+                label_y=_to_int(data.get("label_y"), defaults.label_y),
+                label_bg=str(data.get("label_bg", defaults.label_bg)),
+                label_width=max(30, _to_int(data.get("label_width"), defaults.label_width)),
+                label_height=max(20, _to_int(data.get("label_height"), defaults.label_height)),
+                label_font=max(8, _to_int(data.get("label_font"), defaults.label_font)),
+                label_font_color=str(data.get("label_font_color", defaults.label_font_color)),
+                label_border_size=max(0, _to_int(data.get("label_border_size"), defaults.label_border_size)),
+                label_border_color=str(data.get("label_border_color", defaults.label_border_color)),
             )
         )
     _POSITION_CACHE_PRESETS[:] = presets

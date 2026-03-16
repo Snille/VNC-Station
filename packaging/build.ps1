@@ -43,6 +43,7 @@ New-Item -ItemType Directory -Force -Path (Join-Path $DistRoot "vnc-view") | Out
 New-Item -ItemType Directory -Force -Path (Join-Path $DistRoot "vnc-control") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $DistRoot "vnc-positions") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $DistRoot "vnc-setups") | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $DistRoot "manual") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $DistRoot "logs") | Out-Null
 
 # Copy required runtime files next to the launcher executable.
@@ -60,6 +61,15 @@ if (Test-Path $DefaultSrc) {
 }
 else {
     Write-Warning "default.json not found in repo root; copy it manually to dist."
+}
+
+$ManualSrc = Join-Path $RepoRoot "manual"
+$ManualDst = Join-Path $DistRoot "manual"
+if (Test-Path $ManualSrc) {
+    Copy-Item -Path (Join-Path $ManualSrc "*") -Destination $ManualDst -Recurse -Force
+}
+else {
+    Write-Warning "manual folder not found in repo root; empty folder created in dist."
 }
 
 # Copy available position presets to distribution (optional runtime content).

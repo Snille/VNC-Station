@@ -75,7 +75,8 @@ Create this structure at repository root:
 │  ├─ vnc.py
 │  ├─ toast.py
 │  ├─ tools.py
-│  ├─ layout_tool.py
+│  ├─ position_settings.py
+│  ├─ session_settings.py
 │  ├─ chat_window.py
 │  ├─ settings_dialog.py
 │  ├─ settings_window.py
@@ -162,9 +163,10 @@ Location:
 - `vnc-view/<ConnectionName>.json`
 - `vnc-control/<ConnectionName>.json`
 
-Same schema as above except `station_name` is optional/ignored.
+Per-session JSON keeps only session-owned settings.
 
-Additional per-connection keys:
+Keys:
+- `label_text`
 - `position_name` (selected position preset name from `vnc-positions`, optional)
 - `linked_session` (token format `<ConnectionName>|view|control`, optional)
 - `ks` (folder or file path, optional; if folder, open latest modified file at click time)
@@ -199,6 +201,13 @@ Location:
 
 Required keys:
 - `x`, `y`, `width`, `height`, `name`
+- `label_x`, `label_y`
+- `label_bg`
+- `label_width`, `label_height`
+- `label_font`
+- `label_font_color`
+- `label_border_size`
+- `label_border_color`
 
 ### 4.5 Connection identity
 
@@ -230,7 +239,7 @@ On startup:
 ## 5.2 Main Window Layout (must match)
 
 Main window title:
-- exactly station name text (no prefix)
+- exactly station name plus version text (`<station name> v<APP_VERSION>`)
 
 Default size:
 - width `250`, height `830`
@@ -264,8 +273,7 @@ Bottom fixed controls (in this exact order):
 1. lower setup/session area with:
    - left side: `Select setup` label + draggable setup list
    - right side rows:
-     - `[Setup View|Close View] [Setup Control|Close Control]`
-     - `[View tagged|Close tagged] [Control tagged|Close tagged]`
+     - `[View tagged|Close tagged] [Control tagged|Close tagged] [+|- all session cards]`
      - `[Close all sessions] [Untag all]`
      - `[Setup name]`
      - `[Save] [Clear] [Delete]`
@@ -276,27 +284,27 @@ Bottom fixed controls (in this exact order):
 Setup list behavior:
 - loads setup names from `vnc-setups/*.json`
 - selecting setup immediately applies saved state
-- setup apply resets all rows first, then applies saved values
+- setup apply resets all rows first, then applies saved values only in the live UI
 - save uses `Setup name` and writes the current setup state
-- clear resets the current setup-driven state in the UI
+- clear removes setup-only UI state, reloads persisted per-session settings from JSON, removes temporary view assignments that are not fixed in session JSON, and minimizes the rows
 - delete removes selected setup JSON
 - setup list supports drag-and-drop ordering
 - custom setup list order is persisted and restored on next app start
 - last selected setup is persisted and restored on next app start
 
 `Positions` button behavior:
-- opens `layout_tool.py` in dedicated position mode
-- tool provides `Positions` selector for `vnc-positions/*.json`
-- position `Load Pos`/`Save Pos` reads/writes `vnc-positions/*.json`
-- label coordinates are not edited here
+- opens `position_settings.py`
+- tool provides an editable position selector for `vnc-positions/*.json`
+- save/load reads and writes reusable VNC geometry plus label placement/styling
+- label preview uses the default label text because session names still come from session JSON
 
 `Sessions` button behavior:
-- opens `layout_tool.py` in dedicated session mode
+- opens `session_settings.py`
 - tool provides `Load settings` selector for `connection [view/control]`
 - automatically loads the first available session when the window opens
 - if selected target JSON is missing, load defaults from `default.json`
-- top `Save` writes to selected target
-- label coordinates are offsets from VNC window top-left (not absolute screen coordinates)
+- top `Save` writes the selected session JSON and also persists `Position V/C` and `Link V/C`
+- active-path editor includes browse button plus folder/file mode toggle
 
 ## 5.3 Edit Settings Dialog
 
@@ -310,15 +318,9 @@ Window icon:
 - `app/images/gear.png`
 
 Fields:
-- x, y, width, height
 - label_text
-- label_x, label_y (offset from VNC window top-left)
-- label_width, label_height
-- label_bg
-- label_font
-- label_font_color
-- label_border_size
-- label_border_color
+- position selector
+- linked session selector
 - ks (folder path or file path with browse button and file-mode checkbox)
 - HA sensor search + selected sensors list
 - HA search supports `Enter` submit and `*` wildcards (for example `*m18*`)
@@ -332,7 +334,7 @@ Fields:
 
 Save behavior:
 - writes JSON to corresponding mode folder
-- preserves runtime fields such as `position_name` and `linked_session`
+- writes session-owned settings only
 - persists `ha_sensors` and `ha_sensor_icons`
 
 ## 5.4 App Settings Window
@@ -353,7 +355,6 @@ Fields:
 - `UDP Port`
 - `Allow multiple instances on the same station`
 - `Reconnect on drop`
-- `Follow links on tagged`
 - all `default.json` fields
 - `Home Assistant URL`
 - `HA API Key`
@@ -414,12 +415,11 @@ Per session:
 5. Locate VNC native window by process ID.
 6. Move/resize VNC window to config `x,y,width,height`.
 7. Track overlay offset from VNC window and keep synced on timer.
-8. If `position_name` is set and found in `vnc-positions`, it overrides launch `x,y,width,height`.
+8. If `position_name` is set and found in `vnc-positions`, it overrides launch `x,y,width,height` and the reusable label visual settings.
 
 Open behavior additions:
 - if `linked_session` is set, opening a session also opens the linked session.
-- `Setup View` opens all view sessions that currently have `Pos V` selected; `Setup Control` does the same for `Pos C`.
-- setup buttons toggle to close-only-that-mode behavior for local sessions.
+- tagged View/Control actions also follow the configured mode-specific link chain.
 - position uniqueness guard applies to View assignments (Control duplicates allowed).
 - selecting a setup applies its saved state immediately.
 
@@ -591,7 +591,8 @@ Behavioral fallbacks:
 - `vnc.py`: launch/close viewer + overlay tracking
 - `toast.py`: transient non-blocking notifications
 - `tools.py`: validation and config bundle import/export
-- `layout_tool.py`: frameless preview positioning tool for generating JSON settings
+- `position_settings.py`: frameless preview editor for reusable VNC + label position presets
+- `session_settings.py`: editor for per-session text, active-path, sensor, and position/link assignments
 - `chat_window.py`: chat UI widgets and input behavior
 - `settings_dialog.py`: edit dialog UI and value extraction
 - `main_window.py`: orchestrates UI, sessions, chat, network events
@@ -646,7 +647,7 @@ Packaging requirement:
 ## 16. Verification Checklist (must all pass)
 
 - App starts with no exceptions.
-- Main title equals station name.
+- Main title equals station name plus app version.
 - Main default size is `250x830` when no saved geometry exists.
 - Edit settings dialog default size is `620x820` (when no saved geometry exists) with gear icon.
 - App settings window default size is `460x760` when no saved geometry exists.
@@ -657,7 +658,6 @@ Packaging requirement:
 - Overlay follows moved VNC window.
 - Overlay uses label offsets relative to VNC window.
 - Session lock blocks cross-station duplicate opens unless `Allow shared sessions` is checked.
-- Setup View/Control open and close only the intended mode for selected-position rows.
 - Position selectors prevent duplicate assignment for View mode.
 - Linked sessions open together with View/Control actions.
 - Linked sessions close together with row mode toggle close actions.

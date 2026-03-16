@@ -1,14 +1,14 @@
 # VNC Station User Guide
 
 Audience: operators using the app during normal production work.  
-App version: `1.6.0`
+App version: `1.7.0`
 
 ## When To Use This Guide
 
 Use this guide when you need to:
 
 - start a shift
-- load and use saved setups
+- either tag the session you want or load and use a saved setups
 - open View or Control sessions
 - coordinate with other stations in chat
 - understand what to do when something does not open
@@ -21,9 +21,9 @@ For deployment, networking, and station maintenance, see [Admin Guide](admin-gui
 Most common actions:
 
 - load a prepared setup: click it in the setup list
-- open the monitoring layout: click `Setup View`
+- open a tagged session for monitoring: tag row, then click `View`
 - open one machine for interaction: click row `Control`
-- open a temporary tagged group: tag rows, then click `View tagged` or `Control tagged`
+- open a tagged group: tag rows, then click `View tagged` or `Control tagged`
 - close everything local: click `Close all sessions`
 - coordinate with another station: click `Chat`
 - allow a shared session intentionally: enable `Allow shared sessions`, do the task, then disable it again
@@ -35,15 +35,16 @@ The app has two main areas:
 - a scrollable list of machines/sessions
 - a lower control area for setups, batch actions, and tools
 
-![Main window with setup area](manual-assets/images/1.6.0/01-main-window-setup-area.png)
+![Main window with setup area](manual-assets/images/1.7.0/01-main-window-setup-area.png)
 
 Figure 1: Main operator window with connection rows and the lower setup/session control area.
 
 Key areas in this screenshot:
 
+- session list
 - left side: setup list
-- upper right: `Setup View` and `Setup Control`
-- below that: tagged View/Control actions
+- upper right: tagged View/Control actions and the global minimize/restore button
+- expanded linked sessions appear nested under their parent row
 - next row: `Close all sessions` and `Untag all`
 - next row: `Setup name`, then `Save`, `Clear`, and `Delete`
 - lower right: `Allow shared sessions`
@@ -62,12 +63,12 @@ Steps:
 2. Wait a few seconds for station and session sync to finish.
 3. Click the setup you want in the setup list.
 4. Confirm the rows look correct for the shift.
-5. Click `Setup View` if you want the prepared monitoring layout.
+5. Open the prepared monitoring or control group from the tagged actions if needed.
 
 Expected result:
 
 - the setup applies immediately
-- prepared View sessions open in the expected positions
+- prepared tagged/linked sessions open in the expected positions
 - rows already owned by another station stay blocked unless you intentionally allow shared sessions
 
 If it fails:
@@ -81,7 +82,7 @@ Use this when you need only one machine.
 
 To open one View session:
 
-1. Find the row.
+1. Find the row, tag it.
 2. Click `View`.
 
 To open one Control session:
@@ -105,23 +106,21 @@ Use this for temporary batch work without saving a setup first.
 Steps:
 
 1. Tag the rows you want.
-2. Make sure those rows have the needed `Pos V` or `Pos C`.
 3. Click `View tagged` or `Control tagged`.
 
 Expected result:
 
 - all tagged rows for that mode open locally
+- if a row has a mode-specific link, the linked session opens too
 - clicking the same action again closes that tagged mode group
 
 Good use cases:
 
-- temporary operator batch monitoring
+- operator batch monitoring
 - incident response on several machines
 - ad-hoc control set during troubleshooting
 
 ## 5. Use Saved Setups
-
-Setups now use a list instead of the older selector box.
 
 To apply a setup:
 
@@ -135,7 +134,7 @@ To save a new setup:
 
 To clean up setup state:
 
-1. Click `Clear` to clear setup-driven UI state.
+1. Click `Clear` to remove setup-only UI state and reload the persisted session settings from disk.
 2. Click `Delete` to remove the selected setup.
 
 Useful detail:
@@ -145,7 +144,8 @@ Useful detail:
 
 Expected result:
 
-- applying a setup immediately restores its saved positions and links
+- applying a setup immediately restores its saved positions and links in the live UI
+- setup apply and `Clear` do not overwrite the session JSON files
 
 ## 6. Shared Sessions
 
@@ -175,7 +175,7 @@ Do not:
 
 Use chat for coordination, handover, and escalation.
 
-![Chat window](manual-assets/images/1.6.0/02-chat-window.png)
+![Chat window](manual-assets/images/1.7.0/02-chat-window.png)
 
 Figure 2: Chat window with target selector, topic area, chat log, and input box.
 
@@ -246,7 +246,7 @@ If something looks wrong:
 | What you see | Likely cause | What to do next |
 |---|---|---|
 | Nothing opens when you click | session blocked or file missing | read the toast and coordinate if another station owns it |
-| `Setup View` or `Setup Control` opens only some rows | one or more rows are blocked or invalid | check the toast details and the prepared setup |
+| `View tagged` or `Control tagged` opens only some rows | one or more rows are blocked, invalid, or missing a usable mode file | check the toast details and the prepared setup |
 | A session opens in the wrong place | wrong position or wrong setup | ask an advanced user to check positions or setup content |
 | Chat does not show other stations | UDP/firewall/network problem | escalate to admin |
 | A dropped session does not return | reconnect behavior may be disabled | ask admin to check `Reconnect on drop` in Settings |

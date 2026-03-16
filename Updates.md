@@ -1,9 +1,16 @@
 # Updates
 
 Project: `VNC Station Controller`  
-Latest version in repository: `1.6.0`
+Latest version in repository: `1.7.0`
 
 ## Version Milestones
+
+- `1.7.0` (`release`, 2026-03-16)
+  - Moved reusable VNC geometry and label visual settings into `vnc-positions/*.json`, while session JSON keeps `label_text`, links, active-path settings, and HA mappings.
+  - Split the old combined layout tool into dedicated `Positions` and `Sessions` windows with their own workflows.
+  - Added nested linked-session rows in the main window and updated tagged/control link-follow behavior.
+  - Refined setup apply/clear so setup state stays in the live UI and no longer overwrites per-session JSON files.
+  - Updated the position editor, session editor, window title, and documentation for the current UI.
 
 - `1.6.0` (`release`, 2026-03-11)
   - Split `Positions & Sessions` into dedicated `Positions` and `Sessions` windows with separate saved geometries.

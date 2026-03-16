@@ -17,12 +17,22 @@ from .constants import (
     VNC_VIEW_DIR,
 )
 
-_SETTINGS_KEYS = {
+_SESSION_SETTINGS_KEYS = {
+    "label_text",
+    "position_name",
+    "linked_session",
+    "ks",
+    "ks_button_text",
+    "ha_sensors",
+    "ha_sensor_icons",
+}
+
+_POSITION_SETTINGS_KEYS = {
+    "name",
     "x",
     "y",
     "width",
     "height",
-    "label_text",
     "label_x",
     "label_y",
     "label_bg",
@@ -32,12 +42,6 @@ _SETTINGS_KEYS = {
     "label_font_color",
     "label_border_size",
     "label_border_color",
-    "position_name",
-    "linked_session",
-    "ks",
-    "ks_button_text",
-    "ha_sensors",
-    "ha_sensor_icons",
 }
 
 _BUNDLE_RULES = (
@@ -110,7 +114,7 @@ def validate_runtime_configuration_details() -> Tuple[List[str], int]:
                     if not isinstance(data, dict):
                         findings.append(f"Invalid JSON object in {json_path}")
                         continue
-                    unknown = set(data.keys()) - _SETTINGS_KEYS
+                    unknown = set(data.keys()) - _SESSION_SETTINGS_KEYS
                     if unknown:
                         findings.append(f"Unknown keys in {json_path.name}: {', '.join(sorted(unknown))}")
                 except Exception as exc:
@@ -129,7 +133,22 @@ def validate_runtime_configuration_details() -> Tuple[List[str], int]:
         for missing_json in sorted(vnc_stems - json_stems):
             findings.append(f"{folder.name}: {missing_json}.vnc exists but {missing_json}.json is missing (optional)")
 
-    checked_files += _validate_json_files_in_folder(VNC_POSITIONS_DIR, findings)
+    if VNC_POSITIONS_DIR.exists():
+        for json_path in VNC_POSITIONS_DIR.glob("*.json"):
+            checked_files += 1
+            try:
+                with json_path.open("r", encoding="utf-8") as handle:
+                    data = json.load(handle)
+                if not isinstance(data, dict):
+                    findings.append(f"Invalid JSON object in {json_path}")
+                    continue
+                unknown = set(data.keys()) - _POSITION_SETTINGS_KEYS
+                if unknown:
+                    findings.append(f"Unknown keys in {json_path.name}: {', '.join(sorted(unknown))}")
+            except Exception as exc:
+                findings.append(f"Failed to parse {json_path}: {exc}")
+    else:
+        findings.append(f"Missing folder: {VNC_POSITIONS_DIR}")
     checked_files += _validate_json_files_in_folder(VNC_SETUPS_DIR, findings)
 
     return findings, checked_files

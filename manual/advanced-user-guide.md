@@ -1,7 +1,7 @@
 # VNC Station Advanced User Guide
 
 Audience: power users who prepare layouts, setups, links, Active Folder behavior, and Home Assistant mappings.  
-App version: `1.6.0`
+App version: `1.7.0`
 
 ## When To Use This Guide
 
@@ -21,7 +21,7 @@ For deployment and network maintenance, see [Admin Guide](admin-guide.md).
 Recommended order:
 
 1. prepare reusable positions
-2. adjust per-session geometry and label settings
+2. assign fixed per-session positions and edit per-session settings
 3. configure links and Active Folder behavior
 4. configure HA sensors and indicators if needed
 5. build and test saved setups for operators
@@ -31,22 +31,22 @@ This order matters because setups depend on positions and links already being co
 
 ## 2. Create Reusable Positions
 
-Use `Positions` for reusable VNC geometry.
+Use `Positions` for reusable VNC geometry and reusable label visual settings.
 
 Typical flow:
 
 1. Open `Positions`.
-2. Move and size the VNC preview.
+2. Move and size the VNC preview and the label preview.
 3. Save the preset.
 4. Apply that preset from `Pos V` or `Pos C` in the main window.
 
-Use the `Positions` window only for reusable VNC geometry.
+Use the `Positions` window for reusable VNC geometry plus label offset, size, font, colors, and border styling.
 
-To set label styling, Active Folder behavior, or HA sensor mapping, use the `Sessions` window.
+To set session-specific `label_text`, fixed positions, links, Active Folder behavior, or HA sensor mapping, use the `Sessions` window.
 
-![Layout tool in position mode](manual-assets/images/1.6.0/05-layout-tool-position-mode.png)
+![Positions window](manual-assets/images/1.7.0/05-position-settings-window.png)
 
-Figure 1: Positions window for reusable VNC placement presets.
+Figure 1: Positions window for reusable VNC placement and label visual presets.
 
 ## 3. Edit One Session In Detail
 
@@ -54,24 +54,22 @@ Use `Edit View`, `Edit Control`, or `Sessions` when you need to change one targe
 
 Use `Sessions` for:
 
-- VNC position and size
-- `position_name` override if you want this session to follow a saved position preset
 - label text
-- label offsets and dimensions
-- label colors and border
+- fixed `Position V` / `Position C` assignments
+- `Link V` / `Link C`
 - Active Folder
 - Active Button Text
 - HA sensors and icons
 
-![Layout tool in session mode](manual-assets/images/1.6.0/04-layout-tool-session-ha-search.png)
+![Sessions window](manual-assets/images/1.7.0/04-session-settings-window.png)
 
 Figure 2: Sessions window for per-session editing.
 
 Key areas in this screenshot:
 
 - top: `Load settings`
-- center: VNC and label fields
-- `Active Folder` / `Active Path/File` row: folder-or-file path plus `Browse...` and file-mode checkbox
+- center: `Label text`, `Position V/C`, and `Link V/C`
+- `Active Folder` row: folder-or-file path plus `Browse...` and folder/file toggle
 - below that: `Active Button Text`
 - HA area: search field, search results, selected sensors, and per-sensor mappings
 
@@ -79,7 +77,7 @@ Expected result after saving:
 
 - the session JSON for the chosen target is updated
 - the next time the session opens, it uses the updated behavior
-- if `position_name` is set to a valid position preset, that preset geometry wins over the session's own `x`, `y`, `width`, and `height`
+- if `position_name` is set to a valid position preset, that preset geometry and label visual settings are used at launch
 
 ## 4. Configure Active Folder
 
@@ -87,8 +85,8 @@ Use `Active Folder` / `Active Path/File` when operators need quick access to rel
 
 Behavior:
 
-- when the checkbox is off, browse selects a folder and the newest file in that folder opens
-- when the checkbox is on, browse selects a specific file path and that file opens
+- in the per-session edit dialog, the checkbox selects file mode when checked
+- in the `Sessions` window, the checkbox selects folder mode when checked
 - `Active Button Text` changes the visible row button text
 
 Good uses:
@@ -135,6 +133,7 @@ Recommended setup-building process:
 Expected result:
 
 - operators can click one setup and immediately get the prepared state back
+- setup apply affects the live UI only and does not rewrite the session JSON files
 
 ## 6. Configure Linked Sessions
 
@@ -152,6 +151,7 @@ Validation checklist:
 2. confirm the linked one opens too
 3. close the first session
 4. confirm the linked one closes too
+5. confirm the linked child row renders nested under the parent row in the main window when expanded
 
 ## 7. Configure Home Assistant Sensors
 
@@ -218,7 +218,7 @@ Run this after editing positions, sessions, links, or setups:
 | What you see | Likely cause | What to check next |
 |---|---|---|
 | position preset seems ignored | wrong `Pos V` / `Pos C` or old setup state | reapply the setup and verify the row selectors |
-| label looks wrong | edited in the wrong place or wrong session file | reopen `Session` mode and verify the correct target |
+| label looks wrong | edited in the wrong place or wrong position preset | reopen `Positions` and verify the preset used by the session |
 | Active Folder opens the wrong file | unexpected newest file in folder | verify folder contents and timestamps |
 | HA icons do not update | wrong entity ID or missing HA config | verify HA settings and sensor IDs |
 | operators say setup is wrong | setup was saved before latest edits | re-save and re-test the setup |

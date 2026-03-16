@@ -25,6 +25,15 @@ class PositionPreset:
     width: int
     height: int
     path: Path
+    label_x: int = 10
+    label_y: int = 10
+    label_bg: str = "white"
+    label_width: int = 200
+    label_height: int = 100
+    label_font: int = 18
+    label_font_color: str = "black"
+    label_border_size: int = 5
+    label_border_color: str = "yellow"
 
 
 @dataclass
@@ -156,6 +165,18 @@ class SessionSettings:
             "label_font_color": self.label_font_color,
             "label_border_size": str(self.label_border_size),
             "label_border_color": self.label_border_color,
+            "position_name": self.position_name,
+            "linked_session": self.linked_session,
+            "ks": self.ks,
+            "ks_button_text": self.ks_button_text,
+            "ha_sensors": list(self.ha_sensors),
+            "ha_sensor_icons": list(self.ha_sensor_icons),
+        }
+
+    def to_session_json(self) -> Dict[str, object]:
+        """Serialize only the fields that belong in per-session JSON."""
+        return {
+            "label_text": self.label_text,
             "position_name": self.position_name,
             "linked_session": self.linked_session,
             "ks": self.ks,

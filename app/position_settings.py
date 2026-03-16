@@ -1,0 +1,483 @@
+"""Position editor for reusable window and label placement presets."""
+
+from pathlib import Path
+
+from PyQt5.QtCore import QPoint, QRect, QSettings, QSize, Qt, pyqtSignal
+from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtWidgets import QApplication, QComboBox, QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton, QSpinBox, QVBoxLayout, QWidget
+
+from .config import load_default_settings, save_json, scan_positions
+from .constants import CANCEL_ICON_PATH, GEARS_ICON_PATH, ICON_PATH, MONITOR_ICON_PATH, OPEN_ICON_PATH, RESET_ICON_PATH, SAVE_ICON_PATH, VNC_POSITIONS_DIR
+from .models import SessionSettings
+from .theme import windows_prefers_dark
+
+ICON_TEXT_GAP_PREFIX = "\u2009"
+BUTTON_ICON_PATH_PROPERTY = "button_icon_path"
+BUTTON_ICON_BASE_SIZE_PROPERTY = "button_icon_base_size"
+BUTTON_TEXT_RAW_PROPERTY = "button_text_raw"
+BUTTON_CHROME = "color:white; font-weight:700; padding:2px 6px 4px 6px; border:none; border-radius:4px;"
+DEFAULT_BUTTON_STYLE = f"background:#666666; {BUTTON_CHROME}"
+LOAD_BUTTON_STYLE = f"background:#666666; {BUTTON_CHROME}"
+SAVE_BUTTON_STYLE = f"background:#666666; {BUTTON_CHROME}"
+
+
+def _button_icons_enabled() -> bool:
+    settings = QSettings("VNCStation", "Controller")
+    value = settings.value("use_button_icons", "true")
+    return str(value).strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _button_text_without_prefix(text: str) -> str:
+    return text.lstrip(f" {ICON_TEXT_GAP_PREFIX}")
+
+
+def _apply_button_icon_preference(button: QPushButton) -> None:
+    raw_text = str(button.property(BUTTON_TEXT_RAW_PROPERTY) or _button_text_without_prefix(button.text()))
+    button.setProperty(BUTTON_TEXT_RAW_PROPERTY, raw_text)
+    if _button_icons_enabled():
+        icon_path = str(button.property(BUTTON_ICON_PATH_PROPERTY) or "").strip()
+        if icon_path and Path(icon_path).exists():
+            button.setIcon(QIcon(icon_path))
+            size_px = int(button.property(BUTTON_ICON_BASE_SIZE_PROPERTY) or 16)
+            button.setIconSize(QSize(size_px, size_px))
+        button.setText(f"{ICON_TEXT_GAP_PREFIX}{raw_text}" if raw_text else "")
+        return
+    button.setIcon(QIcon())
+    button.setText(raw_text)
+
+
+def _set_button_icon(button: QPushButton, icon_path: Path, size_px: int = 16) -> None:
+    button.setProperty(BUTTON_ICON_PATH_PROPERTY, str(icon_path))
+    button.setProperty(BUTTON_ICON_BASE_SIZE_PROPERTY, int(size_px))
+    button.setProperty(BUTTON_TEXT_RAW_PROPERTY, _button_text_without_prefix(button.text()))
+    _apply_button_icon_preference(button)
+
+
+def _make_icon_text_label(text: str, icon_path: Path, size_px: int = 14) -> QWidget:
+    wrapper = QWidget()
+    row = QHBoxLayout(wrapper)
+    row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(4)
+    if icon_path.exists():
+        icon_label = QLabel()
+        pixmap = QPixmap(str(icon_path)).scaled(size_px, size_px, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        icon_label.setPixmap(pixmap)
+        row.addWidget(icon_label)
+    row.addWidget(QLabel(text))
+    return wrapper
+
+
+class FramelessPreviewWindow(QWidget):
+    """Frameless preview window with drag-inside and edge resize."""
+
+    changed = pyqtSignal()
+    EDGE_NONE = 0
+    EDGE_LEFT = 1
+    EDGE_RIGHT = 2
+    EDGE_TOP = 4
+    EDGE_BOTTOM = 8
+
+    def __init__(self, title: str, always_on_top: bool = False, parent=None) -> None:
+        super().__init__(parent)
+        flags = Qt.Window | Qt.FramelessWindowHint
+        if always_on_top:
+            flags |= Qt.WindowStaysOnTopHint
+        self.setWindowFlags(flags)
+        self.setMouseTracking(True)
+        self.setMinimumSize(30, 20)
+        self.title = QLabel(title, self)
+        self.title.setAlignment(Qt.AlignCenter)
+        self.title.setStyleSheet("font-weight:700; background:transparent;")
+        self.title.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self._resize_margin = 8
+        self._dragging = False
+        self._resizing = False
+        self._drag_offset = QPoint()
+        self._start_geom = QRect()
+        self._start_global = QPoint()
+        self._resize_edges = self.EDGE_NONE
+
+    def resizeEvent(self, event) -> None:
+        self.title.setGeometry(0, 0, self.width(), 26)
+        self.changed.emit()
+        super().resizeEvent(event)
+
+    def moveEvent(self, event) -> None:
+        self.changed.emit()
+        super().moveEvent(event)
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() != Qt.LeftButton:
+            return super().mousePressEvent(event)
+        self._resize_edges = self._detect_edges(event.pos())
+        self._start_geom = self.geometry()
+        self._start_global = event.globalPos()
+        if self._resize_edges != self.EDGE_NONE:
+            self._resizing = True
+        else:
+            self._dragging = True
+            self._drag_offset = event.globalPos() - self.frameGeometry().topLeft()
+        event.accept()
+
+    def mouseMoveEvent(self, event) -> None:
+        if self._resizing:
+            self._perform_resize(event.globalPos())
+            event.accept()
+            return
+        if self._dragging:
+            self.move(event.globalPos() - self._drag_offset)
+            event.accept()
+            return
+        self._update_cursor(self._detect_edges(event.pos()))
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        self._dragging = False
+        self._resizing = False
+        self._resize_edges = self.EDGE_NONE
+        self.setCursor(Qt.ArrowCursor)
+        super().mouseReleaseEvent(event)
+
+    def _perform_resize(self, global_pos: QPoint) -> None:
+        delta = global_pos - self._start_global
+        geom = QRect(self._start_geom)
+        if self._resize_edges & self.EDGE_LEFT:
+            geom.setLeft(geom.left() + delta.x())
+        if self._resize_edges & self.EDGE_RIGHT:
+            geom.setRight(geom.right() + delta.x())
+        if self._resize_edges & self.EDGE_TOP:
+            geom.setTop(geom.top() + delta.y())
+        if self._resize_edges & self.EDGE_BOTTOM:
+            geom.setBottom(geom.bottom() + delta.y())
+        if geom.width() < self.minimumWidth():
+            if self._resize_edges & self.EDGE_LEFT:
+                geom.setLeft(geom.right() - self.minimumWidth() + 1)
+            else:
+                geom.setRight(geom.left() + self.minimumWidth() - 1)
+        if geom.height() < self.minimumHeight():
+            if self._resize_edges & self.EDGE_TOP:
+                geom.setTop(geom.bottom() - self.minimumHeight() + 1)
+            else:
+                geom.setBottom(geom.top() + self.minimumHeight() - 1)
+        self.setGeometry(geom)
+
+    def _detect_edges(self, p: QPoint) -> int:
+        edges = self.EDGE_NONE
+        if p.x() <= self._resize_margin:
+            edges |= self.EDGE_LEFT
+        elif p.x() >= self.width() - self._resize_margin:
+            edges |= self.EDGE_RIGHT
+        if p.y() <= self._resize_margin:
+            edges |= self.EDGE_TOP
+        elif p.y() >= self.height() - self._resize_margin:
+            edges |= self.EDGE_BOTTOM
+        return edges
+
+    def _update_cursor(self, edges: int) -> None:
+        if edges in (self.EDGE_LEFT | self.EDGE_TOP, self.EDGE_RIGHT | self.EDGE_BOTTOM):
+            self.setCursor(Qt.SizeFDiagCursor)
+        elif edges in (self.EDGE_RIGHT | self.EDGE_TOP, self.EDGE_LEFT | self.EDGE_BOTTOM):
+            self.setCursor(Qt.SizeBDiagCursor)
+        elif edges in (self.EDGE_LEFT, self.EDGE_RIGHT):
+            self.setCursor(Qt.SizeHorCursor)
+        elif edges in (self.EDGE_TOP, self.EDGE_BOTTOM):
+            self.setCursor(Qt.SizeVerCursor)
+        else:
+            self.setCursor(Qt.SizeAllCursor)
+
+
+class PositionSettingsWindow(QMainWindow):
+    """Editor for position presets including label placement and styling."""
+
+    window_closed = pyqtSignal()
+
+    def __init__(self, theme_mode: str = "Auto") -> None:
+        super().__init__()
+        self._geometry_store = QSettings("VNCStation", "Controller")
+        self.settings = load_default_settings()
+        self.theme_mode = theme_mode
+        self._syncing_form = False
+        self._position_paths_by_name: dict[str, Path] = {}
+        self.setWindowTitle("Positions")
+        if GEARS_ICON_PATH.exists():
+            self.setWindowIcon(QIcon(str(GEARS_ICON_PATH)))
+        self.resize(620, 860)
+        self.vnc_preview = FramelessPreviewWindow("VNC Preview", always_on_top=False)
+        self.label_preview = FramelessPreviewWindow("Label Preview", always_on_top=True)
+        self.label_content = QLabel(self.settings.label_text, self.label_preview)
+        self.label_content.setAlignment(Qt.AlignCenter)
+        self.label_content.setWordWrap(True)
+        self.label_content.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.label_content.setGeometry(0, 26, self.label_preview.width(), max(20, self.label_preview.height() - 26))
+        if ICON_PATH.exists():
+            self.vnc_preview.setWindowIcon(QIcon(str(ICON_PATH)))
+        self.vnc_preview.changed.connect(self._sync_from_preview_windows)
+        self.label_preview.changed.connect(self._sync_from_preview_windows)
+        self._build_ui()
+        self._restore_saved_window_geometries()
+        self._apply_settings_to_previews()
+        self._apply_theme(self.theme_mode)
+        self.vnc_preview.show()
+        self.label_preview.show()
+
+    def _build_ui(self) -> None:
+        root_widget = QWidget(self)
+        self.setCentralWidget(root_widget)
+        root = QVBoxLayout(root_widget)
+        top = QHBoxLayout()
+        root.addLayout(top)
+        top.addWidget(_make_icon_text_label("Positions:", MONITOR_ICON_PATH))
+        self.position_box = QComboBox()
+        self.position_box.setEditable(True)
+        top.addWidget(self.position_box, 1)
+        load_btn = QPushButton("Load")
+        _set_button_icon(load_btn, OPEN_ICON_PATH)
+        load_btn.setStyleSheet(LOAD_BUTTON_STYLE)
+        load_btn.clicked.connect(self._load_selected_position)
+        save_btn = QPushButton("Save")
+        _set_button_icon(save_btn, SAVE_ICON_PATH)
+        save_btn.setStyleSheet(SAVE_BUTTON_STYLE)
+        save_btn.clicked.connect(self._save_selected_position)
+        top.addWidget(load_btn)
+        top.addWidget(save_btn)
+        self.info_label = QLabel("Drag inside each preview to move.\nResize from edges/corners.\nPosition presets now include reusable label placement and styling.")
+        self.info_label.setStyleSheet("color:#666;")
+        root.addWidget(self.info_label)
+        geometry_widget = QWidget()
+        geometry_row = QHBoxLayout(geometry_widget)
+        geometry_row.setContentsMargins(0, 0, 0, 0)
+        left_form = QFormLayout()
+        right_form = QFormLayout()
+        geometry_row.addLayout(left_form, 1)
+        geometry_row.addLayout(right_form, 1)
+        root.addWidget(geometry_widget)
+        self.x_spin = self._spin(left_form, "VNC X", -10000, 10000, self.settings.x)
+        self.y_spin = self._spin(right_form, "VNC Y", -10000, 10000, self.settings.y)
+        self.w_spin = self._spin(left_form, "VNC Width", 100, 8000, self.settings.width)
+        self.h_spin = self._spin(right_form, "VNC Height", 100, 8000, self.settings.height)
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        root.addWidget(separator)
+        label_widget = QWidget()
+        label_row = QHBoxLayout(label_widget)
+        label_row.setContentsMargins(0, 0, 0, 0)
+        label_left = QFormLayout()
+        label_right = QFormLayout()
+        label_row.addLayout(label_left, 1)
+        label_row.addLayout(label_right, 1)
+        root.addWidget(label_widget)
+        self.border_spin = self._spin(label_right, "Border size", 0, 40, self.settings.label_border_size)
+        self.font_spin = self._spin(label_left, "Font size", 8, 200, self.settings.label_font)
+        self.bg_text = QLineEdit(self.settings.label_bg)
+        self.fg_text = QLineEdit(self.settings.label_font_color)
+        self.border_text = QLineEdit(self.settings.label_border_color)
+        label_right.addRow("Font color", self.fg_text)
+        label_left.addRow("Label background", self.bg_text)
+        label_left.addRow("Label border color", self.border_text)
+        self.lx_spin = self._spin(label_right, "Label offset X", -10000, 10000, self.settings.label_x)
+        self.ly_spin = self._spin(label_right, "Label offset Y", -10000, 10000, self.settings.label_y)
+        self.lw_spin = self._spin(label_left, "Label width", 30, 8000, self.settings.label_width)
+        self.lh_spin = self._spin(label_right, "Label height", 20, 4000, self.settings.label_height)
+        action_row = QHBoxLayout()
+        root.addLayout(action_row)
+        reset_btn = QPushButton("Reset from default.json")
+        _set_button_icon(reset_btn, RESET_ICON_PATH)
+        reset_btn.setStyleSheet(LOAD_BUTTON_STYLE)
+        reset_btn.clicked.connect(self._reset_defaults)
+        action_row.addWidget(reset_btn)
+        action_row.addStretch(1)
+        close_row = QHBoxLayout()
+        root.addLayout(close_row)
+        close_row.addStretch(1)
+        close_btn = QPushButton("Close")
+        _set_button_icon(close_btn, CANCEL_ICON_PATH)
+        close_btn.setStyleSheet(DEFAULT_BUTTON_STYLE)
+        close_btn.clicked.connect(self.close)
+        close_row.addWidget(close_btn)
+        close_row.addStretch(1)
+        self._populate_position_targets()
+        for spin in [self.x_spin, self.y_spin, self.w_spin, self.h_spin, self.lx_spin, self.ly_spin, self.lw_spin, self.lh_spin, self.font_spin, self.border_spin]:
+            spin.valueChanged.connect(self._sync_to_preview_windows)
+        for line in [self.bg_text, self.fg_text, self.border_text]:
+            line.textChanged.connect(self._sync_to_preview_windows)
+        self._configure_tab_order()
+
+    def _configure_tab_order(self) -> None:
+        self.setTabOrder(self.position_box, self.x_spin)
+        self.setTabOrder(self.x_spin, self.y_spin)
+        self.setTabOrder(self.y_spin, self.w_spin)
+        self.setTabOrder(self.w_spin, self.h_spin)
+        self.setTabOrder(self.h_spin, self.font_spin)
+        self.setTabOrder(self.font_spin, self.border_spin)
+        self.setTabOrder(self.border_spin, self.bg_text)
+        self.setTabOrder(self.bg_text, self.fg_text)
+        self.setTabOrder(self.fg_text, self.border_text)
+        self.setTabOrder(self.border_text, self.lx_spin)
+        self.setTabOrder(self.lx_spin, self.ly_spin)
+        self.setTabOrder(self.ly_spin, self.lw_spin)
+        self.setTabOrder(self.lw_spin, self.lh_spin)
+
+    def _restore_saved_window_geometries(self) -> None:
+        main_geometry = self._geometry_store.value("position_settings_window_geometry")
+        if main_geometry:
+            self.restoreGeometry(main_geometry)
+        vnc_geometry = self._geometry_store.value("position_settings_vnc_preview_geometry")
+        if vnc_geometry:
+            self.vnc_preview.restoreGeometry(vnc_geometry)
+        label_geometry = self._geometry_store.value("position_settings_label_preview_geometry")
+        if label_geometry:
+            self.label_preview.restoreGeometry(label_geometry)
+
+    def _spin(self, form: QFormLayout, label: str, low: int, high: int, value: int) -> QSpinBox:
+        field = QSpinBox()
+        field.setRange(low, high)
+        field.setValue(value)
+        form.addRow(label, field)
+        return field
+
+    def _collect_settings(self) -> SessionSettings:
+        return SessionSettings(x=self.x_spin.value(), y=self.y_spin.value(), width=self.w_spin.value(), height=self.h_spin.value(), label_text=self.settings.label_text, label_x=self.lx_spin.value(), label_y=self.ly_spin.value(), label_bg=self.bg_text.text().strip() or "white", label_width=self.lw_spin.value(), label_height=self.lh_spin.value(), label_font=self.font_spin.value(), label_font_color=self.fg_text.text().strip() or "black", label_border_size=self.border_spin.value(), label_border_color=self.border_text.text().strip() or "black", station_name=self.settings.station_name)
+
+    def _apply_settings_to_previews(self) -> None:
+        s = self._collect_settings()
+        self.vnc_preview.setGeometry(s.x, s.y, max(100, s.width), max(100, s.height))
+        self.label_preview.setGeometry(s.x + s.label_x, s.y + s.label_y, max(30, s.label_width), max(20, s.label_height))
+        self.label_preview.raise_()
+        self._apply_preview_styles()
+        self.settings = s
+
+    def _apply_preview_styles(self) -> None:
+        s = self._collect_settings()
+        self.vnc_preview.setStyleSheet("background:#e3f2fd; border:2px solid #1971c2;")
+        self.vnc_preview.title.setStyleSheet("font-weight:700; color:#111; background:transparent;")
+        self.label_preview.setStyleSheet("background:transparent; border:2px dashed #333;")
+        self.label_preview.title.setStyleSheet("font-weight:700; color:#111; background:transparent;")
+        self.label_content.setText(s.label_text)
+        self.label_content.setStyleSheet(f"background:{s.label_bg};color:{s.label_font_color};font-size:{max(8, s.label_font)}px;border:{max(0, s.label_border_size)}px solid {s.label_border_color};")
+        self.label_content.setGeometry(0, 26, self.label_preview.width(), max(20, self.label_preview.height() - 26))
+
+    def _sync_to_preview_windows(self) -> None:
+        if self._syncing_form:
+            return
+        self._apply_settings_to_previews()
+
+    def _sync_from_preview_windows(self) -> None:
+        self._syncing_form = True
+        self.x_spin.setValue(self.vnc_preview.x())
+        self.y_spin.setValue(self.vnc_preview.y())
+        self.w_spin.setValue(self.vnc_preview.width())
+        self.h_spin.setValue(self.vnc_preview.height())
+        self.lx_spin.setValue(self.label_preview.x() - self.vnc_preview.x())
+        self.ly_spin.setValue(self.label_preview.y() - self.vnc_preview.y())
+        self.lw_spin.setValue(self.label_preview.width())
+        self.lh_spin.setValue(self.label_preview.height())
+        self._syncing_form = False
+        self._apply_preview_styles()
+        self.settings = self._collect_settings()
+
+    def _populate_position_targets(self) -> None:
+        self._position_paths_by_name.clear()
+        current_name = self.position_box.currentText().strip() if hasattr(self, "position_box") else ""
+        self.position_box.clear()
+        for preset in scan_positions():
+            self._position_paths_by_name[preset.name] = preset.path
+            self.position_box.addItem(preset.name)
+        if current_name:
+            index = self.position_box.findText(current_name)
+            if index >= 0:
+                self.position_box.setCurrentIndex(index)
+            else:
+                self.position_box.setEditText(current_name)
+
+    def _load_selected_position(self) -> None:
+        name = self.position_box.currentText().strip()
+        if not name:
+            QMessageBox.information(self, "Positions", "No position selected.")
+            return
+        for preset in scan_positions():
+            if preset.name.strip().lower() != name.lower():
+                continue
+            self._syncing_form = True
+            self.position_box.setCurrentText(preset.name)
+            self.x_spin.setValue(preset.x)
+            self.y_spin.setValue(preset.y)
+            self.w_spin.setValue(preset.width)
+            self.h_spin.setValue(preset.height)
+            self.lx_spin.setValue(preset.label_x)
+            self.ly_spin.setValue(preset.label_y)
+            self.lw_spin.setValue(preset.label_width)
+            self.lh_spin.setValue(preset.label_height)
+            self.font_spin.setValue(preset.label_font)
+            self.border_spin.setValue(preset.label_border_size)
+            self.bg_text.setText(preset.label_bg)
+            self.fg_text.setText(preset.label_font_color)
+            self.border_text.setText(preset.label_border_color)
+            self._syncing_form = False
+            self._apply_settings_to_previews()
+            return
+        QMessageBox.warning(self, "Positions", f"Position file not found:\n{name}")
+
+    def _save_selected_position(self) -> None:
+        name = self.position_box.currentText().strip()
+        if not name:
+            QMessageBox.information(self, "Positions", "Enter a position name first.")
+            return
+        VNC_POSITIONS_DIR.mkdir(parents=True, exist_ok=True)
+        path = self._position_paths_by_name.get(name, VNC_POSITIONS_DIR / f"{name}.json")
+        settings = self._collect_settings()
+        save_json(path, {"name": name, "x": str(settings.x), "y": str(settings.y), "width": str(settings.width), "height": str(settings.height), "label_x": str(settings.label_x), "label_y": str(settings.label_y), "label_bg": settings.label_bg, "label_width": str(settings.label_width), "label_height": str(settings.label_height), "label_font": str(settings.label_font), "label_font_color": settings.label_font_color, "label_border_size": str(settings.label_border_size), "label_border_color": settings.label_border_color})
+        self._populate_position_targets()
+        self.position_box.setCurrentText(name)
+        QMessageBox.information(self, "Positions", f"Saved position:\n{path}")
+
+    def _reset_defaults(self) -> None:
+        self.settings = load_default_settings()
+        self._syncing_form = True
+        self.x_spin.setValue(self.settings.x)
+        self.y_spin.setValue(self.settings.y)
+        self.w_spin.setValue(self.settings.width)
+        self.h_spin.setValue(self.settings.height)
+        self.lx_spin.setValue(self.settings.label_x)
+        self.ly_spin.setValue(self.settings.label_y)
+        self.lw_spin.setValue(self.settings.label_width)
+        self.lh_spin.setValue(self.settings.label_height)
+        self.font_spin.setValue(self.settings.label_font)
+        self.border_spin.setValue(self.settings.label_border_size)
+        self.bg_text.setText(self.settings.label_bg)
+        self.fg_text.setText(self.settings.label_font_color)
+        self.border_text.setText(self.settings.label_border_color)
+        self._syncing_form = False
+        self._apply_settings_to_previews()
+
+    def _apply_theme(self, mode: str) -> None:
+        self.theme_mode = mode
+        effective = "Dark" if mode == "Auto" and windows_prefers_dark() else ("Light" if mode == "Auto" else mode)
+        base_button_style = "QPushButton{font-weight:700; padding:2px 6px 4px 6px; border:none; border-radius:4px;}"
+        if effective == "Dark":
+            self.setStyleSheet("QWidget{background:#1f2328;color:#e6edf3;} QLineEdit,QSpinBox{background:#0d1117;color:#e6edf3;border:1px solid #30363d;}" + base_button_style)
+        else:
+            self.setStyleSheet(base_button_style)
+
+    def set_theme_mode(self, mode: str) -> None:
+        self._apply_theme(mode)
+
+    def closeEvent(self, event) -> None:
+        self._geometry_store.setValue("position_settings_window_geometry", self.saveGeometry())
+        self._geometry_store.setValue("position_settings_vnc_preview_geometry", self.vnc_preview.saveGeometry())
+        self._geometry_store.setValue("position_settings_label_preview_geometry", self.label_preview.saveGeometry())
+        self.vnc_preview.close()
+        self.label_preview.close()
+        self.window_closed.emit()
+        super().closeEvent(event)
+
+
+def main() -> int:
+    app = QApplication([])
+    window = PositionSettingsWindow()
+    window.show()
+    return app.exec_()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
