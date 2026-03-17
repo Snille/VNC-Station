@@ -529,7 +529,7 @@ Theme modes:
 - must be applied before main window is shown
 
 Theme consistency:
-- apply same style to both main window and chat window
+- apply same style to all windows.
 - Settings, `Positions`, and `Sessions` utility buttons use the same gray button styling, except the Settings config maintenance buttons which stay distinct.
 
 ## 11. Icons
@@ -540,7 +540,6 @@ Required icons:
 - settings dialog icon: `app/images/gear.png`
 - app settings window icon: `app/images/gear.png`
 - HA icon: `app/images/ha.png`
-- default status icons: `app/images/dooropen.png`, `app/images/doorclosed.png`
 - button icons:
   - `view.png`, `control.png`, `edit.png`, `import.png`, `export.png`,
     `validate.png`, `save.png`, `open.png`, `cancel.png`, `delete.png`,
