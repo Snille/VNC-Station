@@ -248,6 +248,7 @@ class ConnectionRow:
         self._mode_open_state: Dict[str, bool] = {MODE_VIEW: False, MODE_CONTROL: False}
         self._owner_header_in_use = False
         self._owner_header_mode = ""
+        self._owner_header_station = ""
         self._owner_header_theme = "Light"
         self._minimized = False
         self.widget = QFrame()
@@ -824,9 +825,10 @@ class ConnectionRow:
             visible_count += 1
         self.indicators_widget.setVisible(visible_count > 0 or bool(self._indicators_bg_color))
 
-    def set_owner_in_use(self, in_use: bool, mode: str = "") -> None:
+    def set_owner_in_use(self, in_use: bool, mode: str = "", station_name: str = "") -> None:
         self._owner_header_in_use = bool(in_use)
         self._owner_header_mode = mode.strip().lower() if self._owner_header_in_use else ""
+        self._owner_header_station = station_name.strip() if self._owner_header_in_use else ""
         self._update_owner_header_icon()
 
     def set_effective_theme(self, theme: str) -> None:
@@ -855,7 +857,11 @@ class ConnectionRow:
             icon_path = USER_CONTROL_ICON_PATH
         else:
             icon_path = USER_DARK_ICON_PATH if self._owner_header_theme == "Dark" else USER_LIGHT_ICON_PATH
-        self._set_header_icon(self.owner_header_icon, icon_path, "Session currently in use", visible)
+        owner_name = self._owner_header_station.strip()
+        tooltip = "Session currently in use"
+        if owner_name:
+            tooltip = f"Session currently in use by {owner_name}"
+        self._set_header_icon(self.owner_header_icon, icon_path, tooltip, visible)
 
     def _update_link_header_icon(self) -> None:
         has_link = bool(self.selected_link(MODE_VIEW) or self.selected_link(MODE_CONTROL))
@@ -2700,7 +2706,7 @@ class MainWindow(QMainWindow):
             if local_modes:
                 row.owner_label.setText(f"Owner: {self.station_name} ({'/'.join(sorted(local_modes))})")
                 owner_mode = MODE_CONTROL if MODE_CONTROL in local_modes else (local_modes[0] if local_modes else "")
-                row.set_owner_in_use(True, owner_mode)
+                row.set_owner_in_use(True, owner_mode, self.station_name)
             else:
                 matches = []
                 for (conn, mode), (holder, age_seconds) in remote_info.items():
@@ -2711,10 +2717,10 @@ class MainWindow(QMainWindow):
                     row.owner_label.setText(
                         f"Owner: {holder} [{mode}] {format_elapsed_duration(age_seconds)}"
                     )
-                    row.set_owner_in_use(True, mode)
+                    row.set_owner_in_use(True, mode, holder)
                 else:
                     row.owner_label.setText("Owner: available")
-                    row.set_owner_in_use(False, "")
+                    row.set_owner_in_use(False, "", "")
             row.set_mode_open_state(
                 MODE_VIEW, MODE_VIEW in local_modes, row.entry.view_vnc_path is not None
             )

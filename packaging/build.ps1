@@ -6,6 +6,16 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$VersionFile = Join-Path $RepoRoot "app\constants.py"
+$VersionMatch = Select-String -Path $VersionFile -Pattern 'APP_VERSION\s*=\s*"([^"]+)"'
+
+if (-not $VersionMatch) {
+    throw "Could not determine APP_VERSION from $VersionFile"
+}
+
+$AppVersion = $VersionMatch.Matches[0].Groups[1].Value
+$ZipName = "VNC-Station-Controller-$AppVersion.zip"
+$ZipPath = Join-Path $RepoRoot "dist\$ZipName"
 
 if (-not $Python) {
     $Python = Join-Path $RepoRoot ".venv\Scripts\python.exe"
@@ -63,6 +73,14 @@ else {
     Write-Warning "default.json not found in repo root; copy it manually to dist."
 }
 
+$UpdatesSrc = Join-Path $RepoRoot "Updates.md"
+if (Test-Path $UpdatesSrc) {
+    Copy-Item -Force -Path $UpdatesSrc -Destination (Join-Path $DistRoot "Updates.md")
+}
+else {
+    Write-Warning "Updates.md not found in repo root; copy it manually to dist."
+}
+
 $ManualSrc = Join-Path $RepoRoot "manual"
 $ManualDst = Join-Path $DistRoot "manual"
 if (Test-Path $ManualSrc) {
@@ -72,55 +90,34 @@ else {
     Write-Warning "manual folder not found in repo root; empty folder created in dist."
 }
 
-# Copy available position presets to distribution (optional runtime content).
+# Runtime folders are created empty in the build output so operators can add their own files later.
 $PositionsSrc = Join-Path $RepoRoot "vnc-positions"
 $PositionsDst = Join-Path $DistRoot "vnc-positions"
-if (Test-Path $PositionsSrc) {
-    Get-ChildItem -Path $PositionsSrc -Filter "*.json" -File -ErrorAction SilentlyContinue | ForEach-Object {
-        Copy-Item -Force -Path $_.FullName -Destination (Join-Path $PositionsDst $_.Name)
-    }
-}
-else {
+if (-not (Test-Path $PositionsSrc)) {
     Write-Warning "vnc-positions folder not found in repo root; empty folder created in dist."
 }
 
-# Copy available setup presets to distribution (optional runtime content).
 $SetupsSrc = Join-Path $RepoRoot "vnc-setups"
 $SetupsDst = Join-Path $DistRoot "vnc-setups"
-if (Test-Path $SetupsSrc) {
-    Get-ChildItem -Path $SetupsSrc -Filter "*.json" -File -ErrorAction SilentlyContinue | ForEach-Object {
-        Copy-Item -Force -Path $_.FullName -Destination (Join-Path $SetupsDst $_.Name)
-    }
-}
-else {
+if (-not (Test-Path $SetupsSrc)) {
     Write-Warning "vnc-setups folder not found in repo root; empty folder created in dist."
 }
 
-# Copy available view/control files to distribution (optional runtime content).
 $ViewSrc = Join-Path $RepoRoot "vnc-view"
-$ViewDst = Join-Path $DistRoot "vnc-view"
-if (Test-Path $ViewSrc) {
-    Get-ChildItem -Path $ViewSrc -File -ErrorAction SilentlyContinue | Where-Object {
-        $_.Extension -in @(".json", ".vnc")
-    } | ForEach-Object {
-        Copy-Item -Force -Path $_.FullName -Destination (Join-Path $ViewDst $_.Name)
-    }
-}
-else {
+if (-not (Test-Path $ViewSrc)) {
     Write-Warning "vnc-view folder not found in repo root; empty folder created in dist."
 }
 
 $ControlSrc = Join-Path $RepoRoot "vnc-control"
-$ControlDst = Join-Path $DistRoot "vnc-control"
-if (Test-Path $ControlSrc) {
-    Get-ChildItem -Path $ControlSrc -File -ErrorAction SilentlyContinue | Where-Object {
-        $_.Extension -in @(".json", ".vnc")
-    } | ForEach-Object {
-        Copy-Item -Force -Path $_.FullName -Destination (Join-Path $ControlDst $_.Name)
-    }
-}
-else {
+if (-not (Test-Path $ControlSrc)) {
     Write-Warning "vnc-control folder not found in repo root; empty folder created in dist."
 }
 
+if (Test-Path $ZipPath) {
+    Remove-Item -Force $ZipPath
+}
+
+Compress-Archive -Path $DistRoot -DestinationPath $ZipPath -CompressionLevel Optimal
+
 Write-Host ("Build complete. See " + $DistRoot) -ForegroundColor Green
+Write-Host ("Zip package created: " + $ZipPath) -ForegroundColor Green

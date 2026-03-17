@@ -641,6 +641,8 @@ class SettingsDialog(QDialog):
 
     def _add_text(self, form: QFormLayout, key: str, label: str, value: str) -> None:
         field = QLineEdit(value)
+        if key == "ks_button_text":
+            field.setPlaceholderText("Default is KS")
         self._fields[key] = field
         form.addRow(label, field)
 

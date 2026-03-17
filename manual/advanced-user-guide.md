@@ -1,7 +1,7 @@
 # VNC Station Advanced User Guide
 
 Audience: power users who prepare layouts, setups, links, Active Folder behavior, and Home Assistant mappings.  
-App version: `1.7.0`
+App version: `1.7.1`
 
 ## When To Use This Guide
 
@@ -44,7 +44,7 @@ Use the `Positions` window for reusable VNC geometry plus label offset, size, fo
 
 To set session-specific `label_text`, fixed positions, links, Active Folder behavior, or HA sensor mapping, use the `Sessions` window.
 
-![Positions window](manual-assets/images/1.7.0/05-position-settings-window.png)
+![Positions window](manual-assets/images/1.7.1/05-position-settings-window.png)
 
 Figure 1: Positions window for reusable VNC placement and label visual presets.
 
@@ -55,22 +55,22 @@ Use `Edit View`, `Edit Control`, or `Sessions` when you need to change one targe
 Use `Sessions` for:
 
 - label text
-- fixed `Position V` / `Position C` assignments
-- `Link V` / `Link C`
+- fixed `View Position` or `Control Position` assignments for the loaded mode
+- `Link View` or `Link Control` for the loaded mode
 - Active Folder
 - Active Button Text
 - HA sensors and icons
 
-![Sessions window](manual-assets/images/1.7.0/04-session-settings-window.png)
+![Sessions window](manual-assets/images/1.7.1/04-session-settings-window.png)
 
 Figure 2: Sessions window for per-session editing.
 
 Key areas in this screenshot:
 
 - top: `Load settings`
-- center: `Label text`, `Position V/C`, and `Link V/C`
+- center: `Label text`, plus only the mode-specific `View Position` / `Link View` or `Control Position` / `Link Control` fields for the loaded target
 - `Active Folder` row: folder-or-file path plus `Browse...` and folder/file toggle
-- below that: `Active Button Text`
+- below that: `Active Button Text` with `Default is KS` placeholder guidance
 - HA area: search field, search results, selected sensors, and per-sensor mappings
 
 Expected result after saving:

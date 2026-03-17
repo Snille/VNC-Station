@@ -66,6 +66,7 @@ class SessionSettingsWindow(QMainWindow):
         self.theme_mode = theme_mode
         self._load_targets: List[Tuple[str, str]] = []
         self._current_connection_name = ""
+        self._current_mode = MODE_VIEW
         self.settings = SessionSettings()
         self.setWindowTitle("Sessions")
         if GEARS_ICON_PATH.exists():
@@ -105,16 +106,15 @@ class SessionSettingsWindow(QMainWindow):
         root.addLayout(form)
         self.label_text = QLineEdit(self.settings.label_text)
         form.addRow("Label text", self.label_text)
-        self.position_view_box = QComboBox()
-        self.position_control_box = QComboBox()
-        form.addRow("Position V", self.position_view_box)
-        form.addRow("Position C", self.position_control_box)
-        self.link_view_box = QComboBox()
-        self.link_control_box = QComboBox()
-        form.addRow("Link V", self.link_view_box)
-        form.addRow("Link C", self.link_control_box)
+        self.position_label = QLabel("View Position")
+        self.position_box = QComboBox()
+        form.addRow(self.position_label, self.position_box)
+        self.link_label = QLabel("Link View")
+        self.link_box = QComboBox()
+        form.addRow(self.link_label, self.link_box)
         self._add_active_path_picker(form, self.settings.ks)
         self.ks_button_text = QLineEdit()
+        self.ks_button_text.setPlaceholderText("Default is KS")
         form.addRow("Active Button Text", self.ks_button_text)
         self.sensor_editor = SensorMappingsEditor(self.settings, self)
         root.addWidget(self.sensor_editor)
@@ -142,40 +142,30 @@ class SessionSettingsWindow(QMainWindow):
 
     def _populate_position_boxes(self) -> None:
         names = [preset.name for preset in scan_positions()]
-        self.position_view_box.clear()
-        self.position_control_box.clear()
-        self.position_view_box.addItem("")
-        self.position_control_box.addItem("")
+        self.position_box.clear()
+        self.position_box.addItem("")
         for name in names:
-            self.position_view_box.addItem(name)
-            self.position_control_box.addItem(name)
+            self.position_box.addItem(name)
 
     @staticmethod
     def _session_token(connection_name: str, mode: str) -> str:
         return f"{connection_name}|{mode}"
 
-    def _populate_link_boxes(self, connection_name: str) -> None:
-        self.link_view_box.clear()
-        self.link_control_box.clear()
-        self.link_view_box.addItem("", "")
-        self.link_control_box.addItem("", "")
-        current_view_token = self._session_token(connection_name, MODE_VIEW) if connection_name else ""
-        current_control_token = self._session_token(connection_name, MODE_CONTROL) if connection_name else ""
+    def _populate_link_box(self, connection_name: str, mode: str) -> None:
+        self.link_box.clear()
+        self.link_box.addItem("", "")
+        current_token = self._session_token(connection_name, mode) if connection_name else ""
         for entry in scan_connections():
             if entry.view_vnc_path is not None:
                 token = self._session_token(entry.name, MODE_VIEW)
                 label = f"{entry.name} [view]"
-                if token != current_view_token:
-                    self.link_view_box.addItem(label, token)
-                if token != current_control_token:
-                    self.link_control_box.addItem(label, token)
+                if token != current_token:
+                    self.link_box.addItem(label, token)
             if entry.control_vnc_path is not None:
                 token = self._session_token(entry.name, MODE_CONTROL)
                 label = f"{entry.name} [control]"
-                if token != current_view_token:
-                    self.link_view_box.addItem(label, token)
-                if token != current_control_token:
-                    self.link_control_box.addItem(label, token)
+                if token != current_token:
+                    self.link_box.addItem(label, token)
 
     @staticmethod
     def _set_combo_data(combo: QComboBox, value: str) -> None:
@@ -245,19 +235,18 @@ class SessionSettingsWindow(QMainWindow):
             return
         connection_name, mode = self._load_targets[idx]
         self._current_connection_name = connection_name
+        self._current_mode = mode
         settings = load_session_settings(config_path_for(connection_name, mode))
-        view_settings = load_session_settings(config_path_for(connection_name, MODE_VIEW))
-        control_settings = load_session_settings(config_path_for(connection_name, MODE_CONTROL))
         self.settings = settings
         self._populate_position_boxes()
-        self._populate_link_boxes(connection_name)
+        self._populate_link_box(connection_name, mode)
+        self.position_label.setText("View Position" if mode == MODE_VIEW else "Control Position")
+        self.link_label.setText("Link View" if mode == MODE_VIEW else "Link Control")
         self.label_text.setText(settings.label_text)
         self.ks_text.setText(settings.ks)
         self.ks_button_text.setText(settings.ks_button_text)
-        self._set_combo_text(self.position_view_box, view_settings.position_name)
-        self._set_combo_text(self.position_control_box, control_settings.position_name)
-        self._set_combo_data(self.link_view_box, view_settings.linked_session)
-        self._set_combo_data(self.link_control_box, control_settings.linked_session)
+        self._set_combo_text(self.position_box, settings.position_name)
+        self._set_combo_data(self.link_box, settings.linked_session)
         self._replace_sensor_editor(settings)
 
     def _replace_sensor_editor(self, settings: SessionSettings) -> None:
@@ -285,8 +274,13 @@ class SessionSettingsWindow(QMainWindow):
         QMessageBox.information(self, "Sessions", f"Saved settings to:\n{path}")
 
     def _persist_position_and_link_settings(self, connection_name: str) -> None:
-        update_session_overrides(config_path_for(connection_name, MODE_VIEW), {"position_name": self.position_view_box.currentText().strip(), "linked_session": str(self.link_view_box.currentData() or "").strip()})
-        update_session_overrides(config_path_for(connection_name, MODE_CONTROL), {"position_name": self.position_control_box.currentText().strip(), "linked_session": str(self.link_control_box.currentData() or "").strip()})
+        update_session_overrides(
+            config_path_for(connection_name, self._current_mode),
+            {
+                "position_name": self.position_box.currentText().strip(),
+                "linked_session": str(self.link_box.currentData() or "").strip(),
+            },
+        )
 
     def _apply_theme(self, mode: str) -> None:
         self.theme_mode = mode

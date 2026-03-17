@@ -303,8 +303,9 @@ Setup list behavior:
 - tool provides `Load settings` selector for `connection [view/control]`
 - automatically loads the first available session when the window opens
 - if selected target JSON is missing, load defaults from `default.json`
-- top `Save` writes the selected session JSON and also persists `Position V/C` and `Link V/C`
+- top `Save` writes the selected session JSON and also persists the currently loaded mode's position/link fields
 - active-path editor includes browse button plus folder/file mode toggle
+- `Active Button Text` shows placeholder help: `Default is KS`
 
 ## 5.3 Edit Settings Dialog
 
@@ -637,12 +638,11 @@ python -m unittest discover -s tests -v
 
 Packaging requirement:
 - build must use windowed mode (`--windowed`) so end users do not see a console window.
-- build output must include runtime folders: `vnc-view`, `vnc-control`, `vnc-positions`.
-- build output must include runtime folder: `vnc-setups`.
-- build output must include runtime folder: `logs`.
-- build output should preserve any existing `vnc-view/*.json|*.vnc` and `vnc-control/*.json|*.vnc`.
-- build output must copy any existing `vnc-positions/*.json` presets into `dist`.
-- build output should preserve any existing `vnc-setups/*.json` presets into `dist`.
+- build output must include runtime folders: `vnc-view`, `vnc-control`, `vnc-positions`, `vnc-setups`, and `logs`.
+- build output must include `default.json`, `Updates.md`, and the `manual/` folder.
+- build output must leave the `vnc-view`, `vnc-control`, `vnc-positions`, and `vnc-setups` folders empty.
+- build output must not include any files from `vnc-view`, `vnc-control`, `vnc-positions`, or `vnc-setups`.
+- build must also create a versioned zip package named `VNC-Station-Controller-<version>.zip` that contains the whole distribution folder.
 
 ## 16. Verification Checklist (must all pass)
 
@@ -678,3 +678,4 @@ Packaging requirement:
 - GIF indicators animate in main row indicator area.
 - UDP test script can validate two-way connectivity on port 50000.
 - Export/import bundles include `default.json`, `vnc-view/*`, `vnc-control/*`, `vnc-positions/*.json`, and `vnc-setups/*.json`.
+- Packaging script output includes `Updates.md`, leaves the runtime `vnc-*` folders empty, and creates a versioned zip.

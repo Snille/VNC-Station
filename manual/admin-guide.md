@@ -1,7 +1,7 @@
 # VNC Station Admin Guide
 
 Audience: administrators responsible for deployment, station settings, networking, validation, and recovery.  
-App version: `1.7.0`
+App version: `1.7.1`
 
 ## When To Use This Guide
 
@@ -58,7 +58,7 @@ Do not:
 
 Open `Settings` and configure the station before production use.
 
-![Settings window](manual-assets/images/1.7.0/03-settings-window-network-and-maintenance.png)
+![Settings window](manual-assets/images/1.7.1/03-settings-window-network-and-maintenance.png)
 
 Figure 1: Settings window for network, reconnect, HA, validation, and save operations.
 
@@ -69,13 +69,13 @@ Key areas in this screenshot:
 - `Network`: shared `UDP Port`
 - `Network`: `Reconnect on drop`
 - `Network`: `Allow multiple instances on the same station`
-- lower middle: Home Assistant URL and API key
-- lower settings area: default VNC and label values, plus `Use button icons`
+- middle settings area: default VNC and label values, plus `Use button icons`
+- lower settings: Home Assistant URL and API key
 - bottom: maintenance actions and `Save`
 
 Recommended sequence:
 
-1. set station name if needed
+1. set station name
 2. set the shared UDP port
 3. decide whether `Reconnect on drop` should be enabled
 4. keep `Allow multiple instances on the same station` disabled unless explicitly required
@@ -88,6 +88,7 @@ Expected result:
 - station opens with the intended identity and network settings
 - reconnect behavior matches your policy
 - main window title shows the station name plus app version
+- minimized in-use owner icons identify the holding station in the tooltip
 
 ## 4. Network And Firewall Compatibility
 
@@ -160,7 +161,7 @@ Check after import:
 
 Recommended policy:
 
-- keep stations on the same app version during a shift
+- keep stations on the same app version on all stations
 - disable multiple local instances by default
 - document whether reconnect-on-drop is expected
 - avoid normalizing shared-session workflows unless operations explicitly require them

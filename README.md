@@ -2,7 +2,7 @@
 
 Windows desktop app (PyQt5) for managing multiple TightVNC sessions in `view` and `control` mode, with station-to-station coordination over UDP and built-in chat.
 
-Current version: `1.7.0`
+Current version: `1.7.1`
 
 ## Table Of Contents
 
@@ -39,9 +39,9 @@ Current interface examples:
     <td align="center"><strong>Station Settings</strong></td>
   </tr>
   <tr>
-    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.0/01-main-window-setup-area.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.0/01-main-window-setup-area.png" alt="Main window" width="260"></a></td>
-    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.0/02-chat-window.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.0/02-chat-window.png" alt="Chat window" width="260"></a></td>
-    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.0/03-settings-window-network-and-maintenance.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.0/03-settings-window-network-and-maintenance.png" alt="Settings window" width="260"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.1/01-main-window-setup-area.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.1/01-main-window-setup-area.png" alt="Main window" width="260"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.1/02-chat-window.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.1/02-chat-window.png" alt="Chat window" width="260"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.1/03-settings-window-network-and-maintenance.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.1/03-settings-window-network-and-maintenance.png" alt="Settings window" width="260"></a></td>
   </tr>
   <tr>
     <td align="center"><strong>Session Editor</strong></td>
@@ -49,8 +49,8 @@ Current interface examples:
     <td align="center"><strong>Documentation</strong></td>
   </tr>
   <tr>
-    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.0/04-session-settings-window.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.0/04-session-settings-window.png" alt="Session settings window" width="260"></a></td>
-    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.0/05-position-settings-window.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.0/05-position-settings-window.png" alt="Position settings window" width="260"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.1/04-session-settings-window.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.1/04-session-settings-window.png" alt="Session settings window" width="260"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.1/05-position-settings-window.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.1/05-position-settings-window.png" alt="Position settings window" width="260"></a></td>
     <td align="center">See the <a href="manual/README.md">manual index</a> for the current role-based guides, workflows, and reference material.</td>
   </tr>
 </table>
@@ -336,9 +336,10 @@ For binary-style entities (`binary_sensor.*`, `input_boolean.*`):
 - `Sessions` opens the dedicated session editor:
   - loads the first available session automatically on open
   - `Load` target selector (`connection [view/control]`) with default fallback if JSON is missing
-  - edits per-session `label_text`, `Position V/C`, `Link V/C`, active path/file settings, and HA sensor mappings
-  - top `Save` writes the selected session JSON and persists the chosen position/link selectors for both modes of that connection
+  - edits per-session `label_text`, mode-specific `View Position` / `Control Position`, mode-specific `Link View` / `Link Control`, active path/file settings, and HA sensor mappings
+  - top `Save` writes the selected session JSON and persists the chosen position/link selector for the currently loaded mode
   - Active-path browsing supports folder mode or fixed-file mode from the same window
+  - `Active Button Text` shows placeholder help: `Default is KS`
 
 ## Testing
 
@@ -357,6 +358,7 @@ Build a distributable folder with PyInstaller:
 ```
 
 Note: packaging builds a windowed app (`--windowed`), so no black console window appears for users.
+It also copies `default.json`, `Updates.md`, and the manual folder, leaves the runtime `vnc-*` folders empty for operator-supplied content, and creates a versioned zip such as `dist/VNC-Station-Controller-1.7.1.zip`.
 
 Cleanup generated build artifacts:
 

@@ -1,9 +1,16 @@
 # Updates
 
 Project: `VNC Station Controller`  
-Latest version in repository: `1.7.0`
+Latest version in repository: `1.7.1`
 
 ## Version Milestones
+
+- `1.7.1` (`release`, 2026-03-17)
+  - Refined the `Sessions` window so each loaded mode only shows its own position and link fields, with clearer labels such as `View Position` and `Link Control`.
+  - Added `Default is KS` placeholder guidance to active-button text fields in the session editors.
+  - Added owner station names to the main-window in-use indicator tooltip for faster operator context.
+  - Updated packaging so build output includes `Updates.md`, leaves all `vnc-*` runtime folders empty, and creates a versioned zip package.
+  - Refreshed the manuals, README files, and screenshots for the current UI and packaging behavior.
 
 - `1.7.0` (`release`, 2026-03-16)
   - Moved reusable VNC geometry and label visual settings into `vnc-positions/*.json`, while session JSON keeps `label_text`, links, active-path settings, and HA mappings.
