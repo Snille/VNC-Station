@@ -192,16 +192,23 @@ class SettingsWindow(QDialog):
         root.addLayout(network_row)
 
         network_flags_row = QHBoxLayout()
+        network_flags_left = QVBoxLayout()
         self.follow_links_on_tagged_checkbox = QCheckBox("Follow links on tagged")
         self.follow_links_on_tagged_checkbox.setChecked(
             _bool_from_mapping(defaults, "follow_links_on_tagged", False)
         )
-        network_flags_row.addWidget(self.follow_links_on_tagged_checkbox)
+        network_flags_left.addWidget(self.follow_links_on_tagged_checkbox)
         self.allow_multi_checkbox = QCheckBox("Allow multiple instances on the same station")
         self.allow_multi_checkbox.setChecked(
             _bool_from_mapping(defaults, "allow_multiple_instances", False)
         )
-        network_flags_row.addWidget(self.allow_multi_checkbox)
+        network_flags_left.addWidget(self.allow_multi_checkbox)
+        self.keep_main_window_on_top_checkbox = QCheckBox("Keep main window on top")
+        self.keep_main_window_on_top_checkbox.setChecked(
+            _bool_from_mapping(defaults, "keep_main_window_on_top", False)
+        )
+        network_flags_left.addWidget(self.keep_main_window_on_top_checkbox)
+        network_flags_row.addLayout(network_flags_left)
         network_flags_row.addStretch(1)
         root.addLayout(network_flags_row)
 
@@ -314,6 +321,9 @@ class SettingsWindow(QDialog):
         self.follow_links_on_tagged_checkbox.setChecked(
             _bool_from_mapping(defaults, "follow_links_on_tagged", False)
         )
+        self.keep_main_window_on_top_checkbox.setChecked(
+            _bool_from_mapping(defaults, "keep_main_window_on_top", False)
+        )
         spin_defaults = {
             "x": 1,
             "y": 1,
@@ -384,6 +394,7 @@ class SettingsWindow(QDialog):
             "allow_multiple_instances": "true" if self.allow_multi_checkbox.isChecked() else "false",
             "reconnect_on_drop": "true" if self.reconnect_checkbox.isChecked() else "false",
             "follow_links_on_tagged": "true" if self.follow_links_on_tagged_checkbox.isChecked() else "false",
+            "keep_main_window_on_top": "true" if self.keep_main_window_on_top_checkbox.isChecked() else "false",
         }
 
     def _save(self) -> None:

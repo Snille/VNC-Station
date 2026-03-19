@@ -19,6 +19,11 @@
   "ks": "",
   "ha_url": "",
   "ha_api_key": "<ha_api_key>",
+  "udp_port": "50000",
+  "allow_multiple_instances": "false",
+  "reconnect_on_drop": "false",
+  "follow_links_on_tagged": "false",
+  "keep_main_window_on_top": "false",
   "ha_sensors": [],
   "ha_sensor_icons": []
 }

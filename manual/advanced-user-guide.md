@@ -1,7 +1,7 @@
 # VNC Station Advanced User Guide
 
 Audience: power users who prepare layouts, setups, links, Active Folder behavior, and Home Assistant mappings.  
-App version: `1.7.1`
+App version: `1.7.2`
 
 ## When To Use This Guide
 
@@ -44,7 +44,7 @@ Use the `Positions` window for reusable VNC geometry plus label offset, size, fo
 
 To set session-specific `label_text`, fixed positions, links, Active Folder behavior, or HA sensor mapping, use the `Sessions` window.
 
-![Positions window](manual-assets/images/1.7.1/05-position-settings-window.png)
+![Positions window](manual-assets/images/1.7.2/05-position-settings-window.png)
 
 Figure 1: Positions window for reusable VNC placement and label visual presets.
 
@@ -61,7 +61,7 @@ Use `Sessions` for:
 - Active Button Text
 - HA sensors and icons
 
-![Sessions window](manual-assets/images/1.7.1/04-session-settings-window.png)
+![Sessions window](manual-assets/images/1.7.2/04-session-settings-window.png)
 
 Figure 2: Sessions window for per-session editing.
 

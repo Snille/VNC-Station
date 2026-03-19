@@ -898,6 +898,7 @@ class MainWindow(QMainWindow):
         self.reconnect_on_drop = str(self.settings_store.value("reconnect_on_drop", "false")).lower() == "true"
         self.udp_port = self._load_udp_port_setting()
         self.follow_links_on_tagged = self._load_follow_links_on_tagged_setting()
+        self.keep_main_window_on_top = self._load_keep_main_window_on_top_setting()
         self.connections = scan_connections()
         self.position_names: List[str] = [p.name for p in scan_positions()]
         self.session_link_options: List[Tuple[str, str]] = self._build_session_link_options()
@@ -950,6 +951,7 @@ class MainWindow(QMainWindow):
         self.chat_window.set_topic(self.topic)
 
         self._build_ui()
+        self._apply_main_window_on_top(self.keep_main_window_on_top)
         self._flush_pending_json_warnings()
         saved_main_geometry = self.settings_store.value("main_geometry")
         if saved_main_geometry:
@@ -1382,6 +1384,21 @@ class MainWindow(QMainWindow):
         value = data.get("follow_links_on_tagged", "false")
         return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
+    def _load_keep_main_window_on_top_setting(self) -> bool:
+        data = load_default_mapping()
+        value = data.get("keep_main_window_on_top", "false")
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+    def _apply_main_window_on_top(self, enabled: bool) -> None:
+        """Toggle top-most behavior for the main app window."""
+        self.keep_main_window_on_top = bool(enabled)
+        was_visible = self.isVisible()
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, self.keep_main_window_on_top)
+        if was_visible:
+            self.show()
+            self.raise_()
+            self.activateWindow()
+
     def _bind_network_signals(self) -> None:
         self.network.station_seen.connect(self._on_station_seen)
         self.network.session_state.connect(self._on_remote_session_state)
@@ -1446,6 +1463,9 @@ class MainWindow(QMainWindow):
         data.setdefault("reconnect_on_drop", "true" if self.reconnect_on_drop else "false")
         data.setdefault(
             "follow_links_on_tagged", "true" if self.follow_links_on_tagged else "false"
+        )
+        data.setdefault(
+            "keep_main_window_on_top", "true" if self.keep_main_window_on_top else "false"
         )
         return data
 
@@ -1737,6 +1757,15 @@ class MainWindow(QMainWindow):
             )
         )
         self.follow_links_on_tagged = follow_links_value.strip().lower() in {"1", "true", "yes", "on"}
+        keep_on_top_value = str(
+            updates.pop(
+                "keep_main_window_on_top",
+                "true" if self.keep_main_window_on_top else "false",
+            )
+        )
+        self._apply_main_window_on_top(
+            keep_on_top_value.strip().lower() in {"1", "true", "yes", "on"}
+        )
         existing: Dict[str, object] = {}
         if DEFAULT_LOCAL_CONFIG_PATH.exists():
             try:
@@ -1746,6 +1775,13 @@ class MainWindow(QMainWindow):
                     existing = dict(raw)
             except (OSError, json.JSONDecodeError):
                 existing = {}
+        existing.update(
+            {
+                "reconnect_on_drop": "true" if self.reconnect_on_drop else "false",
+                "follow_links_on_tagged": "true" if self.follow_links_on_tagged else "false",
+                "keep_main_window_on_top": "true" if self.keep_main_window_on_top else "false",
+            }
+        )
         existing.update({k: str(v) for k, v in updates.items()})
         save_json(DEFAULT_LOCAL_CONFIG_PATH, existing)
         self.default_settings = load_default_settings()
@@ -1769,6 +1805,7 @@ class MainWindow(QMainWindow):
         """Refresh runtime state from imported default/default.local config files."""
         self.default_settings = load_default_settings()
         self.follow_links_on_tagged = self._load_follow_links_on_tagged_setting()
+        self._apply_main_window_on_top(self._load_keep_main_window_on_top_setting())
         new_udp_port = self._load_udp_port_setting()
         if new_udp_port != self.udp_port:
             self._recreate_network_bus(new_udp_port)

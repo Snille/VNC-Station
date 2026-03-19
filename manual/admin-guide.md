@@ -1,7 +1,7 @@
 # VNC Station Admin Guide
 
 Audience: administrators responsible for deployment, station settings, networking, validation, and recovery.  
-App version: `1.7.1`
+App version: `1.7.2`
 
 ## When To Use This Guide
 
@@ -58,7 +58,7 @@ Do not:
 
 Open `Settings` and configure the station before production use.
 
-![Settings window](manual-assets/images/1.7.1/03-settings-window-network-and-maintenance.png)
+![Settings window](manual-assets/images/1.7.2/03-settings-window-network-and-maintenance.png)
 
 Figure 1: Settings window for network, reconnect, HA, validation, and save operations.
 
@@ -68,7 +68,9 @@ Key areas in this screenshot:
 - station row: `Station name`
 - `Network`: shared `UDP Port`
 - `Network`: `Reconnect on drop`
+- `Network`: `Follow links on tagged`
 - `Network`: `Allow multiple instances on the same station`
+- `Network`: `Keep main window on top`
 - middle settings area: default VNC and label values, plus `Use button icons`
 - lower settings: Home Assistant URL and API key
 - bottom: maintenance actions and `Save`
@@ -78,15 +80,18 @@ Recommended sequence:
 1. set station name
 2. set the shared UDP port
 3. decide whether `Reconnect on drop` should be enabled
-4. keep `Allow multiple instances on the same station` disabled unless explicitly required
-5. configure HA URL and API key if HA is used
-6. run `Test HA connection`
-7. save
+4. decide whether tagged sessions should follow their saved links automatically
+5. keep `Allow multiple instances on the same station` disabled unless explicitly required
+6. enable `Keep main window on top` if operators need the controller pinned above other windows
+7. configure HA URL and API key if HA is used
+8. run `Test HA connection`
+9. save
 
 Expected result:
 
 - station opens with the intended identity and network settings
 - reconnect behavior matches your policy
+- follow-link and top-most behavior match operator workflow
 - main window title shows the station name plus app version
 - minimized in-use owner icons identify the holding station in the tooltip
 
@@ -164,6 +169,7 @@ Recommended policy:
 - keep stations on the same app version on all stations
 - disable multiple local instances by default
 - document whether reconnect-on-drop is expected
+- document whether `Follow links on tagged` and `Keep main window on top` should be enabled on production stations
 - avoid normalizing shared-session workflows unless operations explicitly require them
 - export a known-good config bundle after any major approved configuration change
 

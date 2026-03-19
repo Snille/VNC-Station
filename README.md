@@ -2,7 +2,7 @@
 
 Windows desktop app (PyQt5) for managing multiple TightVNC sessions in `view` and `control` mode, with station-to-station coordination over UDP and built-in chat.
 
-Current version: `1.7.1`
+Current version: `1.7.2`
 
 ## Table Of Contents
 
@@ -39,9 +39,9 @@ Current interface examples:
     <td align="center"><strong>Station Settings</strong></td>
   </tr>
   <tr>
-    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.1/01-main-window-setup-area.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.1/01-main-window-setup-area.png" alt="Main window" width="260"></a></td>
-    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.1/02-chat-window.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.1/02-chat-window.png" alt="Chat window" width="260"></a></td>
-    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.1/03-settings-window-network-and-maintenance.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.1/03-settings-window-network-and-maintenance.png" alt="Settings window" width="260"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.2/01-main-window-setup-area.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.2/01-main-window-setup-area.png" alt="Main window" width="260"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.2/02-chat-window.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.2/02-chat-window.png" alt="Chat window" width="260"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.2/03-settings-window-network-and-maintenance.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.2/03-settings-window-network-and-maintenance.png" alt="Settings window" width="260"></a></td>
   </tr>
   <tr>
     <td align="center"><strong>Session Editor</strong></td>
@@ -49,8 +49,8 @@ Current interface examples:
     <td align="center"><strong>Documentation</strong></td>
   </tr>
   <tr>
-    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.1/04-session-settings-window.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.1/04-session-settings-window.png" alt="Session settings window" width="260"></a></td>
-    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.1/05-position-settings-window.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.1/05-position-settings-window.png" alt="Position settings window" width="260"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.2/04-session-settings-window.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.2/04-session-settings-window.png" alt="Session settings window" width="260"></a></td>
+    <td><a href="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.2/05-position-settings-window.png"><img src="https://raw.githubusercontent.com/Snille/VNC-Station/main/manual/manual-assets/images/1.7.2/05-position-settings-window.png" alt="Position settings window" width="260"></a></td>
     <td align="center">See the <a href="manual/README.md">manual index</a> for the current role-based guides, workflows, and reference material.</td>
   </tr>
 </table>
@@ -164,7 +164,8 @@ Example `default.local.json`:
 ```json
 {
   "ha_url": "http://home.assistant.you:8123",
-  "ha_api_key": "YOUR_REAL_HA_TOKEN"
+  "ha_api_key": "YOUR_REAL_HA_TOKEN",
+  "keep_main_window_on_top": "true"
 }
 ```
 
@@ -218,7 +219,7 @@ Also make sure `python.exe` is allowed in Windows Defender Firewall.
 10. Use `Clear` to drop temporary setup/tag state and reload the persisted per-session settings, with rows minimized afterward.
 11. Use `Settings` and run `Validate config`, `Export config`, or `Import config` from the Settings window.
 12. Configure `Active Folder` / `Active Path/File` and optional `Active Button Text` in Edit dialogs or the `Sessions` window; the active button(s) open the configured file, or the latest file in a folder, and the toast reports the full resolved path that was opened.
-13. Use `Settings` to open app settings (theme, font size, station name, `Use button icons`, UDP port, reconnect-on-drop, allow-multiple-instances option, defaults, HA URL/key, HA connection test, maintenance tools).
+13. Use `Settings` to open app settings (theme, font size, station name, `Use button icons`, UDP port, reconnect-on-drop, `Follow links on tagged`, `Keep main window on top`, allow-multiple-instances option, defaults, HA URL/key, HA connection test, maintenance tools).
 14. In `Edit View` / `Edit Control`, add HA sensors and map icons (single icon or binary true/false icons), reorder `Selected Sensors` by drag-and-drop, and optionally set binary state color rules.
 15. In the HA sensor search field, press `Enter` to search immediately and use wildcard patterns such as `*m18*` or `*door*m18*`.
 
@@ -264,7 +265,9 @@ Startup note:
 - Linked rows in expanded view: linked child sessions render nested under the parent row instead of staying duplicated in the top-level list.
 - Per-session `Active Folder` / `Active Path/File` buttons with optional custom button text per mode.
 - When an Active Folder button opens a file, the toast reports the full resolved path.
-- App-level `Settings` window for theme, font size, station name, UDP port, reconnect-on-drop, allow-multiple-instances option, defaults, HA connectivity, and maintenance tools.
+- App-level `Settings` window for theme, font size, station name, UDP port, reconnect-on-drop, `Follow links on tagged`, `Keep main window on top`, allow-multiple-instances option, defaults, HA connectivity, and maintenance tools.
+- `Keep main window on top` option: keeps the main operator window above other windows using the same top-most behavior as overlay labels.
+- Global settings persistence to JSON: station-level toggles such as reconnect, follow-links-on-tagged, keep-main-window-on-top, and allow-multiple-instances are saved in local JSON overrides as well as applied at runtime.
 - Global `Use button icons` preference: show or hide button icons across the main window and utility windows.
 - Single-instance protection by default: blocks launching a second app instance on the same station unless explicitly enabled in settings.
 - HA connection testing (`/api/`) with toast feedback and success/fail button color feedback.
@@ -358,7 +361,7 @@ Build a distributable folder with PyInstaller:
 ```
 
 Note: packaging builds a windowed app (`--windowed`), so no black console window appears for users.
-It also copies `default.json`, `Updates.md`, and the manual folder, leaves the runtime `vnc-*` folders empty for operator-supplied content, and creates a versioned zip such as `dist/VNC-Station-Controller-1.7.1.zip`.
+It also copies `default.json`, `Updates.md`, and the manual folder, leaves the runtime `vnc-*` folders empty for operator-supplied content, and creates a versioned zip such as `dist/VNC-Station-Controller-1.7.2.zip`.
 
 Cleanup generated build artifacts:
 
@@ -386,7 +389,7 @@ Cleanup generated build artifacts:
 - away status updates
 - takeover notices
 - Session lock logic prevents opening a connection already active on another station, unless `Allow shared sessions` is enabled.
-- The app stores UI preferences (theme, window sizes, reconnect toggle) via Windows `QSettings`.
+- The app stores UI preferences (theme, window sizes, font size, and related UI state) via Windows `QSettings`, while station defaults and global settings toggles are persisted in `default.json` / `default.local.json`.
 - At startup, the app performs a short session-sync handshake (`session_sync_request`) before enabling open actions.
 
 ## TODO

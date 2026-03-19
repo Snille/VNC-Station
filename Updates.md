@@ -1,9 +1,15 @@
 # Updates
 
 Project: `VNC Station Controller`  
-Latest version in repository: `1.7.1`
+Latest version in repository: `1.7.2`
 
 ## Version Milestones
+
+- `1.7.2` (`release`, 2026-03-19)
+  - Added `Keep main window on top` to the main Settings window so operators can keep the controller visible above other applications.
+  - Reordered related Settings checkboxes so `Follow links on tagged`, `Allow multiple instances on the same station`, and `Keep main window on top` are grouped together.
+  - Fixed Settings persistence so station-level toggles, including `keep_main_window_on_top`, are written to `default.local.json` and survive restarts, export/import, and copied station configs.
+  - Expanded the default JSON schema and refreshed the README, build spec, and manuals for the current Settings behavior.
 
 - `1.7.1` (`release`, 2026-03-17)
   - Refined the `Sessions` window so each loaded mode only shows its own position and link fields, with clearer labels such as `View Position` and `Link Control`.

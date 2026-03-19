@@ -149,6 +149,11 @@ Required keys:
 - `station_name`
 - `ha_url`
 - `ha_api_key`
+- `udp_port`
+- `allow_multiple_instances`
+- `reconnect_on_drop`
+- `follow_links_on_tagged`
+- `keep_main_window_on_top`
 
 `default.local.json` (optional):
 - same key schema as `default.json`
@@ -354,8 +359,10 @@ Fields:
 - station name
 - `Use button icons` checkbox
 - `UDP Port`
-- `Allow multiple instances on the same station`
 - `Reconnect on drop`
+- `Follow links on tagged`
+- `Keep main window on top`
+- `Allow multiple instances on the same station`
 - all `default.json` fields
 - `Home Assistant URL`
 - `HA API Key`
@@ -642,6 +649,7 @@ Packaging requirement:
 - build output must leave the `vnc-view`, `vnc-control`, `vnc-positions`, and `vnc-setups` folders empty.
 - build output must not include any files from `vnc-view`, `vnc-control`, `vnc-positions`, or `vnc-setups`.
 - build must also create a versioned zip package named `VNC-Station-Controller-<version>.zip` that contains the whole distribution folder.
+- global settings saved from the Settings window must persist into `default.local.json` so copied/exported station configs retain operator policy toggles.
 
 ## 16. Verification Checklist (must all pass)
 
