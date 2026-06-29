@@ -1,7 +1,7 @@
 # VNC Station Admin Guide
 
 Audience: administrators responsible for deployment, station settings, networking, validation, and recovery.  
-App version: `1.7.2`
+App version: `1.7.3`
 
 ## When To Use This Guide
 
@@ -142,6 +142,7 @@ What validation is for:
 - missing `tvnviewer.exe`
 - missing required folders
 - malformed JSON in station defaults or session files
+- unknown session JSON keys, including typos in settings such as `window_wait_ms`
 - other file-layout problems that would break runtime behavior
 
 ## 6. Station Replication Workflow
@@ -180,6 +181,7 @@ Recommended policy:
 | stations do not discover each other | UDP mismatch or firewall block | verify same port and test both directions |
 | app reports another instance is already running | single-instance protection is active | close the existing instance or intentionally allow multiple instances |
 | sessions do not launch | missing `tvnviewer.exe` or `.vnc` files | verify runtime layout and run validation |
+| sessions launch but sometimes stay in the wrong place | slow VNC server/viewer window creation | increase `Window wait` for the affected session |
 | VNC authentication fails | wrong or missing password in `.vnc` | re-save the `.vnc` file and verify server credentials |
 | dropped sessions stay down | reconnect is disabled | check `Reconnect on drop` in Settings |
 | operators see blocked sessions often | station ownership conflict | verify workflow, staffing, and whether shared-session policy is being used correctly |

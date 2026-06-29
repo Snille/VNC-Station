@@ -1,9 +1,15 @@
 # Updates
 
 Project: `VNC Station Controller`  
-Latest version in repository: `1.7.2`
+Latest version in repository: `1.7.3`
 
 ## Version Milestones
+
+- `1.7.3` (`release`, 2026-06-30)
+  - Added per-session `window_wait_ms` so slow VNC servers can wait longer before the first native viewer-window positioning attempt.
+  - Initial VNC window positioning now retries up to three times, waiting the configured session delay between attempts and stopping as soon as the viewer window is found.
+  - Added `Window wait` fields to the dedicated `Sessions` window and per-session edit dialog, with `600 ms` as the default.
+  - Updated config validation, example JSON, README, build spec, and manuals for the new session timing behavior.
 
 - `1.7.2` (`release`, 2026-03-19)
   - Added `Keep main window on top` to the main Settings window so operators can keep the controller visible above other applications.

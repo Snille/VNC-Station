@@ -1,7 +1,7 @@
 # VNC Station User Guide
 
 Audience: operators using the app during normal production work.  
-App version: `1.7.2`
+App version: `1.7.3`
 
 ## When To Use This Guide
 
@@ -248,6 +248,7 @@ If something looks wrong:
 | Nothing opens when you click | session blocked or file missing | read the toast and coordinate if another station owns it |
 | `View tagged` or `Control tagged` opens only some rows | one or more rows are blocked, invalid, or missing a usable mode file | check the toast details and the prepared setup |
 | A session opens in the wrong place | wrong position or wrong setup | ask an advanced user to check positions or setup content |
+| A session opens but does not move to its position | the VNC viewer window may have appeared too late for placement | ask an advanced user to increase that session's `Window wait` |
 | Chat does not show other stations | UDP/firewall/network problem | escalate to admin |
 | A dropped session does not return | reconnect behavior may be disabled | ask admin to check `Reconnect on drop` in Settings |
 | A machine shows alarm colors or icons you do not expect | HA state changed or a mapping is configured for alarms | treat it as an operational signal first, then ask an advanced user to verify the mapping if needed |

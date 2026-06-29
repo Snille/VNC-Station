@@ -16,6 +16,7 @@
   "station_name": "Station 01",
   "position_name": "",
   "linked_session": "",
+  "window_wait_ms": "600",
   "ks": "",
   "ha_url": "",
   "ha_api_key": "<ha_api_key>",

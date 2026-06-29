@@ -226,6 +226,7 @@ class SettingsWindow(QDialog):
         self._add_spin(right_window_form, "y", "VNC Y", _int_from_mapping(defaults, "y", 1), -10000, 10000)
         self._add_spin(left_window_form, "width", "VNC width", _int_from_mapping(defaults, "width", 1300), 100, 6000)
         self._add_spin(right_window_form, "height", "VNC height", _int_from_mapping(defaults, "height", 880), 100, 6000)
+        self._add_spin(left_window_form, "window_wait_ms", "Window wait", _int_from_mapping(defaults, "window_wait_ms", 600), 0, 30000)
 
         defaults_separator = QFrame()
         defaults_separator.setFrameShape(QFrame.HLine)
@@ -335,6 +336,7 @@ class SettingsWindow(QDialog):
             "label_height": 100,
             "label_font": 18,
             "label_border_size": 5,
+            "window_wait_ms": 600,
         }
         text_defaults = {
             "label_text": "Default",
@@ -377,6 +379,7 @@ class SettingsWindow(QDialog):
             "y": str(self._fields["y"].value()),
             "width": str(self._fields["width"].value()),
             "height": str(self._fields["height"].value()),
+            "window_wait_ms": str(self._fields["window_wait_ms"].value()),
             "label_text": self._fields["label_text"].text().strip() or "Default",
             "label_x": str(self._fields["label_x"].value()),
             "label_y": str(self._fields["label_y"].value()),

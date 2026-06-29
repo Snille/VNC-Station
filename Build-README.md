@@ -138,6 +138,7 @@ Contains defaults and station identity. Numeric values are stored as strings.
 
 Required keys:
 - `x`, `y`, `width`, `height`
+- `window_wait_ms`
 - `label_text`
 - `label_x`, `label_y`
 - `label_bg`
@@ -174,6 +175,7 @@ Keys:
 - `label_text`
 - `position_name` (selected position preset name from `vnc-positions`, optional)
 - `linked_session` (token format `<ConnectionName>|view|control`, optional)
+- `window_wait_ms` (milliseconds to wait between initial viewer-window positioning attempts; default `600`)
 - `ks` (folder or file path, optional; if folder, open latest modified file at click time)
 - clicking the row active button shows a toast with the full resolved opened path
 - `ha_sensors` (list of selected entity IDs, optional)
@@ -309,6 +311,7 @@ Setup list behavior:
 - automatically loads the first available session when the window opens
 - if selected target JSON is missing, load defaults from `default.json`
 - top `Save` writes the selected session JSON and also persists the currently loaded mode's position/link fields
+- `Window wait` persists `window_wait_ms` for slow VNC servers that create their viewer window late
 - active-path editor includes browse button plus folder/file mode toggle
 - `Active Button Text` shows placeholder help: `Default is KS`
 
@@ -327,6 +330,7 @@ Fields:
 - label_text
 - position selector
 - linked session selector
+- window wait in milliseconds
 - ks (folder path or file path with browse button and file-mode checkbox)
 - HA sensor search + selected sensors list
 - HA search supports `Enter` submit and `*` wildcards (for example `*m18*`)
@@ -421,9 +425,11 @@ Per session:
 3. Spawn process.
 4. Create always-on-top, frameless, click-through label window.
 5. Locate VNC native window by process ID.
-6. Move/resize VNC window to config `x,y,width,height`.
-7. Track overlay offset from VNC window and keep synced on timer.
-8. If `position_name` is set and found in `vnc-positions`, it overrides launch `x,y,width,height` and the reusable label visual settings.
+6. Wait `window_wait_ms` before the first positioning attempt.
+7. Move/resize VNC window to config `x,y,width,height`.
+8. If no matching native window is found, retry initial positioning up to three total attempts, waiting `window_wait_ms` between attempts.
+9. Track overlay offset from VNC window and keep synced on timer.
+10. If `position_name` is set and found in `vnc-positions`, it overrides launch `x,y,width,height` and the reusable label visual settings.
 
 Open behavior additions:
 - if `linked_session` is set, opening a session also opens the linked session.
@@ -599,7 +605,7 @@ Behavioral fallbacks:
 - `toast.py`: transient non-blocking notifications
 - `tools.py`: validation and config bundle import/export
 - `position_settings.py`: frameless preview editor for reusable VNC + label position presets
-- `session_settings.py`: editor for per-session text, active-path, sensor, and position/link assignments
+- `session_settings.py`: editor for per-session text, window wait timing, active-path, sensor, and position/link assignments
 - `chat_window.py`: chat UI widgets and input behavior
 - `settings_dialog.py`: edit dialog UI and value extraction
 - `main_window.py`: orchestrates UI, sessions, chat, network events
@@ -663,6 +669,7 @@ Packaging requirement:
 - `Settings` opens app settings window.
 - `.vnc` launch uses `-optionsfile=...`.
 - Overlay follows moved VNC window.
+- Initial VNC window positioning retries up to three times and honors per-session `window_wait_ms`.
 - Overlay uses label offsets relative to VNC window.
 - Session lock blocks cross-station duplicate opens unless `Allow shared sessions` is checked.
 - Position selectors prevent duplicate assignment for View mode.

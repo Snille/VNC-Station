@@ -2,6 +2,7 @@
   "label_text": "Machine 01",
   "position_name": "",
   "linked_session": "",
+  "window_wait_ms": "600",
   "ks": "",
   "ks_button_text": "",
   "ha_sensors": [],

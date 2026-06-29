@@ -26,6 +26,7 @@ except Exception:  # pragma: no cover
     _dwmapi = None
 
 DWMWA_EXTENDED_FRAME_BOUNDS = 9
+INITIAL_POSITION_ATTEMPTS = 3
 
 
 class RECT(Structure):
@@ -131,7 +132,8 @@ class SessionManager:
         )
         self._sessions[key] = record
 
-        QTimer.singleShot(600, lambda: self._position_initial_window(key))
+        delay_ms = max(0, int(settings.window_wait_ms))
+        QTimer.singleShot(delay_ms, lambda: self._position_initial_window(key, 1))
         return True
 
     def close_session(self, key: Tuple[str, str]) -> None:
@@ -168,14 +170,20 @@ class SessionManager:
         except Exception:
             pass
 
-    def _position_initial_window(self, key: Tuple[str, str]) -> None:
+    def _position_initial_window(self, key: Tuple[str, str], attempt: int = 1) -> None:
         """Find new viewer window and apply configured initial geometry."""
         record = self._sessions.get(key)
         if not record:
             return
+        try:
+            if record.process and record.process.poll() is not None:
+                return
+        except Exception:
+            pass
         hwnd = self._find_main_window(record.process.pid)
         record.hwnd = hwnd
         if hwnd is None:
+            self._schedule_position_retry(key, attempt)
             return
         self._move_window(hwnd, record.settings.x, record.settings.y, record.settings.width, record.settings.height)
         ox, oy = record.label_offset
@@ -186,6 +194,16 @@ class SessionManager:
             max(20, record.settings.label_height),
         )
         record.overlay.label.setGeometry(0, 0, record.overlay.width(), record.overlay.height())
+
+    def _schedule_position_retry(self, key: Tuple[str, str], attempt: int) -> None:
+        """Retry initial positioning for slow viewer windows."""
+        if attempt >= INITIAL_POSITION_ATTEMPTS:
+            return
+        record = self._sessions.get(key)
+        if not record:
+            return
+        delay_ms = max(0, int(record.settings.window_wait_ms))
+        QTimer.singleShot(delay_ms, lambda: self._position_initial_window(key, attempt + 1))
 
     def _sync_overlays(self) -> None:
         """Poll active windows and move overlays so they follow window movement."""

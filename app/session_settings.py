@@ -5,7 +5,7 @@ from typing import List, Tuple
 
 from PyQt5.QtCore import QSettings, QSize, pyqtSignal
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QApplication, QCheckBox, QComboBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QApplication, QCheckBox, QComboBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton, QSpinBox, QVBoxLayout, QWidget
 
 from .config import config_path_for, load_session_settings, save_json, scan_connections, scan_positions, update_session_overrides
 from .constants import CANCEL_ICON_PATH, GEARS_ICON_PATH, MODE_CONTROL, MODE_VIEW, OPEN_ICON_PATH, SAVE_ICON_PATH
@@ -113,6 +113,12 @@ class SessionSettingsWindow(QMainWindow):
         self.link_box = QComboBox()
         form.addRow(self.link_label, self.link_box)
         self._add_active_path_picker(form, self.settings.ks)
+        self.window_wait_spin = QSpinBox()
+        self.window_wait_spin.setRange(0, 30000)
+        self.window_wait_spin.setSingleStep(100)
+        self.window_wait_spin.setSuffix(" ms")
+        self.window_wait_spin.setValue(self.settings.window_wait_ms)
+        form.addRow("Window wait", self.window_wait_spin)
         self.ks_button_text = QLineEdit()
         self.ks_button_text.setPlaceholderText("Default is KS")
         form.addRow("Active Button Text", self.ks_button_text)
@@ -244,6 +250,7 @@ class SessionSettingsWindow(QMainWindow):
         self.link_label.setText("Link View" if mode == MODE_VIEW else "Link Control")
         self.label_text.setText(settings.label_text)
         self.ks_text.setText(settings.ks)
+        self.window_wait_spin.setValue(settings.window_wait_ms)
         self.ks_button_text.setText(settings.ks_button_text)
         self._set_combo_text(self.position_box, settings.position_name)
         self._set_combo_data(self.link_box, settings.linked_session)
@@ -260,7 +267,7 @@ class SessionSettingsWindow(QMainWindow):
 
     def _collect_settings(self) -> SessionSettings:
         sensor_ids, sensor_mappings = self.sensor_editor.sensor_values()
-        return SessionSettings(label_text=self.label_text.text().strip() or "Label", ks=self.ks_text.text().strip(), ks_button_text=self.ks_button_text.text().strip(), ha_sensors=sensor_ids, ha_sensor_icons=sensor_mappings)
+        return SessionSettings(label_text=self.label_text.text().strip() or "Label", window_wait_ms=self.window_wait_spin.value(), ks=self.ks_text.text().strip(), ks_button_text=self.ks_button_text.text().strip(), ha_sensors=sensor_ids, ha_sensor_icons=sensor_mappings)
 
     def _save_selected_target_settings(self) -> None:
         idx = self.load_target_box.currentIndex()

@@ -60,6 +60,7 @@ class ConfigMergeTests(unittest.TestCase):
                         "label_text": "Custom",
                         "position_name": "Position 01",
                         "linked_session": "Target B|control",
+                        "window_wait_ms": "1800",
                         "ks": r"G:\Path\to\file.xlsx",
                         "ks_button_text": "Manual",
                         "ha_sensors": ["sensor.temp_a", "sensor.temp_b"],
@@ -79,6 +80,7 @@ class ConfigMergeTests(unittest.TestCase):
             self.assertEqual(merged.station_name, "Station 01")
             self.assertEqual(merged.position_name, "Position 01")
             self.assertEqual(merged.linked_session, "Target B|control")
+            self.assertEqual(merged.window_wait_ms, 1800)
             self.assertEqual(merged.ks, r"G:\Path\to\file.xlsx")
             self.assertEqual(merged.ks_button_text, "Manual")
             self.assertEqual(merged.ha_sensors, ["sensor.temp_a", "sensor.temp_b"])

@@ -57,6 +57,7 @@ class SessionSettings:
     station_name: str = "Station 01"
     position_name: str = ""
     linked_session: str = ""
+    window_wait_ms: int = 600
     ks: str = ""
     ks_button_text: str = ""
     ha_sensors: List[str] = field(default_factory=list)
@@ -142,6 +143,7 @@ class SessionSettings:
             station_name=str(data.get("station_name", defaults.station_name)),
             position_name=str(data.get("position_name", defaults.position_name)),
             linked_session=str(data.get("linked_session", defaults.linked_session)),
+            window_wait_ms=max(0, to_int(data.get("window_wait_ms"), defaults.window_wait_ms)),
             ks=str(data.get("ks", defaults.ks)),
             ks_button_text=str(data.get("ks_button_text", defaults.ks_button_text)),
             ha_sensors=deduped_sensors,
@@ -167,6 +169,7 @@ class SessionSettings:
             "label_border_color": self.label_border_color,
             "position_name": self.position_name,
             "linked_session": self.linked_session,
+            "window_wait_ms": str(self.window_wait_ms),
             "ks": self.ks,
             "ks_button_text": self.ks_button_text,
             "ha_sensors": list(self.ha_sensors),
@@ -179,6 +182,7 @@ class SessionSettings:
             "label_text": self.label_text,
             "position_name": self.position_name,
             "linked_session": self.linked_session,
+            "window_wait_ms": str(self.window_wait_ms),
             "ks": self.ks,
             "ks_button_text": self.ks_button_text,
             "ha_sensors": list(self.ha_sensors),

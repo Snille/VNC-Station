@@ -21,6 +21,7 @@ _SESSION_SETTINGS_KEYS = {
     "label_text",
     "position_name",
     "linked_session",
+    "window_wait_ms",
     "ks",
     "ks_button_text",
     "ha_sensors",

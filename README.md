@@ -2,7 +2,7 @@
 
 Windows desktop app (PyQt5) for managing multiple TightVNC sessions in `view` and `control` mode, with station-to-station coordination over UDP and built-in chat.
 
-Current version: `1.7.2`
+Current version: `1.7.3`
 
 ## Table Of Contents
 
@@ -213,7 +213,7 @@ Also make sure `python.exe` is allowed in Windows Defender Firewall.
 4. Use row `View` / `Control` buttons to toggle one session at a time.
 5. Use `View tagged` / `Control tagged` to open or close tagged sessions per mode.
 6. Use `Close all sessions` to immediately close every open local session.
-7. Use `Edit View` / `Edit Control` for per-session labels, links, active paths, and HA sensor settings.
+7. Use `Edit View` / `Edit Control` for per-session labels, links, VNC window wait timing, active paths, and HA sensor settings.
 8. Use `Positions` for visual position editing and `Sessions` for per-session visual settings.
 9. Use setup presets from the setup list on the lower left; click one to apply it immediately, drag to reorder it, and use `Setup name` + `Save` / `Clear` / `Delete` on the right.
 10. Use `Clear` to drop temporary setup/tag state and reload the persisted per-session settings, with rows minimized afterward.
@@ -256,7 +256,7 @@ Startup note:
 - Per-connection View/Control toggle buttons: open/close one mode from one button.
 - Tagging + mode-specific tagged toggles: batch open/close tagged sessions by mode.
 - Global close-all action: close every currently open local View/Control session with one click.
-- Per-connection settings editor: tune session-owned settings such as label text, fixed positions, links, active paths, and HA mappings.
+- Per-connection settings editor: tune session-owned settings such as label text, fixed positions, links, VNC window wait timing, active paths, and HA mappings.
 - Position presets (`vnc-positions`): reusable VNC geometry plus label placement, size, and visual styling.
 - Per-mode position assignment (`Pos V` / `Pos C`): assign a preset to each view/control session.
 - Unique position assignment guard on View mode: prevents duplicate View position assignment.
@@ -285,6 +285,7 @@ Startup note:
 - Setup presets are shown in a draggable list, and custom list order is persisted across restarts.
 - Last selected setup is persisted across restarts.
 - Overlay labels that follow VNC windows: keep session identity visible on screen.
+- Configurable initial VNC window wait and retry behavior: helps slower VNC servers finish creating the viewer window before placement is applied.
 - Session lock awareness across stations: avoid accidental duplicate control/view.
 - Optional shared-session override mode: allow opening a session already held by another station when needed.
 - Reconnect on drop option in `Settings`: automatically restore sessions after unexpected viewer exits.
@@ -339,7 +340,7 @@ For binary-style entities (`binary_sensor.*`, `input_boolean.*`):
 - `Sessions` opens the dedicated session editor:
   - loads the first available session automatically on open
   - `Load` target selector (`connection [view/control]`) with default fallback if JSON is missing
-  - edits per-session `label_text`, mode-specific `View Position` / `Control Position`, mode-specific `Link View` / `Link Control`, active path/file settings, and HA sensor mappings
+  - edits per-session `label_text`, mode-specific `View Position` / `Control Position`, mode-specific `Link View` / `Link Control`, `window_wait_ms`, active path/file settings, and HA sensor mappings
   - top `Save` writes the selected session JSON and persists the chosen position/link selector for the currently loaded mode
   - Active-path browsing supports folder mode or fixed-file mode from the same window
   - `Active Button Text` shows placeholder help: `Default is KS`
@@ -361,7 +362,7 @@ Build a distributable folder with PyInstaller:
 ```
 
 Note: packaging builds a windowed app (`--windowed`), so no black console window appears for users.
-It also copies `default.json`, `Updates.md`, and the manual folder, leaves the runtime `vnc-*` folders empty for operator-supplied content, and creates a versioned zip such as `dist/VNC-Station-Controller-1.7.2.zip`.
+It also copies `default.json`, `Updates.md`, and the manual folder, leaves the runtime `vnc-*` folders empty for operator-supplied content, and creates a versioned zip such as `dist/VNC-Station-Controller-1.7.3.zip`.
 
 Cleanup generated build artifacts:
 
@@ -375,6 +376,7 @@ Cleanup generated build artifacts:
 - Launching a session starts `tvnviewer.exe -optionsfile=<file.vnc>`.
 - JSON settings are loaded per connection/mode (`<name>.json`), with fallback to `default.json`.
 - If a session has `position_name` set, that position preset overrides launch `x/y/width/height` and the reusable label visual settings.
+- Initial VNC window positioning is attempted up to three times, waiting `window_wait_ms` between attempts; default is `600`.
 - Overlay label `label_x`/`label_y` are treated as offsets from the VNC window top-left.
 - If a session has `linked_session` set, linked sessions are auto-opened for View/Control actions.
 - Closing a session also follows `linked_session` and closes linked sessions recursively.

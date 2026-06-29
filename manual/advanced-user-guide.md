@@ -1,7 +1,7 @@
 # VNC Station Advanced User Guide
 
 Audience: power users who prepare layouts, setups, links, Active Folder behavior, and Home Assistant mappings.  
-App version: `1.7.2`
+App version: `1.7.3`
 
 ## When To Use This Guide
 
@@ -42,7 +42,7 @@ Typical flow:
 
 Use the `Positions` window for reusable VNC geometry plus label offset, size, font, colors, and border styling.
 
-To set session-specific `label_text`, fixed positions, links, Active Folder behavior, or HA sensor mapping, use the `Sessions` window.
+To set session-specific `label_text`, fixed positions, links, VNC window wait timing, Active Folder behavior, or HA sensor mapping, use the `Sessions` window.
 
 ![Positions window](manual-assets/images/1.7.2/05-position-settings-window.png)
 
@@ -57,6 +57,7 @@ Use `Sessions` for:
 - label text
 - fixed `View Position` or `Control Position` assignments for the loaded mode
 - `Link View` or `Link Control` for the loaded mode
+- `Window wait` timing for slow VNC servers
 - Active Folder
 - Active Button Text
 - HA sensors and icons
@@ -69,6 +70,7 @@ Key areas in this screenshot:
 
 - top: `Load settings`
 - center: `Label text`, plus only the mode-specific `View Position` / `Link View` or `Control Position` / `Link Control` fields for the loaded target
+- `Window wait`: milliseconds to wait between initial window-positioning attempts
 - `Active Folder` row: folder-or-file path plus `Browse...` and folder/file toggle
 - below that: `Active Button Text` with `Default is KS` placeholder guidance
 - HA area: search field, search results, selected sensors, and per-sensor mappings
@@ -78,6 +80,7 @@ Expected result after saving:
 - the session JSON for the chosen target is updated
 - the next time the session opens, it uses the updated behavior
 - if `position_name` is set to a valid position preset, that preset geometry and label visual settings are used at launch
+- if a VNC server is slow to open, increase `Window wait` for that session
 
 ## 4. Configure Active Folder
 
@@ -219,6 +222,7 @@ Run this after editing positions, sessions, links, or setups:
 |---|---|---|
 | position preset seems ignored | wrong `Pos V` / `Pos C` or old setup state | reapply the setup and verify the row selectors |
 | label looks wrong | edited in the wrong place or wrong position preset | reopen `Positions` and verify the preset used by the session |
+| VNC window does not move to its preset | the viewer window appears after the default wait/retry window | increase `Window wait` in the session settings |
 | Active Folder opens the wrong file | unexpected newest file in folder | verify folder contents and timestamps |
 | HA icons do not update | wrong entity ID or missing HA config | verify HA settings and sensor IDs |
 | operators say setup is wrong | setup was saved before latest edits | re-save and re-test the setup |

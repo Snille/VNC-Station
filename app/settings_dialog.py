@@ -605,6 +605,7 @@ class SettingsDialog(QDialog):
         self._add_position_selector(form, selected_position or settings.position_name, list(position_names or []))
         self._add_link_selector(form, settings.linked_session, list(link_options or []))
         self._add_active_path_picker(form, settings.ks)
+        self._add_spin(form, "window_wait_ms", "Window Wait", settings.window_wait_ms, 0, 30000)
         self._add_text(form, "ks_button_text", "Active Button Text", settings.ks_button_text)
 
         self.sensor_editor = SensorMappingsEditor(settings, self)
@@ -731,6 +732,7 @@ class SettingsDialog(QDialog):
                 station_name="",
                 position_name=self._fields["position_name"].currentText().strip(),
                 linked_session=str(self._fields["linked_session"].currentData() or "").strip(),
+                window_wait_ms=self._fields["window_wait_ms"].value(),
                 ks=self._fields["ks"].text().strip(),
                 ks_button_text=self._fields["ks_button_text"].text().strip(),
                 ha_sensors=sensor_ids,
